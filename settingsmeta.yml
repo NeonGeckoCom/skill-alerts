@@ -1,0 +1,36 @@
+skillMetadata:
+  sections:
+    - name: Notification Settings
+      fields:
+        - name: speak_alarm
+          type: checkbox
+          label: Speak alarm notifications (False plays alarm sound)
+          value: "false"
+        - name: speak_timer
+          type: checkbox
+          label: Speak timer notifications (False plays timer sound)
+          value: "true"
+        - name: sound_alarm
+          type: text
+          label: Alarm audio resource file
+          value: constant_beep.mp3
+        - name: sound_timer
+          type: text
+          label: Timer audio resource file
+          value: beep4.mp3
+        - name: quiet_hours
+          type: checkbox
+          label: Quiet Hours (mutes all notifications until disabled)
+          value: "false"
+        - name: snooze_mins
+          type: number
+          label: Default snooze duration in minutes
+          value: 15
+        - name: timeout_min
+          type: number
+          label: Default alert timeout duration in minutes
+          value: 5
+        - name: default_repeat_mins
+          type: number
+          label: Default time between expired alert notifications in minutes
+          value: 2
