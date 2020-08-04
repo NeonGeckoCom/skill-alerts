@@ -1,0 +1,6 @@
+*.yml
+!settingsmeta.yml
+*.lock
+.idea/
+.msm
+*.pyc
