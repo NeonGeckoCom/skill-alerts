@@ -5,3 +5,5 @@
 .msm
 *.pyc
 __pycache__/
+!.github/*
+!.github/*
