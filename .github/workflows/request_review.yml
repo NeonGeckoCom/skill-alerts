@@ -1,4 +1,4 @@
-# This workflow will generate a PR for changes in dev into master for a skill
+# This workflow will assign NeonDevs to review any PR into the dev or master branch of a skill
 
 name: Request PR Review
 on:
