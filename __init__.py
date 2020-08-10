@@ -67,22 +67,22 @@ class AlertSkill(MycroftSkill):
         # self.quiet_hours = False
         self.active_time = None
         self.active_alert = None
-        default = {
-                    'speak_alarm': False,
-                    'speak_timer': True,
-                    'sound_alarm': 'constant_beep.mp3',
-                    'sound_timer': 'beeb4.mp3',
-                    'quiet_hours': False,
-                    'snooze_mins': 15,
-                    'timeout_min': 5,
-                    'default_repeat_mins': 2,
-                    'alarms': {},
-                    'timers': {},
-                    'reminders': {},
-                    'missed': {},
-                    'active': {}
-                   }
-        self.init_settings(default)
+        # default = {
+        #             'speak_alarm': False,
+        #             'speak_timer': True,
+        #             'sound_alarm': 'constant_beep.mp3',
+        #             'sound_timer': 'beeb4.mp3',
+        #             'quiet_hours': False,
+        #             'snooze_mins': 15,
+        #             'timeout_min': 5,
+        #             'default_repeat_mins': 2,
+        #             'alarms': {},
+        #             'timers': {},
+        #             'reminders': {},
+        #             'missed': {},
+        #             'active': {}
+        #            }
+        # self.init_settings(default)
         self.snd_alarm = self.snd_dir + self.settings['sound_alarm']
         self.snd_timer = self.snd_dir + self.settings['sound_timer']
         self.quiet_hours = self.settings['quiet_hours']
