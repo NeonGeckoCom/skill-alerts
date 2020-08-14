@@ -904,9 +904,9 @@ class AlertSkill(MycroftSkill):
             new_time = self.extract_time(utt, message)[0]
             LOG.debug(f"DM: {new_time}")
         if not new_time:
-            new_time = datetime.now(tz) + timedelta(minutes=self.ngi_settings.content['snooze_mins'])
+            new_time = datetime.now(tz) + timedelta(minutes=self.settings['snooze_mins'])
             LOG.debug(f"DM: {new_time}")
-            snooze_duration = self.ngi_settings.content['snooze_mins']*60
+            snooze_duration = self.settings['snooze_mins']*60
         LOG.debug(new_time)
         LOG.debug(f"DM: {snooze_duration}")
         LOG.debug(f"DM: {nick(flac_filename)}")
@@ -923,7 +923,7 @@ class AlertSkill(MycroftSkill):
                 elif kind == 'reminder':
                     self.reminders[str(new_time)] = data
                 if type(snooze_duration) not in (int, float):
-                    snooze_duration = self.ngi_settings.content['snooze_mins']*60
+                    snooze_duration = self.settings['snooze_mins']*60
                 duration = self.get_nice_duration(snooze_duration)
                 LOG.debug(f"DM: {self.active[time]}")
                 data = self.active[time]
@@ -1463,12 +1463,12 @@ class AlertSkill(MycroftSkill):
         elif file:
             self._play_notify_expired(message)
         elif kind == 'alarm':
-            if self.ngi_settings.content['speak_alarm']:
+            if self.settings['speak_alarm']:
                 self._speak_notify_expired(message)
             else:
                 self._play_notify_expired(message)
         elif kind == 'timer':
-            if self.ngi_settings.content['speak_timer']:
+            if self.settings['speak_timer']:
                 self._speak_notify_expired(message)
             else:
                 self._play_notify_expired(message)
@@ -1601,8 +1601,8 @@ class AlertSkill(MycroftSkill):
         # Determine how long to wait to reschedule recurring alert
 
         # This is an alarm or timer with a known audio file that should play continuously
-        if((message.data.get('kind') == 'alarm') and not self.ngi_settings.content['speak_alarm']) or \
-                ((message.data.get('kind') == 'timer') and not self.ngi_settings.content['speak_timer']):
+        if((message.data.get('kind') == 'alarm') and not self.settings['speak_alarm']) or \
+                ((message.data.get('kind') == 'timer') and not self.settings['speak_timer']):
             time = datetime.now(self.tz) + timedelta(seconds=5)  # TODO: Base this off of file length DM
         # This is a reconveyance reminder
         elif message.data.get('file'):
