@@ -611,6 +611,10 @@ class AlertSkill(MycroftSkill):
             # else:
             #     self.check_for_signal("CORE_andCase")
 
+            # Disable timer status intent
+            if len(self.timers) == 0:
+                self.disable_intent('timer_status')
+
     def handle_timer_status(self, message):
         if self.timers:
             for time, data in deepcopy(self.timers).items():
