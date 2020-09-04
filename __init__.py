@@ -347,7 +347,7 @@ class AlertSkill(MycroftSkill):
                 alerts_list = self.reminders
 
             if self.server:
-                username = nick(message.context["flac_filename"])
+                username = self.get_utterance_user(message)
                 for key, alert in alerts_list.items():
                     LOG.info(f"DM: key: {key}, alert: {alert}")
                     LOG.info(f"DM: alert: {alert['name']}")
