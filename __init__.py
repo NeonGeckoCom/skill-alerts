@@ -347,7 +347,7 @@ class AlertSkill(MycroftSkill):
                 alerts_list = self.reminders
 
             if self.server:
-                username = nick(message.context["flac_filename"])
+                username = self.get_utterance_user(message)
                 for key, alert in alerts_list.items():
                     LOG.info(f"DM: key: {key}, alert: {alert}")
                     LOG.info(f"DM: alert: {alert['name']}")
@@ -913,9 +913,9 @@ class AlertSkill(MycroftSkill):
             snooze_duration = self.settings['snooze_mins']*60
         LOG.debug(new_time)
         LOG.debug(f"DM: {snooze_duration}")
-        LOG.debug(f"DM: {nick(flac_filename)}")
+        # LOG.debug(f"DM: {nick(flac_filename)}")
         for time, data in sorted(self.active.items()):
-            LOG.debug(f"DM: {nick(data['flac_filename'])}")
+            # LOG.debug(f"DM: {nick(data['flac_filename'])}")
             if not self.server or nick(flac_filename) == nick(data["flac_filename"]):
                 kind = data['kind']
                 old_name = data['name']
