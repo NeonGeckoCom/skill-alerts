@@ -290,7 +290,7 @@ class AlertSkill(MycroftSkill):
                         pass
                         # TODO: Server file selection
                     else:
-                        self.speak("Recording not found, please select a recording", private=True)
+                        self.speak_dialog("RecordingNotFound", private=True)
                         root = Tk()
                         root.withdraw()
                         file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
@@ -359,7 +359,8 @@ class AlertSkill(MycroftSkill):
                 LOG.debug(alerts_list)
 
             if not alerts_list:
-                self.speak(f"You have no upcoming {kind}s.", private=True)
+                # self.speak(f"You have no upcoming {kind}s.", private=True)
+                self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
             else:
                 day, time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
                 if kind == 'reminder':
@@ -410,7 +411,9 @@ class AlertSkill(MycroftSkill):
                 if message.context["mobile"]:
                     self.socket_io_emit('alert_status', f"&kind={kind}", message.context["flac_filename"])
             if not alerts_list:
-                self.speak(f"You have no upcoming {kind}s.", private=True)
+                # self.speak(f"You have no upcoming {kind}s.", private=True)
+                self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
+
             else:
                 days, times, names, files, repeats = self.get_speak_time(alerts_list, single=False)
                 self.speak_dialog("UpcomingType", {'kind': kind}, private=True)
@@ -595,7 +598,8 @@ class AlertSkill(MycroftSkill):
                 # elif self.active_alert:
                 #     self.cancel_active()
                 else:
-                    self.speak("I could not find a matching alert to cancel", private=True)
+                    # self.speak("I could not find a matching alert to cancel", private=True)
+                    self.speak_dialog("NoneToCancel", private=True)
                 self.ngi_settings.update_yaml_file('alarms', value=self.alarms)
                 self.ngi_settings.update_yaml_file('timers', value=self.timers)
                 self.ngi_settings.update_yaml_file('reminders', value=self.reminders, final=True)
@@ -607,7 +611,8 @@ class AlertSkill(MycroftSkill):
                 self.ngi_settings.update_yaml_file('alarms', value=self.alarms)
                 self.ngi_settings.update_yaml_file('timers', value=self.timers)
                 self.ngi_settings.update_yaml_file('reminders', value=self.reminders, final=True)
-                self.speak("Cancelling all alarms, timers, and reminders", private=True)
+                # self.speak("Cancelling all alarms, timers, and reminders", private=True)
+                self.speak_dialog("CancelAll", {"kind": "alarms, timers, and reminder"}, private=True)
             # else:
             #     self.check_for_signal("CORE_andCase")
 
@@ -634,7 +639,8 @@ class AlertSkill(MycroftSkill):
             if message.context["mobile"]:
                 self.socket_io_emit('alert_status', "&kind=current_timer", message.context["flac_filename"])
         else:
-            self.speak("There are no active timers.", private=True)
+            self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
+            # self.speak("There are no active timers.", private=True)
         # LOG.debug(message.data.get('utterance'))
         # self.speak("Timer is Active")
 
@@ -682,6 +688,7 @@ class AlertSkill(MycroftSkill):
                 # LOG.debug(time)
                 # LOG.debug(datetime.datetime.now(self.tz))
                 LOG.debug(name)
+                raw_duration = None
                 duration = self.get_nice_duration(delta.total_seconds())
                 if self.preference_unit(message)['time'] == 12:
                     if time.hour > 12:
@@ -724,8 +731,9 @@ class AlertSkill(MycroftSkill):
                 if data['file']:
                     LOG.debug(file)
                     if (time - datetime.now(self.tz)) > timedelta(hours=24) and not repeat:
-                        self.speak("I can only set audio reminders up to 24 hours in advance, "
-                                   "I will create a calendar event instead.", private=True)
+                        self.speak_dialog("AudioReminderTooFar", private=True)
+                        # self.speak("I can only set audio reminders up to 24 hours in advance, "
+                        #            "I will create a calendar event instead.", private=True)
                 # mobile_data = {'name': name,
                 #                'kind': kind,
                 #                'time': self.to_system(time).strftime('%s'),
@@ -745,8 +753,9 @@ class AlertSkill(MycroftSkill):
                     kind = "alarm"
                 elif delta.total_seconds() > 24*3600 and kind == "reminder" and file:
                     # Notify user if audio reminder was requested but not currently possible
-                    self.speak("I can only set audio reminders up to 24 hours in advance, "
-                               "I will create a calendar event instead.", private=True)
+                    self.speak_dialog("AudioReminderTooFar", private=True)
+                    # self.speak("I can only set audio reminders up to 24 hours in advance, "
+                    #            "I will create a calendar event instead.", private=True)
                 elif delta.total_seconds() > 24*3600 and kind == "alarm" and not repeat:
                     # Handle 24H+ alarms as reminders on mobile
                     kind = "reminder"
@@ -761,12 +770,17 @@ class AlertSkill(MycroftSkill):
                                     f"&kind={kind}&file={file}&repeat={repeat}&utterance={utterance}", flac_filename)
 
                 if kind == "timer":
-                    self.speak("Timer started.", private=True)
-                    self.enable_intent('timer_status')
-                elif kind == "alarm":
-                    self.speak(f"Alarm scheduled for {speak_time}", private=True)
-                elif kind == "reminder":
-                    self.speak("Reminder scheduled.", private=True)
+                    # self.speak("Timer started.", private=True)
+                    self.speak_dialog("ConfirmTimer", {"duration": duration}, private=True)
+                    # self.enable_intent('timer_status')  mobile is handled on-device.
+                else:
+                    self.speak_dialog('ConfirmSet', {'kind': kind,
+                                                     'time': speak_time,
+                                                     'duration': duration}, private=True)
+                # elif kind == "alarm":
+                #     self.speak(f"Alarm scheduled for {speak_time}", private=True)
+                # elif kind == "reminder":
+                #     self.speak("Reminder scheduled.", private=True)
 
             elif not repeat:
                 if speak_time:
@@ -803,18 +817,24 @@ class AlertSkill(MycroftSkill):
             if kind == 'timer':
                 self.speak_dialog('HowLong', private=True)
             else:
-                self.speak(f"I didn't hear a time to set your {kind} for. Please try again.", private=True)
+                # self.speak(f"I didn't hear a time to set your {kind} for. Please try again.", private=True)
+                self.speak_dialog("ErrorNoTime", {"kind": kind}, private=True)
             # TODO: Get time and create event DM
         elif not time.tzinfo:
             LOG.error(f"Alert without tzinfo! {time}")
             if self.server:
-                self.speak(f"Something went wrong while scheduling your {kind}. "
-                           f"Please make sure your location is set in your profile and try again.", private=True)
+                # self.speak(f"Something went wrong while scheduling your {kind}. "
+                #            f"Please make sure your location is set in your profile and try again.", private=True)
+                hint = "Please make sure your location is set in your profile and try again"
             else:
-                self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
+                # self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
+                hint = "Please tell me your location and try again"
+            self.speak_dialog("ErrorScheduling", {"kind": kind, "hint": hint}, private=True)
         else:
             LOG.error("Exception while scheduling alert!")
-            self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
+            # self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
+            self.speak_dialog("ErrorScheduling", {"kind": kind, "hint": ""}, private=True)
+
             # """Need to get a time for the alert"""
             # if kind == 'timer':
             #     self.speak_dialog('HowLong', private=True)
@@ -963,8 +983,9 @@ class AlertSkill(MycroftSkill):
         # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
         #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
         if self.neon_in_request(message):
-            self.speak("Enabling quiet hours. I will not notify you of any alerts until you disable quiet hours.",
-                       private=True)
+            # self.speak("Enabling quiet hours. I will not notify you of any alerts until you disable quiet hours.",
+            #            private=True)
+            self.speak_dialog("QuietHoursStart", private=True)
             self.quiet_hours = True
             # self.enable_intent('end_quiet_hours')
             self.disable_intent('start_quiet_hours')
@@ -980,11 +1001,13 @@ class AlertSkill(MycroftSkill):
         #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
         if self.neon_in_request(message):
             if self.quiet_hours:
-                self.speak("Disabling quiet hours.", private=True)
+                self.speak_dialog("QuietHoursEnd", private=True)
+                # self.speak("Disabling quiet hours.", private=True)
             self.quiet_hours = False
             # self.missed_alerts()
             if self.missed:
-                self.speak("Here's what you missed:", private=True)
+                self.speak_dialog("MissedAlertIntro", private=True)
+                # self.speak("Here's what you missed:", private=True)
                 days, times, names, files, repeats = self.get_speak_time(self.missed, False)
                 for i in range(0, len(days)):
                     # i = days.index(day)
@@ -998,10 +1021,11 @@ class AlertSkill(MycroftSkill):
                                                          'day': days[i]}, private=True)
                     if files[i]:
                         wait_while_speaking()
-                        play_wav(files[i])
-                        # TODO: Delay for loop until playback is completed DM
+                        thread = play_wav(files[i])
+                        thread.wait(30)  # TODO: Is this a good timeout?
             else:
-                self.speak("You haven't missed any alerts.", private=True)
+                self.speak_dialog("NoMissedAlerts", private=True)
+                # self.speak("You haven't missed any alerts.", private=True)
             self.enable_intent('start_quiet_hours')
             # self.disable_intent('end_quiet_hours')
             self.ngi_settings.update_yaml_file('missed', value={})
@@ -1493,20 +1517,25 @@ class AlertSkill(MycroftSkill):
         file = message.data.get('file')
         # name = message.data.get('name')
         if not self.quiet_hours:
+            thread = None
             if not active:
                 self.active[time] = message.data
                 self.enable_intent("snooze_alert")
             if file:
                 LOG.debug(file)
-                self.speak("You have an audio reminder.", private=True)
+                # self.speak("You have an audio reminder.", private=True)
+                self.speak_dialog("AudioReminderIntro", private=True)
                 wait_while_speaking()
-                play_wav(file)
+                thread = play_wav(file)
             elif kind == 'alarm':
                 LOG.debug(self.snd_alarm)
-                play_wav(self.snd_alarm)
+                thread = play_wav(self.snd_alarm)
             elif kind == 'timer':
                 LOG.debug(self.snd_timer)
-                play_wav(self.snd_timer)
+                thread = play_wav(self.snd_timer)
+
+            if thread:
+                thread.wait(30)  # TODO: Is this a good timeout DM
             self.ngi_settings.update_yaml_file('active', value=self.active, final=True)
         else:
             self.missed[str(datetime.now())] = message.data
@@ -1624,7 +1653,8 @@ class AlertSkill(MycroftSkill):
                 'repeat': False,
                 'active': True}
         if datetime.now(self.tz) - exp_time > timedelta(minutes=self.timeout):
-            self.speak("Silencing Alert.", private=True)
+            # self.speak("Silencing Alert.", private=True)
+            self.speak_dialog("AlertTimeout", private=True)
             self.active.pop(message.data.get('time'))
             self.missed[str(datetime.now())] = data
             self.ngi_settings.update_yaml_file('active', value=self.active)
