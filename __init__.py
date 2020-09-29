@@ -201,14 +201,14 @@ class AlertSkill(MycroftSkill):
         #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
         if self.neon_in_request(message):
             content = self.extract_content(message.data)
-            time, repeat, last_one, num_repeats = self.extract_time(content, message)
+            alert_time, repeat, last_one, num_repeats = self.extract_time(content, message)
             name = self.extract_name(content)
             file = None  # TODO: Parsing like reminders to get this? DM
             # if mobile:
             #     file = utt
             # else:
             #     file = None
-            self.confirm_alert('alarm', time, utt, repeat, name, final=last_one, num_repeats=num_repeats,
+            self.confirm_alert('alarm', alert_time, utt, repeat, name, final=last_one, num_repeats=num_repeats,
                                flac_filename=flac_filename, file=file, mobile=mobile, message=message)
         # else:
         #     self.check_for_signal("CORE_andCase")
@@ -223,7 +223,7 @@ class AlertSkill(MycroftSkill):
         if self.neon_in_request(message):
             content = self.extract_content(message.data)
             LOG.debug(content)
-            time, duration = self.extract_duration(content)
+            alert_time, duration = self.extract_duration(content)
             name = self.extract_name(content)
             if name:
                 name = name + " timer"
@@ -232,8 +232,8 @@ class AlertSkill(MycroftSkill):
             #     file = utt
             # else:
             #     file = None
-            self.confirm_alert(kind='timer', time=time, utterance=utt, name=name, duration=duration, file=file,
-                               flac_filename=flac_filename, mobile=mobile, message=message)
+            self.confirm_alert(kind='timer', alert_time=alert_time, utterance=utt, name=name, duration=duration,
+                               file=file, flac_filename=flac_filename, mobile=mobile, message=message)
         # else:
         #     self.check_for_signal("CORE_andCase")
 
@@ -251,13 +251,13 @@ class AlertSkill(MycroftSkill):
             content = self.extract_content(message.data)
             if not content:
                 content = 'Reminder'
-            time, repeat, last_one, num_repeats = self.extract_time(content, message)
+            alert_time, repeat, last_one, num_repeats = self.extract_time(content, message)
             LOG.debug(content)
-            LOG.debug(time)
+            LOG.debug(alert_time)
             LOG.debug(repeat)
             LOG.debug(playable)
-            if not time:
-                time, _ = self.extract_duration(content)
+            if not alert_time:
+                alert_time, _ = self.extract_duration(content)
             if playable:
                 file = None
                 name = None
@@ -321,7 +321,7 @@ class AlertSkill(MycroftSkill):
                 #     file = utt
                 # else:
                 #     file = None
-            self.confirm_alert('reminder', time, utt, repeat, name, final=last_one, num_repeats=num_repeats,
+            self.confirm_alert('reminder', alert_time, utt, repeat, name, final=last_one, num_repeats=num_repeats,
                                file=file, flac_filename=flac_filename, mobile=mobile, message=message)
         # else:
         #     self.check_for_signal("CORE_andCase")
@@ -362,17 +362,17 @@ class AlertSkill(MycroftSkill):
                 # self.speak(f"You have no upcoming {kind}s.", private=True)
                 self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
             else:
-                day, time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
+                day, alert_time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
                 if kind == 'reminder':
                     # This is for events with a useful name
                     self.speak_dialog("NextEvent", {'kind': kind,
                                                     'name': name,
                                                     'day': day,
-                                                    'time': time}, private=True)
+                                                    'time': alert_time}, private=True)
                 else:
                     self.speak_dialog("NextAlert", {'kind': kind,
                                                     'day': day,
-                                                    'time': time}, private=True)
+                                                    'time': alert_time}, private=True)
         # else:
         #     self.check_for_signal("CORE_andCase")
 
@@ -436,9 +436,9 @@ class AlertSkill(MycroftSkill):
         if self.neon_in_request(message):
             flac_filename = message.context["flac_filename"]
             content = self.extract_content(message.data)
-            time, repeat, _, _ = self.extract_time(content, message)
+            alert_time, repeat, _, _ = self.extract_time(content, message)
             name = self.extract_name(content)
-            LOG.debug(time)
+            LOG.debug(alert_time)
             LOG.debug(repeat)
             LOG.debug(name)
 
@@ -482,14 +482,14 @@ class AlertSkill(MycroftSkill):
                         # for key in to_cancel:
                         #     self.alarms.pop(key)
                     if match_name and not match:
-                        for time, data in deepcopy(self.alarms).items():
+                        for alert_time, data in deepcopy(self.alarms).items():
                             if data['name'] in match_name or match_name in data['name'] and (
                                 not self.server or username == nick(data["flac_filename"])
                             ):
                                 name = data['name']
                                 match = True
                                 # self.alarms.pop(time)
-                                to_cancel.append(time)
+                                to_cancel.append(alert_time)
                                 # self.alarms.pop(key)
                         # for key in to_cancel:
                         #     self.alarms.pop(key)
@@ -517,14 +517,14 @@ class AlertSkill(MycroftSkill):
                         # for key in to_cancel:
                         #     self.timers.pop(key)
                     if match_name and not match:
-                        for time, data in deepcopy(self.timers).items():
+                        for alert_time, data in deepcopy(self.timers).items():
                             if data['name'] in match_name or match_name in data['name'] and (
                                 not self.server or username == nick(data["flac_filename"])
                             ):
                                 name = data['name']
                                 match = True
                                 # self.timers.pop(time)
-                                to_cancel.append(time)
+                                to_cancel.append(alert_time)
                         # for key in to_cancel:
                         #     self.timers.pop(key)
                 if self.gui_enabled:
@@ -553,14 +553,14 @@ class AlertSkill(MycroftSkill):
                         # for key in to_cancel:
                         #     self.reminders.pop(key)
                     if match_name and not match:
-                        for time, data in deepcopy(self.reminders).items():
+                        for alert_time, data in deepcopy(self.reminders).items():
                             if data['name'] in match_name or match_name in data['name'] and (
                                 not self.server or username == nick(data["flac_filename"])
                             ):
                                 name = data['name']
                                 match = True
                                 # self.reminders.pop(time)
-                                to_cancel.append(time)
+                                to_cancel.append(alert_time)
                         # for key in to_cancel:
                         #     self.reminders.pop(key)
             else:
@@ -622,11 +622,11 @@ class AlertSkill(MycroftSkill):
 
     def handle_timer_status(self, message):
         if self.timers:
-            for time, data in deepcopy(self.timers).items():
+            for alert_time, data in deepcopy(self.timers).items():
                 # if self.server:
                 #     alert_user = nick(data.get('flac_filename'))
                 if not self.server or nick(data.get('flac_filename')) == nick(message.context["flac_filename"]):
-                    delta = parse(time).replace(microsecond=0) - datetime.now(self.tz).replace(microsecond=0)
+                    delta = parse(alert_time).replace(microsecond=0) - datetime.now(self.tz).replace(microsecond=0)
                     LOG.debug(delta)
                     duration = self.get_nice_duration(delta.total_seconds())
                     self.speak_dialog('TimerStatus', {'timer': data['name'],
@@ -644,13 +644,13 @@ class AlertSkill(MycroftSkill):
         # LOG.debug(message.data.get('utterance'))
         # self.speak("Timer is Active")
 
-    def confirm_alert(self, kind, time, utterance, repeat=None, name=None, duration=None, final=None,
+    def confirm_alert(self, kind, alert_time, utterance, repeat=None, name=None, duration=None, final=None,
                       num_repeats=None, flac_filename=None, file=None, mobile=False, message=None):
 
         """
         Confirm alert details; get time and name for alerts if not specified and schedule
         :param kind: 'alarm', 'timer', or 'reminder'
-        :param time: datetime object for the alert
+        :param alert_time: datetime object for the alert
         :param utterance: utterance associated with alert creation
         :param repeat: (optional) list of days to repeat the alert
         :param name: (optional) name of the alert
@@ -668,10 +668,10 @@ class AlertSkill(MycroftSkill):
         # if num_repeats and final:
         #     LOG.warning(f"DM: num_repeats={num_repeats} and final={final}. reset final")
         #     final = None
-        if time and time.tzinfo:
-            LOG.debug(">>>>>" + str(time))
+        if alert_time and alert_time.tzinfo:
+            LOG.debug(">>>>>" + str(alert_time))
             LOG.debug(duration)
-            delta = time - datetime.now(self.tz)
+            delta = alert_time - datetime.now(self.tz)
             LOG.debug(delta)
             """Get Duration and Time To Alarm"""
             if duration:
@@ -691,24 +691,24 @@ class AlertSkill(MycroftSkill):
                 raw_duration = None
                 duration = self.get_nice_duration(delta.total_seconds())
                 if self.preference_unit(message)['time'] == 12:
-                    if time.hour > 12:
-                        time_hour = time.hour - 12
+                    if alert_time.hour > 12:
+                        time_hour = alert_time.hour - 12
                         am_pm = 'pm'
-                    elif time.hour == 00:
+                    elif alert_time.hour == 00:
                         time_hour = 12
                         am_pm = 'am'
                     else:
-                        time_hour = time.hour
+                        time_hour = alert_time.hour
                         am_pm = 'am'
-                    speak_time = "{:d}:{:02d} {:s}".format(time_hour, time.minute, am_pm)
+                    speak_time = "{:d}:{:02d} {:s}".format(time_hour, alert_time.minute, am_pm)
                 else:
-                    speak_time = "{:d}:{:02d}".format(time.hour, time.minute)
+                    speak_time = "{:d}:{:02d}".format(alert_time.hour, alert_time.minute)
                 if not name:
                     name = "%s at %s" % (str(kind), str(speak_time))
             if delta.total_seconds() < 0:
                 LOG.error(f"DM: Negative duration alert!  {duration}")
             data = {'name': name,
-                    'time': str(time),
+                    'time': str(alert_time),
                     'kind': kind,
                     'file': file,
                     'repeat': repeat,
@@ -730,7 +730,7 @@ class AlertSkill(MycroftSkill):
                 # LOG.debug(">>>>>>to_system(time, tz):" + self.to_system(time, self.tz).strftime('%s'))
                 if data['file']:
                     LOG.debug(file)
-                    if (time - datetime.now(self.tz)) > timedelta(hours=24) and not repeat:
+                    if (alert_time - datetime.now(self.tz)) > timedelta(hours=24) and not repeat:
                         self.speak_dialog("AudioReminderTooFar", private=True)
                         # self.speak("I can only set audio reminders up to 24 hours in advance, "
                         #            "I will create a calendar event instead.", private=True)
@@ -766,7 +766,7 @@ class AlertSkill(MycroftSkill):
                 if file:
                     # TODO: Move file to somewhere accessible and update var
                     pass
-                self.socket_io_emit('alert', f"&name={name}&time={self.to_system_time(time).strftime('%s')}"
+                self.socket_io_emit('alert', f"&name={name}&time={self.to_system_time(alert_time).strftime('%s')}"
                                     f"&kind={kind}&file={file}&repeat={repeat}&utterance={utterance}", flac_filename)
 
                 if kind == "timer":
@@ -812,7 +812,7 @@ class AlertSkill(MycroftSkill):
                     self.speak_dialog('ConfirmRecurring', {'kind': kind,
                                                            'time': speak_time,
                                                            'days': days}, private=True)
-        elif not time:
+        elif not alert_time:
             """Need to get a time for the alert"""
             if kind == 'timer':
                 self.speak_dialog('HowLong', private=True)
@@ -820,8 +820,8 @@ class AlertSkill(MycroftSkill):
                 # self.speak(f"I didn't hear a time to set your {kind} for. Please try again.", private=True)
                 self.speak_dialog("ErrorNoTime", {"kind": kind}, private=True)
             # TODO: Get time and create event DM
-        elif not time.tzinfo:
-            LOG.error(f"Alert without tzinfo! {time}")
+        elif not alert_time.tzinfo:
+            LOG.error(f"Alert without tzinfo! {alert_time}")
             if self.server:
                 # self.speak(f"Something went wrong while scheduling your {kind}. "
                 #            f"Please make sure your location is set in your profile and try again.", private=True)
@@ -843,7 +843,7 @@ class AlertSkill(MycroftSkill):
 
     def write_to_schedule(self, data):
         repeat = data['repeat']
-        time = self.to_system_time(parse(data['time']))
+        alert_time = self.to_system_time(parse(data['time']))
         name = data['name']
         LOG.debug(f'Write to Schedule: {data}')
         # LOG.debug(data)
@@ -857,7 +857,7 @@ class AlertSkill(MycroftSkill):
             # elif kind == 'reminder':
             # LOG.debug(time)
             # LOG.debug(self.to_system(time))
-            self.schedule_event(self._alert_expired, time, data=data, name=name)
+            self.schedule_event(self._alert_expired, alert_time, data=data, name=name)
             self.write_to_yml(data)
         else:
             if self.days in repeat:
@@ -878,40 +878,40 @@ class AlertSkill(MycroftSkill):
                 data['frequency'] = 604800  # Seconds in a week
                 raw_time = parse(data['time']).strftime("%I:%M %p")
                 for day in repeat:
-                    time = extract_datetime(str(raw_time + ' ' + day))[0]
-                    LOG.debug(time)
-                    if ((time - datetime.now(self.tz)) / timedelta(minutes=1)) < 0:
-                        time = time + timedelta(days=7)
-                    data['time'] = str(time)
+                    alert_time = extract_datetime(str(raw_time + ' ' + day))[0]
+                    LOG.debug(alert_time)
+                    if ((alert_time - datetime.now(self.tz)) / timedelta(minutes=1)) < 0:
+                        alert_time = alert_time + timedelta(days=7)
+                    data['time'] = str(alert_time)
                     # if repeat.index(day) > last_ind:
                     #     days_to_next = repeat.index(day) - last_ind
                     # else:
                     #     days_to_next = repeat.index(day) + 7 - last_ind
                     # time = time + timedelta(seconds=(86400 * days_to_next))
                     name = str(day) + name
-                    time = self.to_system_time(time)
+                    alert_time = self.to_system_time(alert_time)
                     # self.schedule_repeating_event(self._alert_expired, self.to_system(time), data['frequency'],
                     #                               data=data, name=name)
                     # self.write_to_yml(data)
-            self.schedule_repeating_event(self._alert_expired, time, data['frequency'], data=data, name=name)
+            self.schedule_repeating_event(self._alert_expired, alert_time, data['frequency'], data=data, name=name)
             self.write_to_yml(data)
 
     def write_to_yml(self, data):
         # Write Next event to
         kind = data['kind']
-        time = data['time']
+        alert_time = data['time']
         if kind == 'alarm':
             # handler = self._alarm_expired
             # time = self.to_system(time)
-            self.alarms[time] = data
+            self.alarms[alert_time] = data
             self.ngi_settings.update_yaml_file('alarms', value=self.alarms, final=True)
         elif kind == 'timer':
             # handler = self._timer_expired
-            self.timers[time] = data
+            self.timers[alert_time] = data
             self.ngi_settings.update_yaml_file('timers', value=self.timers, final=True)
         elif kind == 'reminder':
             # handler = self._reminder_expired
-            self.reminders[time] = data
+            self.reminders[alert_time] = data
             self.ngi_settings.update_yaml_file('reminders', value=self.reminders, final=True)
 
     def handle_snooze_alert(self, message):
@@ -934,7 +934,7 @@ class AlertSkill(MycroftSkill):
         LOG.debug(new_time)
         LOG.debug(f"DM: {snooze_duration}")
         # LOG.debug(f"DM: {nick(flac_filename)}")
-        for time, data in sorted(self.active.items()):
+        for alert_time, data in sorted(self.active.items()):
             # LOG.debug(f"DM: {nick(data['flac_filename'])}")
             if not self.server or nick(flac_filename) == nick(data["flac_filename"]):
                 kind = data['kind']
@@ -949,11 +949,11 @@ class AlertSkill(MycroftSkill):
                 if type(snooze_duration) not in (int, float):
                     snooze_duration = self.settings['snooze_mins']*60
                 duration = self.get_nice_duration(snooze_duration)
-                LOG.debug(f"DM: {self.active[time]}")
-                data = self.active[time]
+                LOG.debug(f"DM: {self.active[alert_time]}")
+                data = self.active[alert_time]
                 LOG.debug(f"DM: {data}")
                 LOG.debug(f"DM: {self.active}")
-                del self.active[time]
+                del self.active[alert_time]
                 LOG.debug(f"DM: {self.active}")
                 self.cancel_scheduled_event(old_name)
                 LOG.debug(f"DM: {data}")
@@ -1103,7 +1103,7 @@ class AlertSkill(MycroftSkill):
             LOG.debug(">>>>>" + str(self.tz))
             LOG.debug(content)
             content = re.sub("am", " am", re.sub("pm", " pm", content))
-            time = extract_datetime(content.split(" until ")[0], datetime.now(self.tz))
+            spoken_time = extract_datetime(content.split(" until ")[0], datetime.now(self.tz))
             repeat = []
             num_repeats = None
             last_one = None
@@ -1111,7 +1111,7 @@ class AlertSkill(MycroftSkill):
             LOG.debug(repeat)
             # LOG.debug(content)
             # LOG.debug(time)
-            if time[1] and time[1] not in ['am', 'pm']:
+            if spoken_time[1] and spoken_time[1] not in ['am', 'pm']:
                 LOG.debug('recurring alarm')
                 prev_word = ""
                 i = 0
@@ -1190,16 +1190,16 @@ class AlertSkill(MycroftSkill):
                 # if len(repeat) == 0:
                 #     repeat = self.days
                 LOG.debug(repeat)
-            if extract_datetime("now")[0] == time[0]:
+            if extract_datetime("now")[0] == spoken_time[0]:
                 if "midnight" in content:
                     alert_time = extract_datetime("midnight tomorrow",
                                                   datetime.now(timezone(preference_location['tz'])))[0]
                 else:
                     alert_time = None
-            elif time[0] - datetime.now(self.tz) < timedelta(seconds=0):
+            elif spoken_time[0] - datetime.now(self.tz) < timedelta(seconds=0):
                 alert_time = None
             else:
-                alert_time = time[0]
+                alert_time = spoken_time[0]
             return_time = self.get_rounded_time(alert_time, content)
             LOG.info(f"DM: last occurence is: {last_one}")
             return return_time, repeat, last_one, num_repeats
@@ -1335,17 +1335,18 @@ class AlertSkill(MycroftSkill):
             LOG.info(day)
             if day == datetime.now().strftime('%A'):
                 day = 'Today'
-            time = nice_time(next_alert, use_ampm=True)
+            # noinspection PyTypeChecker
+            alert_time = nice_time(next_alert, use_ampm=True)
             # time = next_alert.key()
             name = alerts_list[str_alert]['name']
             if str(name).startswith("to ") and alerts_list[str_alert]["kind"] == "reminder":
                 name = f"Reminder {name}"
             file = alerts_list[str_alert]['file']
-            LOG.debug(time)
+            LOG.debug(alert_time)
             LOG.debug(name)
-            LOG.debug(time)
+            LOG.debug(alert_time)
             LOG.debug(file)
-            return day, time, name, file, None
+            return day, alert_time, name, file, None
         else:
             days = []
             names = []
@@ -1360,7 +1361,8 @@ class AlertSkill(MycroftSkill):
                 LOG.info(day)
                 if day == datetime.now().strftime('%A'):
                     day = 'Today'
-                time = nice_time(next_alert, use_ampm=True)
+                # noinspection PyTypeChecker
+                alert_time = nice_time(next_alert, use_ampm=True)
                 # time = next_alert.key()
                 name = alerts_list[str_alert]['name']
                 if str(name).startswith("to ") and alerts_list[str_alert]["kind"] == "reminder":
@@ -1374,7 +1376,7 @@ class AlertSkill(MycroftSkill):
                 if name not in names:
                     days.append(day)
                     names.append(name)
-                    times.append(time)
+                    times.append(alert_time)
                     files.append(file)
                     repeats.append(repeat)
             LOG.debug(days)
@@ -1429,38 +1431,37 @@ class AlertSkill(MycroftSkill):
         :param message: object containing alert details
         :return: None
         """
-        kind = message.data.get('kind')
-        time = message.data.get('time')
-        name = message.data.get('name')
-        file = message.data.get('file')
-        # flac = message.data.get('flac_filename')
-        freq = message.data.get('frequency')
+        alert_kind = message.data.get('kind')
+        alert_time = message.data.get('time')
+        alert_name = message.data.get('name')
+        alert_file = message.data.get('file')
+        alert_freq = message.data.get('frequency')
         active = message.data.get('active')
-        self.cancel_scheduled_event(name)
+        self.cancel_scheduled_event(alert_name)
 
         if not active:
             # Remove from YML if this is the first expiration
-            if kind == 'alarm':
-                self.alarms.pop(time)
+            if alert_kind == 'alarm':
+                self.alarms.pop(alert_time)
                 self.ngi_settings.update_yaml_file('alarms', value=self.alarms, final=True)
                 if self.gui_enabled:
-                    self.gui.show_text(name, kind)
-            elif kind == 'timer':
-                self.timers.pop(time)
+                    self.gui.show_text(alert_name, alert_kind)
+            elif alert_kind == 'timer':
+                self.timers.pop(alert_time)
                 self.ngi_settings.update_yaml_file('timers', value=self.timers, final=True)
                 if self.gui_enabled:
-                    self.gui.show_text("Time's up!", name)
-            elif kind == 'reminder':
-                self.reminders.pop(time)
+                    self.gui.show_text("Time's up!", alert_name)
+            elif alert_kind == 'reminder':
+                self.reminders.pop(alert_time)
                 self.ngi_settings.update_yaml_file('reminders', value=self.reminders, final=True)
                 if self.gui_enabled:
-                    self.gui.show_text(name, kind)
+                    self.gui.show_text(alert_name, alert_kind)
             self.clear_gui_timeout()
 
             # Write next Recurrence to Schedule
-            if freq:
+            if alert_freq:
                 data = message.data
-                new_time = parse(data['time']) + timedelta(seconds=freq)
+                new_time = parse(data['time']) + timedelta(seconds=alert_freq)
                 data['time'] = str(new_time)
 
                 # Check for final occurrence expiration
@@ -1488,21 +1489,21 @@ class AlertSkill(MycroftSkill):
         if self.server:
             LOG.debug(">>>On Server, speak this.")
             self._server_notify_expired(message)
-        elif file:
+        elif alert_file:
             self._play_notify_expired(message)
-        elif kind == 'alarm':
+        elif alert_kind == 'alarm':
             if self.settings['speak_alarm']:
                 self._speak_notify_expired(message)
             else:
                 self._play_notify_expired(message)
-        elif kind == 'timer':
+        elif alert_kind == 'timer':
             if self.settings['speak_timer']:
                 self._speak_notify_expired(message)
             else:
                 self._play_notify_expired(message)
             if len(self.timers) == 0:
                 self.disable_intent('timer_status')
-        elif kind == 'reminder':
+        elif alert_kind == 'reminder':
             self._speak_notify_expired(message)
 
         # Reschedule to continue notification
@@ -1512,25 +1513,25 @@ class AlertSkill(MycroftSkill):
     def _play_notify_expired(self, message):
         LOG.debug(message)
         active = message.data.get('active')
-        kind = message.data.get('kind')
-        time = message.data.get('time')
-        file = message.data.get('file')
+        alert_kind = message.data.get('kind')
+        alert_time = message.data.get('time')
+        alert_file = message.data.get('file')
         # name = message.data.get('name')
         if not self.quiet_hours:
             thread = None
             if not active:
-                self.active[time] = message.data
+                self.active[alert_time] = message.data
                 self.enable_intent("snooze_alert")
-            if file:
-                LOG.debug(file)
+            if alert_file:
+                LOG.debug(alert_file)
                 # self.speak("You have an audio reminder.", private=True)
                 self.speak_dialog("AudioReminderIntro", private=True)
                 wait_while_speaking()
-                thread = play_wav(file)
-            elif kind == 'alarm':
+                thread = play_wav(alert_file)
+            elif alert_kind == 'alarm':
                 LOG.debug(self.snd_alarm)
                 thread = play_wav(self.snd_alarm)
-            elif kind == 'timer':
+            elif alert_kind == 'timer':
                 LOG.debug(self.snd_timer)
                 thread = play_wav(self.snd_timer)
 
@@ -1588,16 +1589,16 @@ class AlertSkill(MycroftSkill):
     def _server_notify_expired(self, message):
         LOG.debug(">>>_server_notify_expired<<<")
         active = message.data.get('active')
-        kind = message.data.get('kind')
-        time = message.data.get('time')
-        name = message.data.get('name')
-        file = message.data.get('file')
-        flac = message.context["flac_filename"]
+        alert_kind = message.data.get('kind')
+        alert_time = message.data.get('time')
+        alert_name = message.data.get('name')
+        alert_file = message.data.get('file')
+        alert_flac = message.context["flac_filename"]
         # utt = message.data.get('utt')
-        LOG.debug("DM: name: " + str(name).lower().strip())
+        LOG.debug("DM: name: " + str(alert_name).lower().strip())
 
         if not active:
-            self.active[time] = message.data
+            self.active[alert_time] = message.data
             self.enable_intent("snooze_alert")
             self.ngi_settings.update_yaml_file('active', value=self.active, final=True)
             # TODO: Server remove this from active after some timeout? Currently removed on cancel or snooze intent
@@ -1606,25 +1607,25 @@ class AlertSkill(MycroftSkill):
         # if not active:
         #     self.active[time] = message.data
         #     self.enable_intent("snooze_alert")
-        if file:
+        if alert_file:
             # self.socket_io_emit(event="alert expired", kind="audio",
             #                     message=f"Your {name} is up.", flac_filename=flac)
-            self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': name}), file, message,
+            self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': alert_name}), alert_file, message,
                                  private=True)
             # self.speak_dialog('AlertExpired', {'name': name}, private=True)
         else:
-            if kind == 'reminder':
-                if str(name).lower().strip().startswith("reminder"):
-                    name = str(name).split("reminder")[1]
-                    LOG.debug("DM: name: " + str(name).lower().strip())
+            if alert_kind == 'reminder':
+                if str(alert_name).lower().strip().startswith("reminder"):
+                    alert_name = str(alert_name).split("reminder")[1]
+                    LOG.debug("DM: name: " + str(alert_name).lower().strip())
                 # self.socket_io_emit(event="alert expired", kind="reminder",
                 #                     message=f"This is your reminder {name}.", flac_filename=flac)
-                self.speak_dialog('ReminderExpired', {'name': name}, private=True)
+                self.speak_dialog('ReminderExpired', {'name': alert_name}, private=True)
             else:
                 # self.socket_io_emit(event="alert expired", kind="other",
                 #                     message=f"Your {name} is up.", flac_filename=flac)
-                self.speak_dialog('AlertExpired', {'name': name}, private=True)
-        LOG.debug(f"flac_filename: {flac}")
+                self.speak_dialog('AlertExpired', {'name': alert_name}, private=True)
+        LOG.debug(f"flac_filename: {alert_flac}")
         # self.socket_io_emit("alert_expiry", f"&kind={kind}&time={time}&name={name}&tile={file}&utt={utt}", flac)
         self.ngi_settings.update_yaml_file('active', value=self.active, final=True)
 
@@ -1636,15 +1637,15 @@ class AlertSkill(MycroftSkill):
         # This is an alarm or timer with a known audio file that should play continuously
         if((message.data.get('kind') == 'alarm') and not self.settings['speak_alarm']) or \
                 ((message.data.get('kind') == 'timer') and not self.settings['speak_timer']):
-            time = datetime.now(self.tz) + timedelta(seconds=5)  # TODO: Base this off of file length DM
+            alert_time = datetime.now(self.tz) + timedelta(seconds=5)  # TODO: Base this off of file length DM
         # This is a reconveyance reminder
         elif message.data.get('file'):
             # TODO: Catch longer file length and extend repeat duration DM
-            time = datetime.now(self.tz) + timedelta(minutes=self.repeat_spoken_reminder)
+            alert_time = datetime.now(self.tz) + timedelta(minutes=self.repeat_spoken_reminder)
         # This is a spoken alert
         else:
-            time = datetime.now(self.tz) + timedelta(minutes=self.repeat_spoken_reminder)
-        LOG.info(time)
+            alert_time = datetime.now(self.tz) + timedelta(minutes=self.repeat_spoken_reminder)
+        LOG.info(alert_time)
         name = message.data.get('name')
         data = {'name': name,
                 'time': message.data.get('time'),
@@ -1663,7 +1664,7 @@ class AlertSkill(MycroftSkill):
             self.active_alert = name
             self.active_time = message.data.get('time')
             LOG.debug(self.active_alert)
-            self.schedule_event(self._alert_expired, self.to_system_time(time), data=data, name=name)
+            self.schedule_event(self._alert_expired, self.to_system_time(alert_time), data=data, name=name)
 
     def cancel_active(self):
         if self.active_alert:
