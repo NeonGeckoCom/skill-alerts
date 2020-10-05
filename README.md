@@ -1,5 +1,5 @@
 
-# ![](https://0000.us/klatchat/app/files/neon_images/icons/neon_paw.png)alerts  
+# ![](https://0000.us/klatchat/app/files/neon_images/icons/neon_paw.png)Alerts  
   
 # Summary  
   
@@ -27,13 +27,13 @@ If you are skipping wake words, say `Neon` followed by any of the following, oth
 
 - "set an alarm for 8 am"
 - "when is my next alarm"
-- "cancel my 8 am alarm
+- "cancel my 8 am alarm"
 
 - "set a 5 minute timer"
 - "how much time is left"
 
 - "remind me to go home at 6"
-- "remind me to take out the trash every thursday at 7 pm
+- "remind me to take out the trash every thursday at 7 pm"
 - "what are my reminders"
 
 - "cancel all (alarms/timers/reminders)"
