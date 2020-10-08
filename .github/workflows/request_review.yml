@@ -1,11 +1,7 @@
 # This workflow will assign NeonDevs to review any PR into the dev or master branch of a skill
 
 name: Request PR Review
-on:
-  pull_request:
-    branches:
-      - dev
-      - master
+on: pull_request
 
 jobs:
   assign_review:
