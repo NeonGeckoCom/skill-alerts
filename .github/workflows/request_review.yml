@@ -3,9 +3,7 @@
 name: Request PR Review
 on:
   pull_request:
-    branches:
-      - dev
-      - master
+    types: [opened, reopened]
 
 jobs:
   assign_review:
