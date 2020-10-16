@@ -1103,7 +1103,12 @@ class AlertSkill(MycroftSkill):
             LOG.debug(">>>>>" + str(self.tz))
             LOG.debug(content)
             content = re.sub("am", " am", re.sub("pm", " pm", content))
-            spoken_time = extract_datetime(content.split(" until ")[0], datetime.now(self.tz))
+            extracted_time = extract_datetime(content.split(" until ")[0], datetime.now(self.tz))
+            if not any(x in ("am", "pm") for x in content.split()) and self.preference_unit(message)["time"] == 12:
+                LOG.debug("AM/PM not specified!")
+                if extracted_time[0] - datetime.now(self.tz) > timedelta(hours=12):
+                    LOG.warning("Fixing extracted time to be nearest occurrence of specified time")
+                    extracted_time[0] = extracted_time[0] - timedelta(hours=12)
             repeat = []
             num_repeats = None
             last_one = None
@@ -1111,8 +1116,8 @@ class AlertSkill(MycroftSkill):
             LOG.debug(repeat)
             # LOG.debug(content)
             # LOG.debug(time)
-            if spoken_time[1] and spoken_time[1] not in ['am', 'pm']:
-                LOG.debug('recurring alarm')
+            if extracted_time[1] and extracted_time[1] not in ['am', 'pm']:
+                LOG.debug(f'recurring alarm?: {extracted_time}')
                 prev_word = ""
                 i = 0
                 for word in content.split():
@@ -1190,16 +1195,17 @@ class AlertSkill(MycroftSkill):
                 # if len(repeat) == 0:
                 #     repeat = self.days
                 LOG.debug(repeat)
-            if extract_datetime("now")[0] == spoken_time[0]:
+            if extract_datetime("now")[0] == extracted_time[0]:
                 if "midnight" in content:
                     alert_time = extract_datetime("midnight tomorrow",
                                                   datetime.now(timezone(preference_location['tz'])))[0]
                 else:
                     alert_time = None
-            elif spoken_time[0] - datetime.now(self.tz) < timedelta(seconds=0):
+            elif extracted_time[0] - datetime.now(self.tz) < timedelta(seconds=0):
+                LOG.error(f"requested alert for {extracted_time[0] - datetime.now(self.tz)} in the past")
                 alert_time = None
             else:
-                alert_time = spoken_time[0]
+                alert_time = extracted_time[0]
             return_time = self.get_rounded_time(alert_time, content)
             LOG.info(f"DM: last occurence is: {last_one}")
             return return_time, repeat, last_one, num_repeats
