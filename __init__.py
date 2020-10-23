@@ -699,7 +699,7 @@ class AlertSkill(MycroftSkill):
                         am_pm = 'am'
                     else:
                         time_hour = alert_time.hour
-                        am_pm = 'am'
+                        am_pm = ''
                     speak_time = "{:d}:{:02d} {:s}".format(time_hour, alert_time.minute, am_pm)
                 else:
                     speak_time = "{:d}:{:02d}".format(alert_time.hour, alert_time.minute)
