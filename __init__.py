@@ -691,7 +691,9 @@ class AlertSkill(MycroftSkill):
                 raw_duration = None
                 duration = self.get_nice_duration(delta.total_seconds())
                 if self.preference_unit(message)['time'] == 12:
-                    if alert_time.hour > 12:
+                    if alert_time.hour == 12:
+                        am_pm = 'pm'
+                    elif alert_time.hour > 12:
                         time_hour = alert_time.hour - 12
                         am_pm = 'pm'
                     elif alert_time.hour == 00:
