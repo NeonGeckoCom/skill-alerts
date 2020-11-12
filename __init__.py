@@ -692,6 +692,7 @@ class AlertSkill(MycroftSkill):
                 duration = self.get_nice_duration(delta.total_seconds())
                 if self.preference_unit(message)['time'] == 12:
                     if alert_time.hour == 12:
+                        time_hour = alert_time.hour
                         am_pm = 'pm'
                     elif alert_time.hour > 12:
                         time_hour = alert_time.hour - 12
@@ -1024,7 +1025,7 @@ class AlertSkill(MycroftSkill):
                     if files[i]:
                         wait_while_speaking()
                         thread = play_wav(files[i])
-                        thread.wait(30)  # TODO: Is this a good timeout?
+                        thread.wait(30)  # TODO: Get file length for timeout DM
             else:
                 self.speak_dialog("NoMissedAlerts", private=True)
                 # self.speak("You haven't missed any alerts.", private=True)
@@ -1554,7 +1555,7 @@ class AlertSkill(MycroftSkill):
         LOG.debug(">>>_speak_notify_expired<<<")
         active = message.data.get('active')
         kind = message.data.get('kind')
-        time = message.data.get('time')
+        alert_time = message.data.get('time')
         name = message.data.get('name')
         # file = message.data.get('file')  TODO: Do something with this
         LOG.debug("DM: name: " + str(name).lower().strip())
@@ -1576,7 +1577,7 @@ class AlertSkill(MycroftSkill):
         #     self.ngi_settings._update_yaml_file('active', value=self.active, final=True)
         elif not self.quiet_hours:
             if not active:
-                self.active[time] = message.data
+                self.active[alert_time] = message.data
                 self.enable_intent("snooze_alert")
             # if kind == 'alarm':
             #     self.speak("Alarm is up.")
@@ -1676,7 +1677,7 @@ class AlertSkill(MycroftSkill):
 
     def cancel_active(self):
         if self.active_alert:
-            if not self.server:  # TODO: Server if active_alert belongs to user
+            if not self.server:
                 self.cancel_scheduled_event(self.active_alert)
                 try:
                     self.active.pop(self.active_time)
