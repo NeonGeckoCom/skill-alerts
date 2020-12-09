@@ -1321,6 +1321,14 @@ class AlertSkill(MycroftSkill):
                 if keyword:
                     LOG.debug(keyword)
                     utt = re.sub(str(keyword), '', utt)
+
+            # Parse transcribed a m /p m  to am/pm
+            words = utt.split()
+            for i in range(0, len(words) - 1):
+                if words[i].lower() in ("a", "p") and words[i + 1].lower() == "m":
+                    words[i] = f"{words[i]}{words[i + 1]}"
+                    words[i + 1] = " "
+            utt = " ".join([word for word in words if word != " "])
             LOG.debug(utt)
             return utt
         except Exception as e:
