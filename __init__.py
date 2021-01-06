@@ -16,6 +16,7 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2020: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+
 import time
 from copy import deepcopy
 
@@ -27,8 +28,8 @@ from mycroft.skills.core import MycroftSkill
 # from mycroft.util.time import now_local
 from mycroft.util.format import nice_time
 from mycroft.util import play_wav
-from dateutil.tz import gettz  # , tzlocal
-from mycroft.util.parse import extract_datetime, extract_number
+from dateutil.tz import gettz
+# from mycroft.util.parse import extract_datetime, extract_number
 from datetime import datetime, timedelta
 from pytz import timezone
 # from time import sleep
@@ -41,6 +42,7 @@ from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 from mycroft.audio import wait_while_speaking
 from NGI.utilities.chat_user_util import get_chat_nickname_from_filename as nick
+from lingua_franca.parse import extract_datetime, extract_number
 
 
 class AlertSkill(MycroftSkill):
@@ -1321,6 +1323,14 @@ class AlertSkill(MycroftSkill):
                 if keyword:
                     LOG.debug(keyword)
                     utt = re.sub(str(keyword), '', utt)
+
+            # Parse transcribed a m /p m  to am/pm
+            words = utt.split()
+            for i in range(0, len(words) - 1):
+                if words[i].lower() in ("a", "p") and words[i + 1].lower() == "m":
+                    words[i] = f"{words[i]}{words[i + 1]}"
+                    words[i + 1] = " "
+            utt = " ".join([word for word in words if word != " "])
             LOG.debug(utt)
             return utt
         except Exception as e:
