@@ -31,7 +31,7 @@ from mycroft.util import play_wav
 from dateutil.tz import gettz
 # from mycroft.util.parse import extract_datetime, extract_number
 from datetime import datetime, timedelta
-from pytz import timezone
+# from pytz import timezone
 # from time import sleep
 from dateutil.parser import parse
 import re
@@ -42,12 +42,15 @@ from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 from mycroft.audio import wait_while_speaking
 from NGI.utilities.chat_user_util import get_chat_nickname_from_filename as nick
-from lingua_franca.parse import extract_datetime, extract_number
+from lingua_franca.parse import extract_datetime, extract_number, extract_duration
+from lingua_franca import load_language
 
 
 class AlertSkill(MycroftSkill):
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
+        self.internal_language = "en"
+        load_language(self.internal_language)
         self.days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
         self.week = ['weekdays', 'weekday', 'weekends', 'weekend', ' week days', 'week ends']
         self.daily = ['daily', 'day', 'morning', 'afternoon', 'evening', 'night', 'everyday']
@@ -225,8 +228,11 @@ class AlertSkill(MycroftSkill):
         if self.neon_in_request(message):
             content = self.extract_content(message.data)
             LOG.debug(content)
-            alert_time, duration = self.extract_duration(content)
-            name = self.extract_name(content)
+            duration, remainder = extract_duration(content, self.internal_language)
+            alert_time = datetime.now(self.tz) + duration
+            duration = duration.total_seconds()
+            # alert_time, duration = self.extract_duration(content)
+            name = self.extract_name(remainder)
             if name:
                 name = name + " timer"
             file = None
@@ -259,7 +265,9 @@ class AlertSkill(MycroftSkill):
             LOG.debug(repeat)
             LOG.debug(playable)
             if not alert_time:
-                alert_time, _ = self.extract_duration(content)
+                duration, remainder = extract_duration(content, self.internal_language)
+                alert_time = datetime.now(self.tz) + duration
+                # alert_time, _ = self.extract_duration(content)
             if playable:
                 file = None
                 name = None
@@ -627,7 +635,8 @@ class AlertSkill(MycroftSkill):
             for alert_time, data in deepcopy(self.timers).items():
                 # if self.server:
                 #     alert_user = nick(data.get('flac_filename'))
-                if not self.server or nick(data.get('flac_filename')) == nick(message.context["flac_filename"]):
+                user = self.get_utterance_user(message)
+                if not self.server or nick(data.get('flac_filename')) == user:
                     delta = parse(alert_time).replace(microsecond=0) - datetime.now(self.tz).replace(microsecond=0)
                     LOG.debug(delta)
                     duration = self.get_nice_duration(delta.total_seconds())
@@ -873,7 +882,8 @@ class AlertSkill(MycroftSkill):
             elif repeat[0] not in self.days:
                 # This repeats on some time basis (i.e. every n hours)
                 LOG.debug(f"DM: repeat={repeat}")
-                _, duration = self.extract_duration(repeat[0])
+                duration, remainder = extract_duration(repeat[0], self.internal_language)
+                # _, duration = self.extract_duration(repeat[0])
                 LOG.debug(f"duration={int(duration)}")
                 data['frequency'] = int(duration)
                 # self.schedule_repeating_event(self._alert_expired, time, data['frequency'], data=data, name=name)
@@ -883,7 +893,7 @@ class AlertSkill(MycroftSkill):
                 data['frequency'] = 604800  # Seconds in a week
                 raw_time = parse(data['time']).strftime("%I:%M %p")
                 for day in repeat:
-                    alert_time = extract_datetime(str(raw_time + ' ' + day))[0]
+                    alert_time = extract_datetime(str(raw_time + ' ' + day), anchorDate=datetime.now(self.tz))[0]
                     LOG.debug(alert_time)
                     if ((alert_time - datetime.now(self.tz)) / timedelta(minutes=1)) < 0:
                         alert_time = alert_time + timedelta(days=7)
@@ -926,7 +936,9 @@ class AlertSkill(MycroftSkill):
         """
         flac_filename = message.context.get('flac_filename')
         utt = message.data.get('utterance')
-        new_time, snooze_duration = self.extract_duration(utt)
+        snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
+        new_time = datetime.now(self.tz) + snooze_duration
+        # new_time, snooze_duration = self.extract_duration(utt)
         LOG.debug(f"DM: {new_time}")
         tz = gettz(self.preference_location(message)["tz"])
         if not new_time:
@@ -985,25 +997,17 @@ class AlertSkill(MycroftSkill):
         Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
         """
         # TODO: for duration? Add event to schedule? DM
-        # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
-        #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
         if self.neon_in_request(message):
-            # self.speak("Enabling quiet hours. I will not notify you of any alerts until you disable quiet hours.",
-            #            private=True)
             self.speak_dialog("QuietHoursStart", private=True)
             self.quiet_hours = True
             # self.enable_intent('end_quiet_hours')
             self.disable_intent('start_quiet_hours')
             self.ngi_settings.update_yaml_file('quiet_hours', value=True, final=True)
-        # else:
-        #     self.check_for_signal("CORE_andCase")
 
     def handle_end_quiet_hours(self, message):
         """
         Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
         """
-        # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
-        #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
         if self.neon_in_request(message):
             if self.quiet_hours:
                 self.speak_dialog("QuietHoursEnd", private=True)
@@ -1035,8 +1039,6 @@ class AlertSkill(MycroftSkill):
             # self.disable_intent('end_quiet_hours')
             self.ngi_settings.update_yaml_file('missed', value={})
             self.ngi_settings.update_yaml_file('quiet_hours', value=False, final=True)
-        # else:
-        #     self.check_for_signal("CORE_andCase")
 
     def missed_alerts(self):
         """
@@ -1192,7 +1194,8 @@ class AlertSkill(MycroftSkill):
                         LOG.debug(f"DM: num_repeats={num_repeats}")
                     elif prev_word == "until":
                         # Get the datetime of the last requested occurrence
-                        last_one = extract_datetime(" ".join(content.split()[i:len(content.split())]))[0]
+                        last_one = extract_datetime(" ".join(content.split()[i:len(content.split())]),
+                                                    anchorDate=datetime.now(self.tz))[0]
                         # TODO: +1 day if days DM
                         LOG.debug(f"DM: last_one = {last_one}")
                     prev_word = str(word)
@@ -1200,10 +1203,9 @@ class AlertSkill(MycroftSkill):
                 # if len(repeat) == 0:
                 #     repeat = self.days
                 LOG.debug(repeat)
-            if extract_datetime("now")[0] == extracted_time[0]:
+            if extract_datetime("now", anchorDate=datetime.now(self.tz))[0] == extracted_time[0]:
                 if "midnight" in content:
-                    alert_time = extract_datetime("midnight tomorrow",
-                                                  datetime.now(timezone(preference_location['tz'])))[0]
+                    alert_time = extract_datetime("midnight tomorrow", anchorDate=datetime.now(self.tz))[0]
                 else:
                     alert_time = None
             elif extracted_time[0] - datetime.now(self.tz) < timedelta(seconds=0):
@@ -1235,52 +1237,6 @@ class AlertSkill(MycroftSkill):
         except Exception as e:
             LOG.error(e)
 
-    def extract_duration(self, content):
-        """
-        Function to extract duration in the form Hours Minutes Seconds
-        :param content: string to extract duration from
-        :return: datetime object for event
-        """
-        try:
-            content = content.split()
-            LOG.debug(content)
-            hours = 0
-            minutes = 0
-            seconds = 0
-            last_index = 0
-            for word in content:
-                if str(word).startswith('hour'):
-                    hour_str = ' '.join(content[last_index:int(content.index(word))])
-                    LOG.debug(hour_str)
-                    hours = extract_number(hour_str, ordinals=True)
-                    # LOG.debug(hours)
-                    last_index = content.index(word)
-                elif str(word).startswith('minute'):
-                    min_str = ' '.join(content[last_index:int(content.index(word))])
-                    LOG.debug(min_str)
-                    minutes = extract_number(min_str, ordinals=True)
-                    # LOG.debug(minutes)
-                    last_index = content.index(word)
-                elif str(word).startswith('second'):
-                    sec_str = ' '.join(content[last_index:int(content.index(word))])
-                    LOG.debug(sec_str)
-                    seconds = extract_number(sec_str)
-                    # LOG.debug(seconds)
-            LOG.debug(hours)
-            LOG.debug(minutes)
-            LOG.debug(seconds)
-            t_delta = seconds + (60 * minutes) + (3600 * hours)
-            if t_delta > 0:
-                timer_time = datetime.now(self.tz) + timedelta(seconds=t_delta)
-                LOG.debug(timer_time)
-                return timer_time, t_delta
-            else:
-                return None, None
-
-        except Exception as e:
-            LOG.error(e)
-            return None, None
-
     @staticmethod
     def extract_content(message_data):
         """
@@ -1289,19 +1245,7 @@ class AlertSkill(MycroftSkill):
         :return: string without any matched vocab
         """
         try:
-
-            # message_data = deepcopy(data)
             LOG.debug(message_data)
-            # message_data.pop('flac_filename')
-            # message_data.pop('intent_type', None)
-            # message_data.pop('target', None)
-            # message_data.pop('confidence', None)
-            # message_data.pop('__tags__', None)
-            # message_data.pop('entities', None)
-            # message_data.pop('cc_data', None)
-            # message_data.pop('nick_profiles', None)
-            # message_data.pop('mobile', None)
-            # LOG.debug(message_data)
 
             # Get a copy of the incoming message and use intent matched words to filter utterance
             keywords = [message_data.get("alarm", None), message_data.get("alert", None), message_data.get("all", None),
@@ -1316,9 +1260,6 @@ class AlertSkill(MycroftSkill):
             if message_data.get('Neon'):
                 neon = str(message_data.pop('Neon'))
                 utt = utt.split(neon)[1]
-            # for key, value in dict(message_data).items():
-            #     LOG.debug(f"{key}:{value}")
-            #     utt = re.sub(str(value), '', utt)
             for keyword in keywords:
                 if keyword:
                     LOG.debug(keyword)
@@ -1572,30 +1513,10 @@ class AlertSkill(MycroftSkill):
         if str(name).lower().strip().startswith("reminder"):
             name = str(name).split("reminder")[1]
             LOG.debug("DM: name: " + str(name).lower().strip())
-        # if device == 'server':
-        #     LOG.debug(">>>>>ALERT EXPIRING<<<<<")
-        #     if not active:
-        #         self.active[time] = message.data
-        #         self.enable_intent("snooze_alert")
-        #     if file:
-        #         self.speak_dialog('AlertExpired', {'name': name})
-        #     else:
-        #         if kind == 'reminder':
-        #             self.speak_dialog('ReminderExpired', {'name': name})
-        #         else:
-        #             self.speak_dialog('AlertExpired', {'name': name})
-        #     self.ngi_settings._update_yaml_file('active', value=self.active, final=True)
         elif not self.quiet_hours:
             if not active:
                 self.active[alert_time] = message.data
                 self.enable_intent("snooze_alert")
-            # if kind == 'alarm':
-            #     self.speak("Alarm is up.")
-            # elif kind == 'timer':
-            #     self.speak("Timer is up")
-            #     self.disable_intent('timer_status')
-            # elif kind == 'reminder':
-            #     self.speak('reminder is up')
             if kind == 'reminder':
                 self.speak_dialog('ReminderExpired', {'name': name}, private=True)
             else:

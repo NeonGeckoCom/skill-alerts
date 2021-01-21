@@ -1,16 +1,16 @@
 
-# ![](https://0000.us/klatchat/app/files/neon_images/icons/neon_paw.png)Alerts  
+# <img src='https://0000.us/klatchat/app/files/neon_images/icons/neon_skill.png' card_color="#FF8600" width="50" style="vertical-align:bottom">Alerts  
   
-# Summary  
+## Summary  
   
 A skill to schedule alarms, timers, and reminders
   
-# Requirements  
+## Requirements  
 All of the requirements should be installed automatically during original Neon’s setup. If you have any problems, or are
 adding the skill later on, please [feel free to contact our team for support](#contact-support).
 
   
-# Description  
+## Description  
   
 The skill provides functionality to create alarms, timers and reminders, remove them by name, time, or type, and ask for
 what is active. You may also silence all alerts and ask for a summary of what was missed if you were away, your device
@@ -21,7 +21,7 @@ while it is active. Any alerts that are not acknowledged will be added to a list
 cleared when requested.
     
   
-# How to Use  
+## Examples  
   
 If you are skipping wake words, say `Neon` followed by any of the following, otherwise say your `Wake Word`:
 
@@ -55,12 +55,12 @@ If you had quiet hours enabled, your device was off, or you were away and missed
 - "did i miss anything"
 
 
-# Location  
+## Location  
   
 
      ${skills}/alerts.neon
 
-# Files
+## Files
 <details>
 <summary>Click to expand.</summary>
 <br>
@@ -110,11 +110,11 @@ If you had quiet hours enabled, your device was off, or you were away and missed
 </details>
 
 
-# Class Diagram
+## Class Diagram
 
   
 
-# Available Intents
+## Available Intents
 <details>
 <summary>Show list</summary>
 <br>
@@ -204,7 +204,7 @@ If you had quiet hours enabled, your device was off, or you were away and missed
 </details>
 
 
-# Examples
+## Details
 
 ### Text
 
@@ -226,14 +226,14 @@ If you had quiet hours enabled, your device was off, or you were away and missed
 
 ### Video
 
-# Troubleshooting
+## Troubleshooting
 There is a [known issue](https://github.com/ytdl-org/youtube-dl/issues/154) for youtube_dl, where the playback for certain videos and audio files will be temporarily unavailable if you request to listen to the same song and/or video multiple times in a row over a few days. The solution is to avoid requesting the same playback over and over again, try to word your request differently, or wait some time for the limitations to wear off.
 
 Additionally, youtube_dl is currently under active development. Make sure to stay up-to-date by running Neon's update script or use the [manual requirements instructions](#requirements) to do it yourself.
 
-# Contact Support
+## Contact Support
 Use [this link](https://neongecko.com/ContactUs) or
 [submit an issue on GitHub](https://help.github.com/en/articles/creating-an-issue)
 
-# Credits
+## Credits
 reginaneon djmcknight358 [neongeckocom](https://neongecko.com/)
