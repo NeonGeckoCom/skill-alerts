@@ -278,14 +278,14 @@ class AlertSkill(MycroftSkill):
                 # else:
 
                 # Look for recording by name if recordings are available
-                if not self.server:
-                    for f in os.listdir(self.recording_dir):
-                        name = f.split('.')[0]
-                        LOG.info(f"Looking for {name} in {utt}")
-                        if name in utt:
-                            file = os.path.join(self.recording_dir, f)
-                            break
-                # TODO: Server audio recordings (with audio record skill) DM
+                # if not self.server:
+                for f in os.listdir(self.recording_dir):
+                    filename = f.split('.')[0]
+                    user, name = filename.split('-', 1)
+                    LOG.info(f"Looking for {name} in {utt}")
+                    if name in utt and user == self.get_utterance_user(message):
+                        file = os.path.join(self.recording_dir, f)
+                        break
 
                 # If no file, try using the audio associated with this utterance
                 if not file:
