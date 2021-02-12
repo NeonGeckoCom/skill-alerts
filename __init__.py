@@ -35,17 +35,16 @@ from datetime import datetime, timedelta
 # from time import sleep
 from dateutil.parser import parse
 import re
-# from copy import deepcopy
 import os
-# import mycroft.device as device
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 from mycroft.audio import wait_while_speaking
-from NGI.utilities.chat_user_util import get_chat_nickname_from_filename as nick
+# from NGI.utilities.chat_user_util import get_chat_nickname_from_filename as nick
 from lingua_franca.parse import extract_datetime, extract_number, extract_duration
 from lingua_franca import load_language
 
 
+# TODO: Skill settings will be per-user on the server; update these references DM
 class AlertSkill(MycroftSkill):
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
@@ -362,7 +361,7 @@ class AlertSkill(MycroftSkill):
                     LOG.info(f"DM: key: {key}, alert: {alert}")
                     LOG.info(f"DM: alert: {alert['name']}")
                     LOG.info(f"DM: alert flac_filename: {str(alert['flac_filename'])}")
-                    alert_user = nick(alert.get('flac_filename'))
+                    alert_user = alert.get('user')
                     LOG.info(f"DM: alert_user: {alert_user}")
                     if username != alert_user:
                         alerts_list.pop(key)
@@ -412,7 +411,7 @@ class AlertSkill(MycroftSkill):
                     LOG.info(f"DM: key: {key}, alert: {alert}")
                     LOG.info(f"DM: alert: {alert['name']}")
                     LOG.info(f"DM: alert flac_filename: {str(alert['flac_filename'])}")
-                    alert_user = nick(alert.get('flac_filename'))
+                    alert_user = alert.get('user')
                     LOG.info(f"DM: alert_user: {alert_user}")
                     if username == alert_user:
                         alerts_to_return[key] = alert
@@ -459,7 +458,7 @@ class AlertSkill(MycroftSkill):
             # LOG.debug(to_cancel)
             do_all = True if message.data.get('all') else False
             if self.server:
-                username = nick(message.context["flac_filename"])
+                username = self.get_utterance_user(message)
             else:
                 username = None
             if not do_all:
@@ -471,7 +470,7 @@ class AlertSkill(MycroftSkill):
                 kind = 'alarm'
                 if do_all:
                     for key, data in deepcopy(self.alarms).items():
-                        if not self.server or username == nick(data["flac_filename"]):
+                        if not self.server or username == self.get_utterance_user(message):
                             self.cancel_scheduled_event(data['name'])
                             to_cancel.append(key)
                             # self.alarms.pop(key)
@@ -483,7 +482,7 @@ class AlertSkill(MycroftSkill):
                     if match_time:
                         for alarm_time in sorted(self.alarms.keys()):
                             if abs((parse(alarm_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == nick(self.alarms[alarm_time]["flac_filename"])
+                                not self.server or username == self.alarms[alarm_time]["user"]
                             ):
                                 name = self.alarms[alarm_time]['name']
                                 match = True
@@ -494,7 +493,7 @@ class AlertSkill(MycroftSkill):
                     if match_name and not match:
                         for alert_time, data in deepcopy(self.alarms).items():
                             if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == nick(data["flac_filename"])
+                                not self.server or username == data["user"]
                             ):
                                 name = data['name']
                                 match = True
@@ -507,7 +506,7 @@ class AlertSkill(MycroftSkill):
                 kind = 'timer'
                 if do_all:
                     for key, data in deepcopy(self.timers).items():
-                        if not self.server or username == nick(data["flac_filename"]):
+                        if not self.server or username == data["user"]:
                             self.cancel_scheduled_event(data['name'])
                             # self.timers.pop(key)
                             to_cancel.append(key)
@@ -518,7 +517,7 @@ class AlertSkill(MycroftSkill):
                     if match_time:
                         for timer_time in sorted(self.timers.keys()):
                             if abs((parse(timer_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == nick(self.alarms[timer_time]["flac_filename"])
+                                not self.server or username == self.alarms[timer_time]["user"]
                             ):
                                 name = self.timers[timer_time]['name']
                                 match = True
@@ -529,7 +528,7 @@ class AlertSkill(MycroftSkill):
                     if match_name and not match:
                         for alert_time, data in deepcopy(self.timers).items():
                             if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == nick(data["flac_filename"])
+                                not self.server or username == data["user"]
                             ):
                                 name = data['name']
                                 match = True
@@ -543,7 +542,7 @@ class AlertSkill(MycroftSkill):
                 kind = 'reminder'
                 if do_all:
                     for key, data in deepcopy(self.reminders).items():
-                        if not self.server or username == nick(data["flac_filename"]):
+                        if not self.server or username == data["user"]:
                             self.cancel_scheduled_event(data['name'])
                             # self.reminders.pop(key)
                             to_cancel.append(key)
@@ -554,7 +553,7 @@ class AlertSkill(MycroftSkill):
                     if match_time:
                         for reminder_time in sorted(self.reminders.keys()):
                             if abs((parse(reminder_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == nick(self.alarms[reminder_time]["flac_filename"])
+                                not self.server or username == self.alarms[reminder_time]["user"]
                             ):
                                 name = self.reminders[reminder_time]['name']
                                 match = True
@@ -565,7 +564,7 @@ class AlertSkill(MycroftSkill):
                     if match_name and not match:
                         for alert_time, data in deepcopy(self.reminders).items():
                             if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == nick(data["flac_filename"])
+                                not self.server or username == data["user"]
                             ):
                                 name = data['name']
                                 match = True
@@ -636,7 +635,7 @@ class AlertSkill(MycroftSkill):
                 # if self.server:
                 #     alert_user = nick(data.get('flac_filename'))
                 user = self.get_utterance_user(message)
-                if not self.server or nick(data.get('flac_filename')) == user:
+                if not self.server or data["user"] == user:
                     delta = parse(alert_time).replace(microsecond=0) - datetime.now(self.tz).replace(microsecond=0)
                     LOG.debug(delta)
                     duration = self.get_nice_duration(delta.total_seconds())
@@ -721,7 +720,8 @@ class AlertSkill(MycroftSkill):
                     name = "%s at %s" % (str(kind), str(speak_time))
             if delta.total_seconds() < 0:
                 LOG.error(f"DM: Negative duration alert!  {duration}")
-            data = {'name': name,
+            data = {'user': self.get_utterance_user(message),
+                    'name': name,
                     'time': str(alert_time),
                     'kind': kind,
                     'file': file,
@@ -730,11 +730,12 @@ class AlertSkill(MycroftSkill):
                     'num_repeats': num_repeats,
                     'active': False,
                     'utterance': utterance,
-                    'flac_filename': flac_filename}
+                    'flac_filename': flac_filename,
+                    'nick_profiles': message.context.get('nick_profiles')}
             # TODO: Handle file here: if mobile, need to get server reference to file DM
 
-            if self.server:
-                data["nick_profiles"] = message.context.get("nick_profiles")
+            # if self.server:
+            #     data["nick_profiles"] = message.context.get("nick_profiles")
 
             self.write_to_schedule(data)
             if mobile:
@@ -934,7 +935,7 @@ class AlertSkill(MycroftSkill):
         Handle snoozing active alert. If no time is provided, the default value from the YML will be used
         :param message: messagebus message
         """
-        flac_filename = message.context.get('flac_filename')
+        # flac_filename = message.context.get('flac_filename')
         utt = message.data.get('utterance')
         snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
         new_time = datetime.now(self.tz) + snooze_duration
@@ -953,7 +954,7 @@ class AlertSkill(MycroftSkill):
         # LOG.debug(f"DM: {nick(flac_filename)}")
         for alert_time, data in sorted(self.active.items()):
             # LOG.debug(f"DM: {nick(data['flac_filename'])}")
-            if not self.server or nick(flac_filename) == nick(data["flac_filename"]):
+            if not self.server or self.get_utterance_user(message) == data["user"]:
                 kind = data['kind']
                 old_name = data['name']
                 name = "Snoozed " + old_name
