@@ -26,6 +26,13 @@
     "desktopFile": false,
     "warning": "",
     "systemDeps": false,
+    "requirements": {
+        "python": [
+            "lingua-franca~=0.3.1"
+        ],
+        "system": {},
+        "skill": []
+    },
     "platforms": [
         "i386",
         "x86_64",
@@ -44,6 +51,7 @@
         ""
     ],
     "skillname": "Alerts",
-    "authorname": "NeonGeckoCom",
-    "foldername": "alerts.neon"
+    "authorname": "Neon",
+    "foldername": "alerts.neon",
+    "download_url": "https://api.github.com/repos/NeonGeckoCom/alerts.neon/zipball/master"
 }
