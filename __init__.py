@@ -71,6 +71,8 @@ class AlertSkill(MycroftSkill):
         # self.quiet_hours = False
         self.active_time = None
         self.active_alert = None
+
+        # TODO: These are user-specific, don't use self params! DM
         self.snd_alarm = self.snd_dir + self.settings['sound_alarm']
         self.snd_timer = self.snd_dir + self.settings['sound_timer']
         self.quiet_hours = self.settings['quiet_hours']
@@ -82,7 +84,8 @@ class AlertSkill(MycroftSkill):
         self.timers = self.settings.get('timers', {})
         self.reminders = self.settings.get('reminders', {})
         self.active = {}
-        self.ngi_settings.update_yaml_file('active', value=self.active, final=True)
+        self.update_skill_settings({"active": self.active}, skill_global=True)
+        # self.ngi_settings.update_yaml_file('active', value=self.active, final=True)
 
     def initialize(self):
         list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
@@ -182,7 +185,7 @@ class AlertSkill(MycroftSkill):
         # TODO: Option to speak summary?
 
     def handle_create_alarm(self, message):
-        mobile = message.context["mobile"]
+        mobile = self.request_from_mobile(message)
         utt = message.data.get('utterance')
         flac_filename = message.context["flac_filename"]
         # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
@@ -208,7 +211,7 @@ class AlertSkill(MycroftSkill):
 
     def handle_create_timer(self, message):
         LOG.info(message.data)
-        mobile = message.context["mobile"]
+        mobile = self.request_from_mobile(message)
         utt = message.data.get('utterance')
         flac_filename = message.context["flac_filename"]
         # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
@@ -235,7 +238,7 @@ class AlertSkill(MycroftSkill):
         #     self.check_for_signal("CORE_andCase")
 
     def handle_create_reminder(self, message):
-        mobile = message.context["mobile"]
+        mobile = self.request_from_mobile(message)
         utt = message.data.get("utterance")
         flac_filename = message.context["flac_filename"]
         # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
@@ -409,8 +412,9 @@ class AlertSkill(MycroftSkill):
                         alerts_to_return[key] = alert
                 alerts_list = alerts_to_return
                 LOG.debug("DM: " + str(alerts_list))
-                if message.context["mobile"]:
-                    self.socket_io_emit('alert_status', f"&kind={kind}", message.context["flac_filename"])
+                if self.request_from_mobile(message):
+                    self.mobile_skill_intent("alert_status", {"kind": kind}, message)
+                    # self.socket_io_emit('alert_status', f"&kind={kind}", message.context["flac_filename"])
             if not alerts_list:
                 # self.speak(f"You have no upcoming {kind}s.", private=True)
                 self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
@@ -571,13 +575,15 @@ class AlertSkill(MycroftSkill):
             if self.active_alert:
                 self.cancel_active()
 
-            if message.context["mobile"]:
+            if self.request_from_mobile(message):
                 if kind:
                     # self.speak_dialog('CancelAll', {'kind': kind})
-                    self.socket_io_emit("alert_cancel", f"&kind={kind}", flac_filename)
+                    self.mobile_skill_intent("alert_cancel", {"kind": kind}, message)
+                    # self.socket_io_emit("alert_cancel", f"&kind={kind}", flac_filename)
                 else:
                     # self.speak("Cancelling all alarms, timers, and reminders")
-                    self.socket_io_emit("alert_cancel", "&kind=all", flac_filename)
+                    self.mobile_skill_intent("alert_cancel", {"kind": "all"}, message)
+                    # self.socket_io_emit("alert_cancel", "&kind=all", flac_filename)
             if kind:
                 LOG.debug(to_cancel)
                 if kind == "alarm":
@@ -639,8 +645,9 @@ class AlertSkill(MycroftSkill):
                     #     # TODO: Handle multiple timers
                     #     self.display_timer_status(data['name'], delta)
 
-            if message.context["mobile"]:
-                self.socket_io_emit('alert_status', "&kind=current_timer", message.context["flac_filename"])
+            if self.request_from_mobile(message):
+                self.mobile_skill_intent("alert_status", {"kind": "current_timer"}, message)
+                # self.socket_io_emit('alert_status', "&kind=current_timer", message.context["flac_filename"])
         else:
             self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
             # self.speak("There are no active timers.", private=True)
@@ -775,8 +782,13 @@ class AlertSkill(MycroftSkill):
                 if file:
                     # TODO: Move file to somewhere accessible and update var
                     pass
-                self.socket_io_emit('alert', f"&name={name}&time={self.to_system_time(alert_time).strftime('%s')}"
-                                    f"&kind={kind}&file={file}&repeat={repeat}&utterance={utterance}", flac_filename)
+                self.mobile_skill_intent("alert", {"name": name,
+                                                   "time": self.to_system_time(alert_time).strftime('%s'),
+                                                   "kind": kind,
+                                                   "file": file},
+                                         message)
+                # self.socket_io_emit('alert', f"&name={name}&time={self.to_system_time(alert_time).strftime('%s')}"
+                #                     f"&kind={kind}&file={file}&repeat={repeat}&utterance={utterance}", flac_filename)
 
                 if kind == "timer":
                     # self.speak("Timer started.", private=True)
