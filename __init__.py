@@ -37,8 +37,7 @@ from NGI.utilities.configHelper import NGIConfig
 from mycroft import Message
 from mycroft.util.log import LOG
 from mycroft.skills.core import MycroftSkill
-from mycroft.util import play_wav
-from mycroft.audio import wait_while_speaking
+from mycroft.util import play_audio_file
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -66,34 +65,14 @@ class AlertSkill(MycroftSkill):
         self.internal_language = "en"
         load_language(self.internal_language)
 
-        # TODO: Selectively add to articles.voc DM
-        # self.articles = ['for', 'on', 'at', 'every', 'am', 'pm', 'every', 'day', 'hour', 'minute', 'second',
-        #                  'hours', 'minutes', 'seconds', 'me', 'today', 'tomorrow', 'and', 'a', 'an', ':', 'half',
-        #                  'noon', 'midnight', 'in', 'a.m.', 'p.m.', 'the morning', 'the evening', 'the afternoon',
-        #                  'everyday', 'th', 'rd', 'st', 'nd', 'january', 'february', 'march', 'april', 'may', 'june',
-        #                  'july', 'august', 'september', 'october', 'november', 'december', 'one', 'two', 'three',
-        #                  'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen',
-        #                  'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty',
-        #                  'forty', 'fifty', 'tonight', 'weeks', 'months', 'years', 'month', 'year', 'week', 'until',
-        #                  'next']
-
         self.snd_dir = os.path.join(self.configuration_available['dirVars']['coreDir'], "mycroft", "res", "snd")
         self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
 
-        self.active_time = None
-        self.active_alert = None
-
         self.alerts_cache = NGIConfig("alerts.yml", self.file_system.path)
-        # self.alerts_cache = self.file_system.path("alerts_cache"
         self.missed = self.alerts_cache.content.get('missed', {})
-        self.active = {}  # Clear anything that was active before skill reload
-
-        # TODO: Consolidate to "pending"; each element already has 'kind' DM
         self.pending = self.alerts_cache.content.get("pending", {})
-        # self.alarms = self.alerts_cache.content.get('alarms', {})
-        # self.timers = self.alerts_cache.content.get('timers', {})
-        # self.reminders = self.alerts_cache.content.get('reminders', {})
-        self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
+
+        self.active = {}
 
     def initialize(self):
         list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
@@ -164,14 +143,13 @@ class AlertSkill(MycroftSkill):
         end_quiet_hours = IntentBuilder("end_quiet_hours").require("endQuietHours").optionally("Neon").build()
         self.register_intent(end_quiet_hours, self.handle_end_quiet_hours)
 
-        snooze_alert = IntentBuilder("snooze_alert").require("snooze").optionally("Neon").build()
-        self.register_intent(snooze_alert, self.handle_snooze_alert)
+        # snooze_alert = IntentBuilder("snooze_alert").require("snooze").optionally("Neon").build()
+        # self.register_intent(snooze_alert, self.handle_snooze_alert)
 
         timer_status = IntentBuilder("timer_status").require('howMuchTime').optionally("Neon").build()
         self.register_intent(timer_status, self.handle_timer_status)
 
         self._check_for_missed_alerts()
-        # TODO: Option to speak summary? (Have messages to use for locating users) DM
 
     def handle_create_alarm(self, message):
         """
@@ -363,8 +341,7 @@ class AlertSkill(MycroftSkill):
                 return
 
             # Nothing matched, Assume user meant an active alert
-            if self.active_alert:
-                self.cancel_active()
+            self._cancel_active_alerts(user_alerts["active"])
 
     def handle_timer_status(self, message):
         """
@@ -400,7 +377,90 @@ class AlertSkill(MycroftSkill):
         else:
             self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
 
+    def handle_snooze_alert(self, message):
+        """
+        Handle snoozing active alert. If no time is provided, the default value from the YML will be used
+        :param message: messagebus message
+        """
+        tz = self._get_user_tz(message)
+        user = self.get_utterance_user(message)
+        utt = message.data.get('utterance')
+        snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
+        new_time = datetime.now(tz) + snooze_duration
+        tz = gettz(self.preference_location(message)["tz"])
+        if not new_time:
+            new_time = extract_datetime(utt, anchorDate=self._get_user_tz(message))[0]
+        if not new_time:
+            new_time = datetime.now(tz) + timedelta(minutes=self.preference_skill(message)['snooze_mins'])
+            snooze_duration = self.preference_skill(message)['snooze_mins']*60
+        LOG.debug(new_time)
+        LOG.debug(f"DM: {snooze_duration}")
+        active_alerts = self._get_alerts_for_user(user)["active"]
+        for alert_index in active_alerts:
+            data = self.active[alert_index]
+            old_name = data['name']
+            name = "Snoozed " + old_name
+            self.pending[str(new_time)] = data
+            if type(snooze_duration) not in (int, float):
+                snooze_duration = self.preference_skill(message)['snooze_mins']*60
+            duration = nice_duration(snooze_duration)
+            self.active.pop(alert_index)
 
+            data['name'] = name
+            data['time'] = str(new_time)
+            data['repeat'] = False
+            data['active'] = False
+            LOG.debug(f"DM: {data}")
+            self._write_event_to_schedule(data)
+            self.speak_dialog("SnoozeAlert", {'name': old_name,
+                                              'duration': duration}, private=True)
+
+    def handle_start_quiet_hours(self, message):
+        """
+        Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
+        """
+        # TODO: for duration? Add event to schedule? DM
+        if self.neon_in_request(message):
+            self.speak_dialog("QuietHoursStart", private=True)
+            self.update_skill_settings({"quiet_hours": True}, message)
+
+    def handle_end_quiet_hours(self, message):
+        """
+        Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
+        """
+        if self.neon_in_request(message):
+            if self.preference_skill(message)["quiet_hours"]:
+                self.speak_dialog("QuietHoursEnd", private=True)
+            self.update_skill_settings({"quiet_hours": False}, message)
+            user = self.get_utterance_user(message)
+            missed = self._get_alerts_for_user(user)["missed"]
+            if missed:
+                self.speak_dialog("MissedAlertIntro", private=True)
+                for alert in missed:
+                    data = self._get_speak_data_from_alert(alert)
+                    if data["repeat"]:
+                        self.speak_dialog("ListRepeatingAlerts", data, private=True)
+                    else:
+                        self.speak_dialog("ListAlerts", data, private=True)
+                    self.missed.pop(alert)
+            else:
+                self.speak_dialog("NoMissedAlerts", private=True)
+            # Remove handled missed alerts from the list
+            self.alerts_cache.update_yaml_file('missed', value=self.missed)
+
+    def converse(self, message=None):
+        user = self.get_utterance_user(message)
+        user_alerts = self._get_alerts_for_user(user)
+        utterance = message.data.get("utterances")[0]
+        if user_alerts["active"]:
+            # User has an active alert they probably want to dismiss or snooze
+            if self.voc_match(utterance, "snooze"):
+                self.handle_snooze_alert(message)
+                return True
+            elif self.voc_match(utterance, "dismiss"):
+                self._cancel_active_alerts(user_alerts["active"])
+                return True
+        return False
 
     def confirm_alert(self, kind, alert_content: dict, message: Message):
         """
@@ -412,7 +472,7 @@ class AlertSkill(MycroftSkill):
         alert_time = alert_content.get("alert_time")
         name = alert_content.get("name")
         file = alert_content.get("file")
-        repeat = alert_content.get("repeat_days")  # TODO: Optional repeat_frequency
+        repeat = alert_content.get("repeat_frequency", alert_content.get("repeat_days"))
         final = alert_content.get("end_repeat")
         utterance = message.data.get("utterance")
 
@@ -445,7 +505,6 @@ class AlertSkill(MycroftSkill):
                 'file': file,
                 'repeat': repeat,
                 'final': str(final),
-                'active': False,
                 'utterance': utterance,
                 'context': message.context}
         # TODO: Handle file here: if mobile, need to get server reference to file DM
@@ -470,132 +529,22 @@ class AlertSkill(MycroftSkill):
                                                  'time': spoken_alert_time,
                                                  'duration': spoken_time_remaining}, private=True)
         else:
-            if len(repeat) == 7:
-                days = 'every day'
+            if isinstance(repeat, int):
+                repeat_interval = "every "
+                repeat_interval += self._get_spoken_time_remaining(datetime.now(self._get_user_tz(message)) +
+                                                                   timedelta(seconds=repeat), message)
+            elif len(repeat) == 7:
+                repeat_interval = 'every day'
             else:
-                days = "every" + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
+                repeat_interval = "every" + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
             if data['file']:
                 self.speak_dialog('RecurringPlayback', {'name': name,
                                                         'time': spoken_alert_time,
-                                                        'days': days}, private=True)
+                                                        'days': repeat_interval}, private=True)
             else:
                 self.speak_dialog('ConfirmRecurring', {'kind': kind,
                                                        'time': spoken_alert_time,
-                                                       'days': days}, private=True)
-
-    def handle_snooze_alert(self, message):
-        """
-        Handle snoozing active alert. If no time is provided, the default value from the YML will be used
-        :param message: messagebus message
-        """
-        # flac_filename = message.context.get('flac_filename')
-        tz = self._get_user_tz(message)
-        utt = message.data.get('utterance')
-        snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
-        new_time = datetime.now(tz) + snooze_duration
-        # new_time, snooze_duration = self.extract_duration(utt)
-        LOG.debug(f"DM: {new_time}")
-        tz = gettz(self.preference_location(message)["tz"])
-        if not new_time:
-            new_time = extract_datetime(utt, anchorDate=self._get_user_tz(message))[0]
-            LOG.debug(f"DM: {new_time}")
-        if not new_time:
-            new_time = datetime.now(tz) + timedelta(minutes=self.preference_skill(message)['snooze_mins'])
-            LOG.debug(f"DM: {new_time}")
-            snooze_duration = self.preference_skill(message)['snooze_mins']*60
-        LOG.debug(new_time)
-        LOG.debug(f"DM: {snooze_duration}")
-        # LOG.debug(f"DM: {nick(flac_filename)}")
-        for alert_time, data in sorted(self.active.items()):
-            # LOG.debug(f"DM: {nick(data['flac_filename'])}")
-            if not self.server or self.get_utterance_user(message) == data["user"]:
-                kind = data['kind']
-                old_name = data['name']
-                name = "Snoozed " + old_name
-                if kind == 'alarm':
-                    self.alarms[str(new_time)] = data
-                elif kind == 'timer':
-                    self.timers[str(new_time)] = data
-                elif kind == 'reminder':
-                    self.reminders[str(new_time)] = data
-                if type(snooze_duration) not in (int, float):
-                    snooze_duration = self.preference_skill(message)['snooze_mins']*60
-                duration = nice_duration(snooze_duration)
-                LOG.debug(f"DM: {self.active[alert_time]}")
-                data = self.active[alert_time]
-                LOG.debug(f"DM: {data}")
-                LOG.debug(f"DM: {self.active}")
-                del self.active[alert_time]
-                LOG.debug(f"DM: {self.active}")
-                self.cancel_scheduled_event(old_name)
-                LOG.debug(f"DM: {data}")
-                data['name'] = name
-                data['time'] = str(new_time)
-                data['repeat'] = False
-                data['active'] = False
-                LOG.debug(f"DM: {data}")
-                # data = {'name': name,
-                #         'time': str(new_time),
-                #         'kind': kind,
-                #         'repeat': False,
-                #         'active': False}
-                self.schedule_event(self._alert_expired, self.to_system_time(new_time), data=data, name=name)
-                self.speak_dialog("SnoozeAlert", {'name': old_name,
-                                                  'duration': duration}, private=True)
-        self.alerts_cache.update_yaml_file('alarms', value=self.alarms)
-        self.alerts_cache.update_yaml_file('timers', value=self.timers)
-        self.alerts_cache.update_yaml_file('reminders', value=self.reminders)
-        self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
-
-    def handle_start_quiet_hours(self, message):
-        """
-        Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
-        """
-        # TODO: for duration? Add event to schedule? DM
-        if self.neon_in_request(message):
-            self.speak_dialog("QuietHoursStart", private=True)
-            self.update_skill_settings({"quiet_hours": True}, message)
-            # self.quiet_hours = True
-            # self.enable_intent('end_quiet_hours')
-            self.disable_intent('start_quiet_hours')
-            # self.alerts_cache.update_yaml_file('quiet_hours', value=True, final=True)
-
-    def handle_end_quiet_hours(self, message):
-        """
-        Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
-        """
-        if self.neon_in_request(message):
-            if self.preference_skill(message)["quiet_hours"]:
-                self.speak_dialog("QuietHoursEnd", private=True)
-                # self.speak("Disabling quiet hours.", private=True)
-            # self.quiet_hours = False
-            self.update_skill_settings({"quiet_hours": False}, message)
-            # self.missed_alerts()
-            if self.missed:
-                self.speak_dialog("MissedAlertIntro", private=True)
-                # self.speak("Here's what you missed:", private=True)
-                days, times, names, files, repeats = self.get_speak_time(self.missed, False)
-                for i in range(0, len(days)):
-                    # i = days.index(day)
-                    if repeats[i]:
-                        self.speak_dialog("ListRepeatingAlerts", {'name': names[i],
-                                                                  'time': times[i],
-                                                                  'repeat': repeats[i]}, private=True)
-                    else:
-                        self.speak_dialog("ListAlerts", {'name': names[i],
-                                                         'time': times[i],
-                                                         'day': days[i]}, private=True)
-                    if files[i]:
-                        wait_while_speaking()
-                        thread = play_wav(files[i])
-                        thread.wait(30)  # TODO: Get file length for timeout DM
-            else:
-                self.speak_dialog("NoMissedAlerts", private=True)
-                # self.speak("You haven't missed any alerts.", private=True)
-            self.enable_intent('start_quiet_hours')
-            # self.disable_intent('end_quiet_hours')
-            self.alerts_cache.update_yaml_file('missed', value={})
-            # self.alerts_cache.update_yaml_file('quiet_hours', value=False, final=True)
+                                                       'days': repeat_interval}, private=True)
 
     def _check_for_missed_alerts(self):
         """
@@ -615,6 +564,7 @@ class AlertSkill(MycroftSkill):
                 self.cancel_scheduled_event(data['name'])
             LOG.debug(self.missed)
             self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
+            # TODO: Option to speak summary? (Have messages to use for locating users) DM
 
     def _display_timer_status(self, name, alert_time: datetime):
         """
@@ -660,6 +610,14 @@ class AlertSkill(MycroftSkill):
             extracted_data["alert_time"] = alert_time
             if not name:
                 name = self._generate_default_name(alert_type, extracted_data, message)
+            if message.data.get("repeat"):
+                # Remind me to {name} every {repeat_interval}
+                repeat_str = keyword_str.split(message.data.get("repeat"), 1)[1]
+                alert_time_words = repeat_str.split()
+                # Parse "every n durations" here
+                repeat_str = " ".join(alert_time_words[0:2])
+                repeat_interval = extract_duration(repeat_str)[0]
+                extracted_data["repeat_frequency"] = repeat_interval.seconds
             extracted_data["name"] = name
             LOG.info(extracted_data)
             return extracted_data
@@ -668,7 +626,7 @@ class AlertSkill(MycroftSkill):
         if message.data.get("until"):
             alert_time_str, alert_repeat_end = keyword_str.split(message.data.get("until"), 1)
             extracted_data["end_repeat"] = extract_datetime(alert_repeat_end,
-                                                            anchorDate= self._get_user_tz(message))[0]
+                                                            anchorDate=self._get_user_tz(message))[0]
         else:
             alert_time_str = keyword_str
             extracted_data["end_repeat"] = None
@@ -686,7 +644,8 @@ class AlertSkill(MycroftSkill):
                 repeat_str = alert_time_str.split(message.data.get("repeat"), 1)[1]
                 alert_time_words = repeat_str.split()
             else:
-                LOG.warning(f"Parser broke! Time to do this manually...")
+                LOG.warning(f"Parser broke! Try to do this manually...")
+                repeat_str = None
                 alert_time_words = alert_time_str.split()
             repeat_days = []
             for word in alert_time_words:
@@ -694,17 +653,21 @@ class AlertSkill(MycroftSkill):
                 if self.voc_match(word, "dayOfWeek"):
                     repeat_days.append(Weekdays(WEEKDAY_NAMES.index(word.rstrip("s").title())))
                     alert_time_str = alert_time_str.replace(word, "")
+            if not repeat_days and repeat_str:
+                # Parse "every n durations" here
+                repeat_str = " ".join(alert_time_words[0:2])
+                repeat_interval = extract_duration(repeat_str)[0]
+                extracted_data["repeat_frequency"] = repeat_interval.seconds
+
         else:
             repeat_days = None
         extracted_data["repeat_days"] = repeat_days
-
         LOG.debug(alert_time_str)
         # Extract an end condition
         # TODO: parse 'for n days/weeks/months' here and remove from alert_time_str
 
         if repeat_days:
             possible_start_day = datetime.today().weekday()
-            # TODO: If today in repeat_days, check if time is in the future DM
             if possible_start_day in repeat_days:
                 today_dow = WEEKDAY_NAMES[possible_start_day]
                 if extract_datetime(f"{today_dow} {alert_time_str}",
@@ -895,7 +858,7 @@ class AlertSkill(MycroftSkill):
         """
         Get a dict containing all alerts for the given user
         :param user: username requested
-        :return: Dict of alert type (alarms/timers/reminders) to list of keys associated with the given user
+        :return: Dict of alert type (alarms/timers/reminders/active) to list of keys associated with the given user
         """
         user_alarms = [alarm for alarm in self.pending.keys()
                        if self.pending[alarm]["user"] == user and self.pending[alarm]["kind"] == "alarm"]
@@ -906,9 +869,15 @@ class AlertSkill(MycroftSkill):
         user_reminders = [reminder for reminder in self.pending.keys()
                           if self.pending[reminder]["user"] == user and self.pending[reminder]["kind"] == "reminder"]
         user_reminders.sort()
+        user_active = [alert for alert in self.active.keys() if self.active[alert]["user"] == user]
+        user_active.sort()
+        user_missed = [alert for alert in self.missed.keys() if self.missed[alert]["user"] == user]
+        user_missed.sort()
         user_alerts = {"alarm": user_alarms,
                        "timer": user_timers,
-                       "reminder": user_reminders}
+                       "reminder": user_reminders,
+                       "active": user_active,
+                       "missed": user_missed}
         LOG.info(user_alerts)
         return user_alerts
 
@@ -954,13 +923,21 @@ class AlertSkill(MycroftSkill):
         spoken_duration = nice_duration(time_delta_remaining.seconds)
         return spoken_duration
 
-    def _get_speak_data_from_alert(self, alert: str) -> dict:
+    def _get_speak_data_from_alert(self, alert_index: str) -> dict:
         """
         Extracts speakable parameters from a passed pending alert entry
-        :param alert: key for alert in pending_alerts
+        :param alert_index: key for alert
         :return: dict of speakable parameters
         """
-        alert_data = self.pending.get(alert)
+        if alert_index in self.pending.keys():
+            alert_data = self.pending.get(alert_index)
+        elif alert_index in self.missed.keys():
+            alert_data = self.missed.get(alert_index)
+        elif alert_index in self.active.keys():
+            alert_data = self.active.get(alert_index)
+        else:
+            LOG.warning(f"Alert not found: {alert_index}")
+            return {}
         kind = alert_data.get("kind")
         name = alert_data.get("name")
         file = os.path.splitext(os.path.basename(alert_data.get("file")))[0] if alert_data.get("file") else ""
@@ -993,7 +970,12 @@ class AlertSkill(MycroftSkill):
         if not repeat:
             self._write_alert_to_config(alert_data, repeating=False)
         else:
-            if repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
+            if isinstance(repeat, int):
+                # This repeats on some time basis and repeat is already seconds (i.e. every n hours)
+                LOG.debug(f"DM: repeat={repeat}")
+                alert_data['frequency'] = repeat
+                self._write_alert_to_config(alert_data, True)
+            elif repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
                           Weekdays.SAT, Weekdays.SUN]:
                 # Repeats every day, schedule frequency is one day
                 alert_data['frequency'] = 86400  # Seconds in a day
@@ -1013,15 +995,6 @@ class AlertSkill(MycroftSkill):
                     name = str(WEEKDAY_NAMES[day]) + name
                     alert_data['name'] = name
                     self._write_alert_to_config(alert_data, True)
-            elif repeat[0] not in [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
-                                   Weekdays.SAT, Weekdays.SUN]:
-                # This repeats on some time basis (i.e. every n hours)
-                LOG.debug(f"DM: repeat={repeat}")
-                duration, remainder = extract_duration(repeat[0], self.internal_language)
-                # _, duration = self.extract_duration(repeat[0])
-                LOG.debug(f"duration={int(duration)}")
-                alert_data['frequency'] = int(duration)
-                self._write_alert_to_config(alert_data, True)
 
     def _write_alert_to_config(self, data: dict, repeating: bool):
         """
@@ -1061,6 +1034,7 @@ class AlertSkill(MycroftSkill):
 
         delta = alert_time - datetime.now(tz)
         spoken_time_remaining = self._get_spoken_time_remaining(alert_time, message)
+        # noinspection PyTypeChecker
         spoken_alert_time = nice_time(alert_time, use_24hour=self.preference_unit(message)['time'] == 24)
 
         if file:
@@ -1109,10 +1083,30 @@ class AlertSkill(MycroftSkill):
                                              'duration': spoken_time_remaining}, private=True)
 
     def _make_alert_active(self, alert_id: str):
+        """
+        Makes a pending alert active
+        :param alert_id: alert to mark as active
+        """
         alert = self.pending.pop(alert_id)
         alert["active"] = True
         self.active[alert_id] = alert
         self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+
+    def _make_alert_missed(self, alert_id: str):
+        """
+        Makes a pending or active alert missed
+        :param alert_id: alert to mark as missed
+        """
+        if alert_id in self.pending.keys():
+            alert = self.pending.pop(alert_id)
+            self.alerts_cache.update_yaml_file("pending", value=self.pending, multiple=True)
+        elif alert_id in self.active.keys():
+            alert = self.active.pop(alert_id)
+        else:
+            LOG.error(f"No alert found with id: {alert_id}")
+            return
+        self.missed[alert_id] = alert
+        self.alerts_cache.update_yaml_file("missed", value=self.missed, final=True)
 
     def _reschedule_recurring_alert(self, alert_data: dict):
         """
@@ -1133,225 +1127,133 @@ class AlertSkill(MycroftSkill):
                 LOG.debug("reschedule")
                 self._write_event_to_schedule(alert_data)
 
+    def _cancel_active_alerts(self, to_cancel: list):
+        """
+        Cancel all alerts in the passed list to cancel
+        :param to_cancel: list of alert indices to cancel
+        """
+        for idx in to_cancel:
+            try:
+                alert = self.active.pop(idx)
+                self.speak_dialog("DismissAlert", {"name": alert['name']}, private=True)
+                LOG.debug(f"Dismissing {alert['name']}")
+            except Exception as e:
+                LOG.error(e)
+                LOG.error(idx)
 # Handlers for expired alerts
 
     def _alert_expired(self, message):
         """
-        Handler passed to messagebus on schedule of alert
+        Handler passed to messagebus on schedule of alert. Handles rescheduling, quiet hours, calling _notify_expired
         :param message: object containing alert details
         """
         LOG.info(message)
         LOG.info(message.data)
         LOG.info(message.context)
-        context = message.data.pop("context")
-        message_for_prefs = Message("", message.data, context)
-        alert_kind = message.data.get('kind')
+        message.context = message.data.pop("context")  # Replace message context with original context
         alert_time = message.data.get('time')
         alert_name = message.data.get('name')
-        alert_file = message.data.get('file')
         alert_freq = message.data.get('frequency')
-        active = message.data.get('active')
         self.cancel_scheduled_event(alert_name)
 
-        if not active:
-            # Remove from YML if this is the first expiration
+        # Write next Recurrence to Schedule
+        if alert_freq:
+            self._reschedule_recurring_alert(message.data)
+
+        if not self.preference_skill(message)["quiet_hours"]:
             self._make_alert_active(alert_time)
-            if self.gui_enabled:
-                self.gui.show_text(alert_name, alert_kind)
-                self.clear_gui_timeout()
+        else:
+            self._make_alert_missed(alert_time)
+            return
 
-            # Write next Recurrence to Schedule
-            if alert_freq:
-                self._reschedule_recurring_alert(message.data)
+        self._notify_expired(message)
 
-        # Notify Alert based on settings
-        LOG.debug(message)
+    def _notify_expired(self, message):
+        alert_kind = message.data.get('kind')
+        alert_file = message.data.get('file')
+        skill_prefs = self.preference_skill(message)
 
-        # LOG.debug('>>>device:' + str(device))
-        if self.server:
-            LOG.debug(">>>On Server, speak this.")
-            self._server_notify_expired(message)
-        elif alert_file:
+        if self.gui_enabled:
+            self._gui_notify_expired(message)
+
+        # We have audio to reconvey
+        if alert_file:
             self._play_notify_expired(message)
-        elif alert_kind == 'alarm':
-            if self.settings['speak_alarm']:
-                self._speak_notify_expired(message)
-            else:
-                self._play_notify_expired(message)
-        elif alert_kind == 'timer':
-            if self.settings['speak_timer']:
-                self._speak_notify_expired(message)
-            else:
-                self._play_notify_expired(message)
-        elif alert_kind == 'reminder':
+        elif alert_kind == "alarm" and not skill_prefs["speak_alarm"]:
+            self._play_notify_expired(message)
+        elif alert_kind == "timer" and not skill_prefs["speak_timer"]:
+            self._play_notify_expired(message)
+        else:
             self._speak_notify_expired(message)
-
-        # Reschedule to continue notification
-        if not self.preference_skill(message)["quiet_hours"] and not self.server:
-            self._reschedule_recurring(message)
 
     def _play_notify_expired(self, message):
         LOG.debug(message)
-        active = message.data.get('active')
         alert_kind = message.data.get('kind')
         alert_time = message.data.get('time')
         alert_file = message.data.get('file')
-        # name = message.data.get('name')
-        if not self.preference_skill(message)["quiet_hours"]:
-            thread = None
-            if not active:
-                self.active[alert_time] = message.data
-                self.enable_intent("snooze_alert")
-            if alert_file:
-                LOG.debug(alert_file)
-                # self.speak("You have an audio reminder.", private=True)
-                self.speak_dialog("AudioReminderIntro", private=True)
-                wait_while_speaking()
-                thread = play_wav(alert_file)
-            elif alert_kind == 'alarm':
-                snd_alarm = os.path.join(self.snd_dir, self.preference_skill(message)["sound_alarm"])
-                LOG.debug(snd_alarm)
-                thread = play_wav(snd_alarm)
-            elif alert_kind == 'timer':
-                snd_timer = os.path.join(self.snd_dir, self.preference_skill(message)["sound_timer"])
-                LOG.debug(snd_timer)
-                thread = play_wav(snd_timer)
-
-            if thread:
-                thread.wait(30)  # TODO: Is this a good timeout DM
-            self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
+        alert_name = message.data.get('name')
+        if alert_file:
+            LOG.debug(alert_file)
+            self.speak_dialog("AudioReminderIntro", private=True)
+            to_play = alert_file
+        elif alert_kind == 'alarm':
+            to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_alarm"])
+        elif alert_kind == 'timer':
+            to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_timer"])
         else:
-            self.missed[str(datetime.now())] = message.data
-            self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
+            LOG.error(f"Nothing to play, just speak it!")
+            self._speak_notify_expired(message)
+            return
+
+        timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
+        while alert_time in self.active.keys() and time.time() < timeout:
+            if self.server:
+                self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': alert_name}), alert_file,
+                                     message,
+                                     private=True)
+            else:
+                play_audio_file(to_play).wait(60)
+            time.sleep(10)
 
     def _speak_notify_expired(self, message):
         LOG.debug(">>>_speak_notify_expired<<<")
-        active = message.data.get('active')
         kind = message.data.get('kind')
-        alert_time = message.data.get('time')
         name = message.data.get('name')
-        # file = message.data.get('file')  TODO: Do something with this
-        LOG.debug("DM: name: " + str(name).lower().strip())
+        alert_time = message.data.get('time')
+
         if str(name).lower().strip().startswith("reminder"):
             name = str(name).split("reminder")[1]
             LOG.debug("DM: name: " + str(name).lower().strip())
-        elif not self.preference_skill(message)["quiet_hours"]:
-            if not active:
-                self.active[alert_time] = message.data
-                self.enable_intent("snooze_alert")
+
+        # Notify user until they dismiss the alert
+        timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
+        while alert_time in self.active.keys() and time.time() < timeout:
             if kind == 'reminder':
-                self.speak_dialog('ReminderExpired', {'name': name}, private=True)
+                self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
             else:
-                self.speak_dialog('AlertExpired', {'name': name}, private=True)
-            self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
+                self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
+            self.make_active()
+            time.sleep(10)
+        if alert_time in self.active.keys():
+            self._make_alert_missed(alert_time)
+
+    def _gui_notify_expired(self, message):
+        """
+        Handles gui display on alert expiration
+        :param message: Message associated with expired alert
+        """
+        alert_name = message.data.get("name")
+        alert_kind = message.data.get("kind")
+        if alert_kind == "timer":
+            self.gui.show_text("Time's Up!", alert_name)
         else:
-            self.missed[str(datetime.now())] = message.data
-            self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
-
-    def _server_notify_expired(self, message):
-        LOG.debug(">>>_server_notify_expired<<<")
-        active = message.data.get('active')
-        alert_kind = message.data.get('kind')
-        alert_time = message.data.get('time')
-        alert_name = message.data.get('name')
-        alert_file = message.data.get('file')
-        alert_flac = message.context["flac_filename"]
-        # utt = message.data.get('utt')
-        LOG.debug("DM: name: " + str(alert_name).lower().strip())
-
-        if not active:
-            self.active[alert_time] = message.data
-            self.enable_intent("snooze_alert")
-            self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
-            # TODO: Server remove this from active after some timeout? Currently removed on cancel or snooze intent
-
-        LOG.debug(">>>>>ALERT EXPIRING<<<<<")
-        # if not active:
-        #     self.active[time] = message.data
-        #     self.enable_intent("snooze_alert")
-        if alert_file:
-            # self.socket_io_emit(event="alert expired", kind="audio",
-            #                     message=f"Your {name} is up.", flac_filename=flac)
-            self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': alert_name}), alert_file, message,
-                                 private=True)
-            # self.speak_dialog('AlertExpired', {'name': name}, private=True)
-        else:
-            if alert_kind == 'reminder':
-                if str(alert_name).lower().strip().startswith("reminder"):
-                    alert_name = str(alert_name).split("reminder")[1]
-                    LOG.debug("DM: name: " + str(alert_name).lower().strip())
-                # self.socket_io_emit(event="alert expired", kind="reminder",
-                #                     message=f"This is your reminder {name}.", flac_filename=flac)
-                self.speak_dialog('ReminderExpired', {'name': alert_name}, private=True)
-            else:
-                # self.socket_io_emit(event="alert expired", kind="other",
-                #                     message=f"Your {name} is up.", flac_filename=flac)
-                self.speak_dialog('AlertExpired', {'name': alert_name}, private=True)
-        LOG.debug(f"flac_filename: {alert_flac}")
-        # self.socket_io_emit("alert_expiry", f"&kind={kind}&time={time}&name={name}&tile={file}&utt={utt}", flac)
-        self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
-
-    def _reschedule_recurring(self, message):
-        exp_time = parse(message.data.get('time'))
-        tz = self._get_user_tz(message)
-
-        # Determine how long to wait to reschedule recurring alert
-
-        settings = self.preference_skill(message)
-        # This is an alarm or timer with a known audio file that should play continuously
-        if((message.data.get('kind') == 'alarm') and not settings['speak_alarm']) or \
-                ((message.data.get('kind') == 'timer') and not settings['speak_timer']):
-            alert_time = datetime.now(tz) + timedelta(seconds=5)  # TODO: Base this off of file length DM
-        # This is a reconveyance reminder
-        elif message.data.get('file'):
-            # TODO: Catch longer file length and extend repeat duration DM
-            alert_time = datetime.now(tz) + timedelta(minutes=settings["default_repeat_mins"])
-        # This is a spoken alert
-        else:
-            alert_time = datetime.now(tz) + timedelta(minutes=settings["default_repeat_mins"])
-        LOG.info(alert_time)
-        name = message.data.get('name')
-        data = {'name': name,
-                'time': message.data.get('time'),
-                'kind': message.data.get('kind'),
-                'file': message.data.get('file'),
-                'repeat': False,
-                'active': True}
-        if datetime.now(tz) - exp_time > timedelta(minutes=settings["timeout_min"]):
-            # self.speak("Silencing Alert.", private=True)
-            self.speak_dialog("AlertTimeout", private=True)
-            self.active.pop(message.data.get('time'))
-            self.missed[str(datetime.now())] = data
-            self.alerts_cache.update_yaml_file('active', value=self.active)
-            self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
-        else:
-            self.active_alert = name
-            self.active_time = message.data.get('time')
-            LOG.debug(self.active_alert)
-            self.schedule_event(self._alert_expired, self.to_system_time(alert_time), data=data, name=name)
-
-    def cancel_active(self):
-        if self.active_alert:
-            if not self.server:
-                self.cancel_scheduled_event(self.active_alert)
-                try:
-                    self.active.pop(self.active_time)
-                    self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
-                    if self.gui_enabled:
-                        self.gui.clear()
-                except Exception as e:
-                    LOG.error(e)
-                    for alert in self.active.keys():
-                        self.cancel_scheduled_event(self.active[alert]['name'])
-                    self.active = {}
-                    self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
-        if self.server:
-            # TODO: Server handle any active alerts for the user
-            pass
+            self.gui.show_text(alert_name, alert_kind)
+        self.clear_gui_timeout()
 
     def stop(self):
         self.clear_signals('ALRT')
-        self.cancel_active()
+        if self.gui_enabled:
+            self.gui.clear()
 
 
 def create_skill():
