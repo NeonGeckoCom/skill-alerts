@@ -700,7 +700,8 @@ class AlertSkill(MycroftSkill):
         # Get the alert time out
         LOG.debug(alert_time_str)
         try:
-            alert_time, remainder = extract_datetime(alert_time_str, anchorDate=datetime.now(self._get_user_tz(message)))
+            alert_time, remainder = extract_datetime(alert_time_str,
+                                                     anchorDate=datetime.now(self._get_user_tz(message)))
             extracted_data["alert_time"] = alert_time
             LOG.debug(remainder)
         except TypeError:
@@ -1005,7 +1006,6 @@ class AlertSkill(MycroftSkill):
         """
         repeat = alert_data['repeat']
         tz = parse(alert_data['time']).tzinfo
-        name = alert_data['name']
         LOG.debug(f'Write to Schedule: {alert_data}')
 
         if not repeat:
@@ -1064,6 +1064,7 @@ class AlertSkill(MycroftSkill):
         self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
 
     def _create_mobile_alert(self, kind, alert_content, message):
+        # TODO: Consider other methodology for managing mobile alerts centrally
         LOG.debug("Mobile response")
         alert_time = parse(alert_content.get("time"))
         name = alert_content.get("name")
