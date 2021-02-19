@@ -28,11 +28,18 @@
     "systemDeps": false,
     "requirements": {
         "python": [
-            "lingua-franca~=0.3.1"
+            "lingua-franca~=0.3.1",
+            "spacy~=2.3.1",
+            "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz"
         ],
         "system": {},
         "skill": []
     },
+    "incompatible_skills": [
+        "https://github.com/mycroftai/skill-reminder",
+        "https://github.com/mycroftai/skill-alarm",
+        "https://github.com/mycroftai/mycroft-timer"
+    ],
     "platforms": [
         "i386",
         "x86_64",
@@ -42,13 +49,20 @@
     ],
     "branch": "master",
     "license": "NeonAI License v1.0",
-    "icon": "https://0000.us/klatchat/app/files/neon_images/icons/neon_skill.png",
-    "category": "",
+    "icon": "logo.svg",
+    "category": "Productivity",
     "categories": [
-        ""
+        "Productivity",
+        "Daily"
     ],
     "tags": [
-        ""
+        "NeonGecko",
+        "NeonAI",
+        "alert",
+        "alarm",
+        "timer",
+        "reminder",
+        "schedule"
     ],
     "skillname": "Alerts",
     "authorname": "Neon",
