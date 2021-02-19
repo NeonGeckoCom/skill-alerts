@@ -766,7 +766,8 @@ class AlertSkill(MycroftSkill):
             return ""
 
         try:
-            content = re.sub(r'\d+', '', content).split()
+            content = content.replace(':', '')  # Remove colons from time delimiters
+            content = re.sub(r'\d+', '', content).split()  # Remove any numbers
             content = [word for word in content if not _word_is_vocab_match(word)]
             result = ' '.join(content)
             LOG.debug(result)
@@ -1261,9 +1262,9 @@ class AlertSkill(MycroftSkill):
         name = message.data.get('name')
         alert_time = message.data.get('time')
 
-        if str(name).lower().strip().startswith("reminder"):
-            name = str(name).split("reminder")[1]
-            LOG.debug("DM: name: " + str(name).lower().strip())
+        # if str(name).lower().strip().startswith("reminder"):
+        #     name = str(name).split("reminder")[1]
+        #     LOG.debug("DM: name: " + str(name).lower().strip())
 
         # Notify user until they dismiss the alert
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
