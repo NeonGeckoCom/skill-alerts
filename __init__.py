@@ -372,7 +372,7 @@ class AlertSkill(MycroftSkill):
                     timer_data = self.pending[timer]
                     tz = self._get_user_tz(message)
                     delta = parse(timer_data["time"]).replace(microsecond=0) - datetime.now(tz).replace(microsecond=0)
-                    LOG.debug(delta)
+                    # LOG.debug(delta)
                     duration = nice_duration(delta.total_seconds())
                     self.speak_dialog('TimerStatus', {'timer': timer_data['name'],
                                                       'duration': duration}, private=True)
@@ -396,7 +396,6 @@ class AlertSkill(MycroftSkill):
             new_time = datetime.now(tz) + timedelta(minutes=self.preference_skill(message)['snooze_mins'])
             snooze_duration = self.preference_skill(message)['snooze_mins']*60
         LOG.debug(new_time)
-        LOG.debug(f"DM: {snooze_duration}")
         active_alerts = self._get_alerts_for_user(user)["active"]
         for alert_index in active_alerts:
             data = self.active[alert_index]
@@ -412,7 +411,6 @@ class AlertSkill(MycroftSkill):
             data['time'] = str(new_time)
             data['repeat'] = False
             data['active'] = False
-            LOG.debug(f"DM: {data}")
             self._write_event_to_schedule(data)
             self.speak_dialog("SnoozeAlert", {'name': old_name,
                                               'duration': duration}, private=True)
@@ -488,7 +486,7 @@ class AlertSkill(MycroftSkill):
             return
         # This shouldn't be possible...
         if not alert_time.tzinfo:
-            LOG.error(f"Alert without tzinfo! {alert_time}")
+            LOG.warning(f"Alert without tzinfo! {alert_time}")
             if self.server:
                 hint = "Please make sure your location is set in your profile and try again"
             else:
@@ -496,7 +494,7 @@ class AlertSkill(MycroftSkill):
             self.speak_dialog("ErrorScheduling", {"kind": kind, "hint": hint}, private=True)
             return
 
-        LOG.debug(">>>>>" + str(alert_time))
+        # LOG.debug(">>>>>" + str(alert_time))
         spoken_time_remaining = self._get_spoken_time_remaining(alert_time, message)
         spoken_alert_time = nice_time(alert_time, use_24hour=self.preference_unit(message)['time'] == 24)
 
@@ -563,7 +561,7 @@ class AlertSkill(MycroftSkill):
                 data = self.pending[alert]
                 self._write_event_to_schedule(data)
 
-            LOG.debug(self.missed)
+            # LOG.debug(self.missed)
             for data in self.missed.values():
                 self.cancel_scheduled_event(data['name'])
             LOG.debug(self.missed)
@@ -579,9 +577,7 @@ class AlertSkill(MycroftSkill):
         duration = alert_time.replace(microsecond=0) - datetime.now(alert_time.tzinfo).replace(microsecond=0)
         LOG.info(duration)
         self.gui.show_text(str(duration), name)
-        LOG.info(duration)
         duration = duration - timedelta(seconds=1)
-        LOG.info(duration)
         while duration.total_seconds() > 0:
             time.sleep(1)
             self.gui.gui_set(Message("tick", {"text": str(duration)}))
@@ -674,6 +670,7 @@ class AlertSkill(MycroftSkill):
             repeat_days = None
         extracted_data["repeat_days"] = repeat_days
         LOG.debug(alert_time_str)
+
         # Extract an end condition
         # TODO: parse 'for n days/weeks/months' here and remove from alert_time_str
 
@@ -682,11 +679,8 @@ class AlertSkill(MycroftSkill):
             if possible_start_day in repeat_days:
                 today_dow = WEEKDAY_NAMES[possible_start_day]
                 if extract_datetime(f"{today_dow} {alert_time_str}",
-                                    anchorDate=datetime.now(self._get_user_tz(message)))[0] > \
+                                    anchorDate=datetime.now(self._get_user_tz(message)))[0] <= \
                         datetime.now(self._get_user_tz(message)):
-                    LOG.debug(f"Happening today!")
-                else:
-                    LOG.debug("Not Happening Today.")
                     possible_start_day += 1
             while possible_start_day not in repeat_days:
                 if possible_start_day < 6:
@@ -694,7 +688,7 @@ class AlertSkill(MycroftSkill):
                 else:
                     possible_start_day = 0
             first_day_of_week = WEEKDAY_NAMES[possible_start_day]
-            LOG.debug(first_day_of_week)
+            # LOG.debug(first_day_of_week)
             alert_time_str = f"{first_day_of_week} {alert_time_str}"
 
         # Get the alert time out
@@ -728,7 +722,7 @@ class AlertSkill(MycroftSkill):
                     "setReminder", "snooze", "timer")
 
         utt = str(message_data.get('utterance'))
-        LOG.debug(utt)
+        # LOG.debug(utt)
         if message_data.get('Neon'):
             neon = str(message_data.get('Neon'))
             utt = utt.split(neon)[1]
@@ -745,10 +739,9 @@ class AlertSkill(MycroftSkill):
                     words[i + 1] = ""
             utt = " ".join([word for word in words if word])
             LOG.debug(utt)
-            return utt
         except Exception as e:
             LOG.error(e)
-            return utt
+        return utt
 
     def _extract_specified_name(self, content: str, alert_type: AlertType = None) -> str:
         """
@@ -804,9 +797,9 @@ class AlertSkill(MycroftSkill):
         :param message: Message associated with request
         :return: timezone object
         """
-        tz = gettz(self.preference_location(message)['tz']) or self.sys_tz
-        LOG.debug(tz)
-        return tz
+        return gettz(self.preference_location(message)['tz']) or self.sys_tz
+        # LOG.debug(tz)
+        # return tz
 
     def _generate_default_name(self, alert_type: AlertType, alert_data: dict, message) -> str:
         """
@@ -867,6 +860,7 @@ class AlertSkill(MycroftSkill):
         # Look for recording by name if recordings are available
         for f in os.listdir(self.recording_dir):
             filename = f.split('.')[0]
+            # TODO: Use regex to filter files by user associated instead of iterating all DM
             if '-' in filename:
                 user, name = filename.split('-', 1)
                 LOG.info(f"Looking for {name} in {utt}")
@@ -891,9 +885,6 @@ class AlertSkill(MycroftSkill):
                 root.withdraw()
                 file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
                                        parent=root)
-            if not file:
-                pass
-                # TODO: Enable recording of file here (reserve name to complete this intent and then call record?) DM
         return file
 
     def _get_alerts_for_user(self, user: str) -> dict:
@@ -930,7 +921,7 @@ class AlertSkill(MycroftSkill):
         :param cutoff: timedelta representing longest time for which to retain seconds
         :return: datetime rounded to the nearest minute
         """
-        LOG.info(f"DM: {alert_time}")
+        LOG.info(alert_time)
         tz = self._get_user_tz()
         use_seconds = False
         if alert_time - datetime.now(tz) < cutoff:
@@ -1014,7 +1005,7 @@ class AlertSkill(MycroftSkill):
         else:
             if isinstance(repeat, int):
                 # This repeats on some time basis and repeat is already seconds (i.e. every n hours)
-                LOG.debug(f"DM: repeat={repeat}")
+                # LOG.debug(f"repeat={repeat}")
                 alert_data['frequency'] = repeat
                 self._write_alert_to_config(alert_data, True)
             elif repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
@@ -1144,7 +1135,7 @@ class AlertSkill(MycroftSkill):
         elif alert_id in self.active.keys():
             alert = self.active.pop(alert_id)
         else:
-            LOG.error(f"No alert found with id: {alert_id}")
+            LOG.warning(f"No alert found with id: {alert_id}")
             return
         self.missed[alert_id] = alert
         self.alerts_cache.update_yaml_file("missed", value=self.missed, final=True)
@@ -1162,10 +1153,10 @@ class AlertSkill(MycroftSkill):
             if alert_data['num_repeats']:
                 alert_data['num_repeats'] = alert_data['num_repeats'] - 1
                 if alert_data['num_repeats'] > 0:
-                    LOG.debug("reschedule")
+                    LOG.debug(f"rescheduling {alert_data}")
                     self._write_event_to_schedule(alert_data)
             else:
-                LOG.debug("reschedule")
+                LOG.debug(f"rescheduling {alert_data}")
                 self._write_event_to_schedule(alert_data)
 
     def _cancel_active_alerts(self, to_cancel: list):
@@ -1177,7 +1168,7 @@ class AlertSkill(MycroftSkill):
             try:
                 alert = self.active.pop(idx)
                 self.speak_dialog("DismissAlert", {"name": alert['name']}, private=True)
-                LOG.debug(f"Dismissing {alert['name']}")
+                # LOG.debug(f"Dismissing {alert['name']}")
             except Exception as e:
                 LOG.error(e)
                 LOG.error(idx)
@@ -1188,9 +1179,7 @@ class AlertSkill(MycroftSkill):
         Handler passed to messagebus on schedule of alert. Handles rescheduling, quiet hours, calling _notify_expired
         :param message: object containing alert details
         """
-        LOG.info(message)
         LOG.info(message.data)
-        LOG.info(message.context)
         message.context = message.data.pop("context")  # Replace message context with original context
         alert_time = message.data.get('time')
         alert_name = message.data.get('name')
@@ -1228,7 +1217,7 @@ class AlertSkill(MycroftSkill):
             self._speak_notify_expired(message)
 
     def _play_notify_expired(self, message):
-        LOG.debug(message)
+        LOG.debug(message.data)
         alert_kind = message.data.get('kind')
         alert_time = message.data.get('time')
         alert_file = message.data.get('file')
@@ -1257,14 +1246,10 @@ class AlertSkill(MycroftSkill):
             time.sleep(10)
 
     def _speak_notify_expired(self, message):
-        LOG.debug(">>>_speak_notify_expired<<<")
+        LOG.debug(message.data)
         kind = message.data.get('kind')
         name = message.data.get('name')
         alert_time = message.data.get('time')
-
-        # if str(name).lower().strip().startswith("reminder"):
-        #     name = str(name).split("reminder")[1]
-        #     LOG.debug("DM: name: " + str(name).lower().strip())
 
         # Notify user until they dismiss the alert
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
