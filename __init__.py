@@ -18,31 +18,27 @@
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
 
 import time
-from copy import deepcopy
+import re
+import os
+
 from enum import IntEnum
 from pprint import pformat
-
+from dateutil.tz import gettz
+from datetime import datetime, timedelta
+from dateutil.parser import parse
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
 from adapt.intent import IntentBuilder
-from lingua_franca.format import nice_duration, nice_time
+from lingua_franca.format import nice_duration, nice_time, nice_date
+from lingua_franca.parse import extract_datetime, extract_duration
+from lingua_franca import load_language
 
 from NGI.utilities.configHelper import NGIConfig
 from mycroft import Message
 from mycroft.util.log import LOG
 from mycroft.skills.core import MycroftSkill
 from mycroft.util import play_wav
-from dateutil.tz import gettz
-from datetime import datetime, timedelta
-# from pytz import timezone
-# from time import sleep
-from dateutil.parser import parse
-import re
-import os
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename
 from mycroft.audio import wait_while_speaking
-# from NGI.utilities.chat_user_util import get_chat_nickname_from_filename as nick
-from lingua_franca.parse import extract_datetime, extract_duration
-from lingua_franca import load_language
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -58,6 +54,7 @@ class Weekdays(IntEnum):
 
 
 class AlertType(IntEnum):
+    ALL = -1
     ALARM = 0
     TIMER = 1
     REMINDER = 2
@@ -86,12 +83,16 @@ class AlertSkill(MycroftSkill):
         self.active_time = None
         self.active_alert = None
 
-        self.alerts_cache = NGIConfig("alerts.yml", self.file_system)
+        self.alerts_cache = NGIConfig("alerts.yml", self.file_system.path)
+        # self.alerts_cache = self.file_system.path("alerts_cache"
         self.missed = self.alerts_cache.content.get('missed', {})
-        self.alarms = self.alerts_cache.content.get('alarms', {})
-        self.timers = self.alerts_cache.content.get('timers', {})
-        self.reminders = self.alerts_cache.content.get('reminders', {})
         self.active = {}  # Clear anything that was active before skill reload
+
+        # TODO: Consolidate to "pending"; each element already has 'kind' DM
+        self.pending = self.alerts_cache.content.get("pending", {})
+        # self.alarms = self.alerts_cache.content.get('alarms', {})
+        # self.timers = self.alerts_cache.content.get('timers', {})
+        # self.reminders = self.alerts_cache.content.get('reminders', {})
         self.alerts_cache.update_yaml_file('active', value=self.active, final=True)
 
     def initialize(self):
@@ -173,631 +174,314 @@ class AlertSkill(MycroftSkill):
         # TODO: Option to speak summary? (Have messages to use for locating users) DM
 
     def handle_create_alarm(self, message):
-        utt = message.data.get('utterance')
+        """
+        Intent handler for creating an alarm
+        :param message: Message associated with request
+        """
         if self.neon_in_request(message):
             content = self._extract_alert_params(message, AlertType.ALARM)
+            content["kind"] = int(AlertType.ALARM)
             LOG.info(content)
-            self.confirm_alert("alarm", content["alert_time"], utt, content["repeat_days"], content["name"],
-                               final=content["end_repeat"], message=message)
+            self.confirm_alert("alarm", content, message)
 
     def handle_create_timer(self, message):
-        LOG.info(message.data)
-        utt = message.data.get('utterance')
+        """
+        Intent handler for creating a timer
+        :param message: Message associated with request
+        """
         if self.neon_in_request(message):
             content = self._extract_alert_params(message, AlertType.TIMER)
+            content["kind"] = int(AlertType.TIMER)
             LOG.info(content)
-            self.confirm_alert("timer", content["alert_time"], utt, name=content["name"], duration=content["duration"],
-                               message=message)
+            self.confirm_alert("timer", content, message)
 
     def handle_create_reminder(self, message):
-        utt = message.data.get("utterance")
+        """
+        Intent handler for creating a reminder
+        :param message: Message associated with request
+        """
         if self.neon_in_request(message):
             content = self._extract_alert_params(message, AlertType.REMINDER)
+            content["kind"] = int(AlertType.REMINDER)
             LOG.info(content)
-            self.confirm_alert('reminder', content["alert_time"], utt, content["repeat_days"], content["name"],
-                               final=content["end_repeat"], file=content["audio_file"], message=message)
+            self.confirm_alert('reminder', content, message)
 
     def handle_create_event(self, message):
-        LOG.debug("DM: Create Event")
+        """
+        Intent handler for creating an event. Wraps create_reminder
+        :param message: Message associated with request
+        """
+        LOG.debug("Create Event calling Reminder")
         self.handle_create_reminder(message)
 
     def handle_next_alert(self, message):
-        # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
-        #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
+        """
+        Intent handler to handle request for the next alert (kind optionally specified)
+        :param message: Message associated with request
+        """
         if self.neon_in_request(message):
-            kind = None
             user = self.get_utterance_user(message)
-            alerts_list = None
             user_alerts = self._get_alerts_for_user(user)
             if message.data.get("alarm"):
                 kind = 'alarm'
-                alerts_list = user_alerts["alarms"]
             elif message.data.get('timer'):
                 kind = 'timer'
-                alerts_list = user_alerts["timers"]
             elif message.data.get('reminder') or message.data.get('event'):
                 kind = 'reminder'
-                alerts_list = user_alerts["reminders"]
-
-            # if self.server:
-            #     username = self.get_utterance_user(message)
-            #     for key, alert in alerts_list.items():
-            #         LOG.info(f"DM: key: {key}, alert: {alert}")
-            #         LOG.info(f"DM: alert: {alert['name']}")
-            #         LOG.info(f"DM: alert flac_filename: {str(alert['flac_filename'])}")
-            #         alert_user = alert.get('user')
-            #         LOG.info(f"DM: alert_user: {alert_user}")
-            #         if username != alert_user:
-            #             alerts_list.pop(key)
-            #     LOG.debug(alerts_list)
-
-            if not alerts_list:
-                self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
-            else:
-                day, alert_time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
-                if kind == 'reminder':
-                    # This is for events with a useful name
-                    self.speak_dialog("NextEvent", {'kind': kind,
-                                                    'name': name,
-                                                    'day': day,
-                                                    'time': alert_time}, private=True)
-                else:
-                    self.speak_dialog("NextAlert", {'kind': kind,
-                                                    'day': day,
-                                                    'time': alert_time}, private=True)
-
-    def handle_list_alerts(self, message):
-        # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
-        #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
-        if self.neon_in_request(message):
-            if message.data.get("alarm"):
-                kind = 'alarm'
-                alerts_list = deepcopy(self.alarms)
-            elif message.data.get('timer'):
-                kind = 'timer'
-                alerts_list = deepcopy(self.timers)
-            elif message.data.get('reminder') or message.data.get('event'):
-                kind = 'reminder'
-                alerts_list = deepcopy(self.reminders)
             else:
                 kind = 'alert'
-                alerts_list = {**dict(self.alarms), **dict(self.timers), **dict(self.reminders)}
-            LOG.debug(f"DM: alerts_list: {alerts_list}")
-            if self.server:
-                # LOG.info(f"DM: flac_filename: {message.data.get('flac_filename')}")
-                username = self.preference_user(message)['username']
-                LOG.info(f"DM: username: {username}")
-                alerts_to_return = {}
-                for key, alert in alerts_list.items():
-                    LOG.info(f"DM: key: {key}, alert: {alert}")
-                    LOG.info(f"DM: alert: {alert['name']}")
-                    LOG.info(f"DM: alert flac_filename: {str(alert['flac_filename'])}")
-                    alert_user = alert.get('user')
-                    LOG.info(f"DM: alert_user: {alert_user}")
-                    if username == alert_user:
-                        alerts_to_return[key] = alert
-                alerts_list = alerts_to_return
-                LOG.debug("DM: " + str(alerts_list))
-                if self.request_from_mobile(message):
-                    self.mobile_skill_intent("alert_status", {"kind": kind}, message)
-                    # self.socket_io_emit('alert_status', f"&kind={kind}", message.context["flac_filename"])
+                combined = user_alerts.get("alarm", list())
+                combined.extend(user_alerts.get("timer"))
+                combined.extend(user_alerts.get("reminder"))
+                combined.sort()
+                user_alerts[kind] = combined
+            alerts_list = user_alerts.get(kind)
+
             if not alerts_list:
-                # self.speak(f"You have no upcoming {kind}s.", private=True)
+                self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
+            else:
+                # day, alert_time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
+                alert = alerts_list[0]  # These are all sorted time ascending
+                data = self._get_speak_data_from_alert(alert)
+                if kind == 'reminder':
+                    # This is for events with a useful name
+                    self.speak_dialog("NextEvent", data, private=True)
+                else:
+                    self.speak_dialog("NextAlert", data, private=True)
+
+    def handle_list_alerts(self, message):
+        """
+        Intent handler to handle request for all alerts (kind optionally specified)
+        :param message: Message associated with request
+        """
+        if self.neon_in_request(message):
+            user = self.get_utterance_user(message)
+            user_alerts = self._get_alerts_for_user(user)
+            if message.data.get("alarm"):
+                kind = 'alarm'
+            elif message.data.get('timer'):
+                kind = 'timer'
+            elif message.data.get('reminder') or message.data.get('event'):
+                kind = 'reminder'
+            else:
+                kind = 'alert'
+                combined = user_alerts.get("alarm", list())
+                combined.extend(user_alerts.get("timer"))
+                combined.extend(user_alerts.get("reminder"))
+                combined.sort()
+                user_alerts[kind] = combined
+            alerts_list = user_alerts.get(kind)
+
+            LOG.info(f"alerts_list: {alerts_list}")
+            if not alerts_list:
                 self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
 
             else:
-                days, times, names, files, repeats = self.get_speak_time(alerts_list, single=False)
+                # days, times, names, files, repeats = self.get_speak_time(alerts_list, single=False)
                 self.speak_dialog("UpcomingType", {'kind': kind}, private=True)
-                for i in range(0, len(days)):
-                    # i = days.index(day)
-                    if repeats[i]:
-                        self.speak_dialog("ListRepeatingAlerts", {'name': names[i],
-                                                                  'time': times[i],
-                                                                  'repeat': repeats[i]}, private=True)
+                for alert in alerts_list:
+                    data = self._get_speak_data_from_alert(alert)
+                    if data["repeat"]:
+                        self.speak_dialog("ListRepeatingAlerts", data, private=True)
                     else:
-                        self.speak_dialog("ListAlerts", {'name': names[i],
-                                                         'time': times[i],
-                                                         'day': days[i]}, private=True)
-        # else:
-        #     self.check_for_signal("CORE_andCase")
+                        self.speak_dialog("ListAlerts", data, private=True)
 
     def handle_cancel_alert(self, message):
-        # if (self.check_for_signal("skip_wake_word", -1) and message.data.get("Neon")) \
-        #         or not self.check_for_signal("skip_wake_word", -1) or self.check_for_signal("CORE_neonInUtterance"):
+        """
+        Intent handler to handle request to cancel alerts (kind and 'all' optionally specified)
+        :param message: Message associated with request
+        """
         if self.neon_in_request(message):
-            # flac_filename = message.context["flac_filename"]
-            content = self._extract_content_str(message.data)
-            alert_time, repeat, _, _ = self.extract_time(content, message)
-            name = self._extract_specified_name(content)
-            LOG.debug(alert_time)
-            LOG.debug(repeat)
-            LOG.debug(name)
+            user = self.get_utterance_user(message)
+            user_alerts = self._get_alerts_for_user(user)
 
-            match = None
-            match_time = None
-            match_name = None
-            to_cancel = []
-            # LOG.debug(to_cancel)
-            do_all = True if message.data.get('all') else False
-            if self.server:
-                username = self.get_utterance_user(message)
-            else:
-                username = None
-            if not do_all:
-                content = self._extract_content_str(message.data)
-                match_time, extra, _, _ = self.extract_time(content, message)
-                match_name = self._extract_specified_name(content)
-            LOG.debug(do_all)
-            if message.data.get('alarm'):
-                kind = 'alarm'
-                if do_all:
-                    for key, data in deepcopy(self.alarms).items():
-                        if not self.server or username == self.get_utterance_user(message):
-                            self.cancel_scheduled_event(data['name'])
-                            to_cancel.append(key)
-                            # self.alarms.pop(key)
-                    # for key in to_cancel:
-                    #     self.alarms.pop(key)
-                    # self.alarms = {}
-                    LOG.debug(to_cancel)
-                else:
-                    if match_time:
-                        for alarm_time in sorted(self.alarms.keys()):
-                            if abs((parse(alarm_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == self.alarms[alarm_time]["user"]
-                            ):
-                                name = self.alarms[alarm_time]['name']
-                                match = True
-                                to_cancel.append(alarm_time)
-                                # self.alarms.pop(alarm_time)
-                        # for key in to_cancel:
-                        #     self.alarms.pop(key)
-                    if match_name and not match:
-                        for alert_time, data in deepcopy(self.alarms).items():
-                            if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == data["user"]
-                            ):
-                                name = data['name']
-                                match = True
-                                # self.alarms.pop(time)
-                                to_cancel.append(alert_time)
-                                # self.alarms.pop(key)
-                        # for key in to_cancel:
-                        #     self.alarms.pop(key)
+            if message.data.get("alarm"):
+                kind = AlertType.ALARM
+                spoken_kind = "alarms"
+                alerts_to_consider = user_alerts.get("alarm")
             elif message.data.get('timer'):
-                kind = 'timer'
-                if do_all:
-                    for key, data in deepcopy(self.timers).items():
-                        if not self.server or username == data["user"]:
-                            self.cancel_scheduled_event(data['name'])
-                            # self.timers.pop(key)
-                            to_cancel.append(key)
-                    # for key in to_cancel:
-                    #     self.timers.pop(key)
-                    # self.timers = {}
-                else:
-                    if match_time:
-                        for timer_time in sorted(self.timers.keys()):
-                            if abs((parse(timer_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == self.alarms[timer_time]["user"]
-                            ):
-                                name = self.timers[timer_time]['name']
-                                match = True
-                                # self.timers.pop(timer_time)
-                                to_cancel.append(timer_time)
-                        # for key in to_cancel:
-                        #     self.timers.pop(key)
-                    if match_name and not match:
-                        for alert_time, data in deepcopy(self.timers).items():
-                            if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == data["user"]
-                            ):
-                                name = data['name']
-                                match = True
-                                # self.timers.pop(time)
-                                to_cancel.append(alert_time)
-                        # for key in to_cancel:
-                        #     self.timers.pop(key)
-                if self.gui_enabled:
-                    self.gui.clear()
-            elif message.data.get('reminder'):
-                kind = 'reminder'
-                if do_all:
-                    for key, data in deepcopy(self.reminders).items():
-                        if not self.server or username == data["user"]:
-                            self.cancel_scheduled_event(data['name'])
-                            # self.reminders.pop(key)
-                            to_cancel.append(key)
-                    # for key in to_cancel:
-                    #     self.reminders.pop(key)
-                    # self.reminders = {}
-                else:
-                    if match_time:
-                        for reminder_time in sorted(self.reminders.keys()):
-                            if abs((parse(reminder_time) - match_time) / timedelta(seconds=1)) <= 60 and (
-                                not self.server or username == self.alarms[reminder_time]["user"]
-                            ):
-                                name = self.reminders[reminder_time]['name']
-                                match = True
-                                # self.reminders.pop(reminder_time)
-                                to_cancel.append(reminder_time)
-                        # for key in to_cancel:
-                        #     self.reminders.pop(key)
-                    if match_name and not match:
-                        for alert_time, data in deepcopy(self.reminders).items():
-                            if data['name'] in match_name or match_name in data['name'] and (
-                                not self.server or username == data["user"]
-                            ):
-                                name = data['name']
-                                match = True
-                                # self.reminders.pop(time)
-                                to_cancel.append(alert_time)
-                        # for key in to_cancel:
-                        #     self.reminders.pop(key)
+                kind = AlertType.TIMER
+                spoken_kind = "timers"
+                alerts_to_consider = user_alerts.get("timer")
+            elif message.data.get('reminder') or message.data.get('event'):
+                kind = AlertType.REMINDER
+                spoken_kind = "reminders"
+                alerts_to_consider = user_alerts.get("reminder")
+            elif message.data.get("alert"):
+                kind = AlertType.ALL
+                spoken_kind = "alarms, timers, and reminders"
+                alerts_to_consider = user_alerts.get("alarm", list())
+                alerts_to_consider.extend(user_alerts.get("timer"))
+                alerts_to_consider.extend(user_alerts.get("reminder"))
+                alerts_to_consider.sort()
             else:
-                kind = None
+                LOG.warning("Nothing specified to cancel!")
+                return
 
-            # Cancel any active alert
+            # Handle mobile intents that need cancellation
+            if self.request_from_mobile(message):
+                if kind == AlertType.ALL:
+                    self.mobile_skill_intent("alert_cancel", {"kind": "all"}, message)
+                else:
+                    self.mobile_skill_intent("alert_cancel", {"kind": spoken_kind}, message)
+
+            # Cancel all alerts (of a type)
+            if message.data.get("all"):
+                if kind in (AlertType.ALARM, AlertType.ALL):
+                    for alert in user_alerts.get("alarm"):
+                        self._cancel_alert(alert)
+                if kind in (AlertType.TIMER, AlertType.ALL):
+                    for alert in user_alerts.get("timer"):
+                        self._cancel_alert(alert)
+                if kind in (AlertType.REMINDER, AlertType.ALL):
+                    for alert in user_alerts.get("timer"):
+                        self._cancel_alert(alert)
+                self.speak_dialog("CancelAll", {"kind": spoken_kind}, private=True)
+                return
+
+            # Match an alert by name or time
+            content = self._extract_alert_params(message, kind)
+            matched = None
+            if content["name"]:
+                for alert in alerts_to_consider:
+                    if self.pending[alert]["name"] == content["name"]:
+                        matched = alert
+                        break
+            if content["time"] and not matched:
+                for alert in alerts_to_consider:
+                    if self.pending[alert]["time"] == content["time"]:
+                        matched = alert
+                        break
+            if not matched:
+                # Notify nothing to cancel
+                self.speak_dialog("NoneToCancel", private=True)
+            else:
+                name = self.pending[matched]["name"]
+                self._cancel_alert(matched)
+                self.speak_dialog('CancelAlert', {'kind': kind,
+                                                  'name': name}, private=True)
+                return
+
+            # Nothing matched, Assume user meant an active alert
             if self.active_alert:
                 self.cancel_active()
 
-            if self.request_from_mobile(message):
-                if kind:
-                    # self.speak_dialog('CancelAll', {'kind': kind})
-                    self.mobile_skill_intent("alert_cancel", {"kind": kind}, message)
-                    # self.socket_io_emit("alert_cancel", f"&kind={kind}", flac_filename)
-                else:
-                    # self.speak("Cancelling all alarms, timers, and reminders")
-                    self.mobile_skill_intent("alert_cancel", {"kind": "all"}, message)
-                    # self.socket_io_emit("alert_cancel", "&kind=all", flac_filename)
-            if kind:
-                LOG.debug(to_cancel)
-                if kind == "alarm":
-                    for key in to_cancel:
-                        self.alarms.pop(key)
-                elif kind == "timer":
-                    for key in to_cancel:
-                        self.timers.pop(key)
-                elif kind == "reminder":
-                    for key in to_cancel:
-                        self.reminders.pop(key)
-                if do_all:
-                    LOG.debug(kind)
-                    # self.cancel_active()
-                    self.speak_dialog('CancelAll', {'kind': kind}, private=True)
-                elif match:
-                    self.speak_dialog('CancelAlert', {'kind': kind,
-                                                      'name': name}, private=True)
-                # elif self.active_alert:
-                #     self.cancel_active()
-                else:
-                    # self.speak("I could not find a matching alert to cancel", private=True)
-                    self.speak_dialog("NoneToCancel", private=True)
-                self.alerts_cache.update_yaml_file('alarms', value=self.alarms)
-                self.alerts_cache.update_yaml_file('timers', value=self.timers)
-                self.alerts_cache.update_yaml_file('reminders', value=self.reminders, final=True)
-            elif do_all:
-                # self.cancel_active()
-                self.alarms = {}
-                self.timers = {}
-                self.reminders = {}
-                self.alerts_cache.update_yaml_file('alarms', value=self.alarms)
-                self.alerts_cache.update_yaml_file('timers', value=self.timers)
-                self.alerts_cache.update_yaml_file('reminders', value=self.reminders, final=True)
-                # self.speak("Cancelling all alarms, timers, and reminders", private=True)
-                self.speak_dialog("CancelAll", {"kind": "alarms, timers, and reminder"}, private=True)
-            # else:
-            #     self.check_for_signal("CORE_andCase")
-
-            # Disable timer status intent
-            if len(self.timers) == 0:
-                self.disable_intent('timer_status')
-
     def handle_timer_status(self, message):
-        if self.timers:
-            for alert_time, data in deepcopy(self.timers).items():
-                # if self.server:
-                #     alert_user = nick(data.get('flac_filename'))
-                user = self.get_utterance_user(message)
-                if not self.server or data["user"] == user:
+        """
+        Intent handler to handle request for timer status (name optionally specified)
+        :param message: Message associated with request
+        """
+        if self.request_from_mobile(message):
+            self.mobile_skill_intent("alert_status", {"kind": "current_timer"}, message)
+            return
+
+        user = self.get_utterance_user(message)
+        user_timers = self._get_alerts_for_user(user)["timer"]
+        if user_timers:
+            matched_timers_by_name = [timer for timer in user_timers
+                                      if self.pending[timer]["name"] in message.data.get("utterance")]
+            if len(matched_timers_by_name) == 1:
+                # We matched a specific timer here
+                name = self.pending[matched_timers_by_name[0]]["name"]
+                expiration = parse(self.pending[matched_timers_by_name[0]]["time"]).replace(microsecond=0)
+                remaining_time = self._get_spoken_time_remaining(expiration, message)
+                self._display_timer_status(name, expiration)
+                self.speak_dialog('TimerStatus', {'timer': name,
+                                                  'duration': remaining_time}, private=True)
+            else:
+                for timer in user_timers:
+                    timer_data = self.pending[timer]
                     tz = self._get_user_tz(message)
-                    delta = parse(alert_time).replace(microsecond=0) - datetime.now(tz).replace(microsecond=0)
+                    delta = parse(timer_data["time"]).replace(microsecond=0) - datetime.now(tz).replace(microsecond=0)
                     LOG.debug(delta)
                     duration = nice_duration(delta.total_seconds())
-                    self.speak_dialog('TimerStatus', {'timer': data['name'],
+                    self.speak_dialog('TimerStatus', {'timer': timer_data['name'],
                                                       'duration': duration}, private=True)
-                    # if self.gui_enabled:
-                    #     self.gui.clear()
-                    #     # TODO: Handle multiple timers
-                    #     self.display_timer_status(data['name'], delta)
-
-            if self.request_from_mobile(message):
-                self.mobile_skill_intent("alert_status", {"kind": "current_timer"}, message)
-                # self.socket_io_emit('alert_status', "&kind=current_timer", message.context["flac_filename"])
         else:
             self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
-            # self.speak("There are no active timers.", private=True)
-        # LOG.debug(message.data.get('utterance'))
-        # self.speak("Timer is Active")
 
-    def confirm_alert(self, kind, alert_time, utterance, repeat=None, name=None, duration=None, final=None,
-                      num_repeats=None, file=None, message=None):
+
+
+    def confirm_alert(self, kind, alert_content: dict, message: Message):
         """
         Confirm alert details; get time and name for alerts if not specified and schedule
         :param kind: 'alarm', 'timer', or 'reminder'
-        :param alert_time: datetime object for the alert
-        :param utterance: utterance associated with alert creation
-        :param repeat: (optional) list of Weekdays ints to repeat the alert
-        :param name: (optional) name of the alert
-        :param duration: (optional) timer duration (seconds)
-        :param final: (optional) datetime object after which the alert will not repeat
-        :param num_repeats: (optional) int number of times to repeat before removing event
-        :param file: (optional) file to playback at alert time
-        :param message: Message object containing user preferences for server use
+        :param alert_content: dict of alert information extracted from a request
+        :param message: Message object associated with request
         """
-        # TODO: Cleanup this method; only needs message and extracted data dict
-        mobile = self.request_from_mobile(message)
-        flac_filename = message.context.get("flac_filename")
-        LOG.debug(mobile)
+        alert_time = alert_content.get("alert_time")
+        name = alert_content.get("name")
+        file = alert_content.get("file")
+        repeat = alert_content.get("repeat_days")  # TODO: Optional repeat_frequency
+        final = alert_content.get("end_repeat")
+        utterance = message.data.get("utterance")
 
-        # if num_repeats and final:
-        #     LOG.warning(f"DM: num_repeats={num_repeats} and final={final}. reset final")
-        #     final = None
-        tz = self._get_user_tz(message)
-        if alert_time and alert_time.tzinfo:
-            LOG.debug(">>>>>" + str(alert_time))
-            LOG.debug(duration)
-            delta = alert_time - datetime.now(tz)
-            LOG.debug(delta)
-            """Get Duration and Time To Alarm"""
-            if duration:
-                """This is probably a timer"""
-                raw_duration = deepcopy(duration)
-                duration = nice_duration(duration.seconds)
-                if not name:
-                    name = duration + ' ' + kind
-                LOG.debug(name)
-                speak_time = None
-            else:
-                """This is probably an alarm or reminder"""
-                # LOG.debug(type(time))
-                # LOG.debug(time)
-                # LOG.debug(datetime.datetime.now(self.tz))
-                LOG.debug(name)
-                raw_duration = None
-                duration = nice_duration(delta.total_seconds())
-                if self.preference_unit(message)['time'] == 12:
-                    if alert_time.hour == 12:
-                        time_hour = alert_time.hour
-                        am_pm = 'pm'
-                    elif alert_time.hour > 12:
-                        time_hour = alert_time.hour - 12
-                        am_pm = 'pm'
-                    elif alert_time.hour == 00:
-                        time_hour = 12
-                        am_pm = 'am'
-                    else:
-                        time_hour = alert_time.hour
-                        am_pm = ''
-                    speak_time = "{:d}:{:02d} {:s}".format(time_hour, alert_time.minute, am_pm)
-                else:
-                    speak_time = "{:d}:{:02d}".format(alert_time.hour, alert_time.minute)
-                if not name:
-                    name = "%s at %s" % (str(kind), str(speak_time))
-            if delta.total_seconds() < 0:
-                LOG.error(f"DM: Negative duration alert!  {duration}")
-            data = {'user': self.get_utterance_user(message),
-                    'name': name,
-                    'time': str(alert_time),
-                    'kind': kind,
-                    'file': file,
-                    'repeat': repeat,
-                    'final': str(final),
-                    'num_repeats': num_repeats,
-                    'active': False,
-                    'utterance': utterance,
-                    'flac_filename': flac_filename,
-                    'nick_profiles': message.context.get('nick_profiles')}
-            # TODO: Handle file here: if mobile, need to get server reference to file DM
-
-            # if self.server:
-            #     data["nick_profiles"] = message.context.get("nick_profiles")
-
-            self.write_to_schedule(data)
-            if mobile:
-                LOG.debug("Mobile response")
-                # LOG.debug(">>>>>>time:" + time.strftime('%s'))
-                # LOG.debug(">>>>>>to_system(time):" + self.to_system(time).strftime('%s'))
-                # LOG.debug(">>>>>>to_system(time, tz):" + self.to_system(time, self.tz).strftime('%s'))
-                if data['file']:
-                    LOG.debug(file)
-                    if (alert_time - datetime.now(tz)) > timedelta(hours=24) and not repeat:
-                        self.speak_dialog("AudioReminderTooFar", private=True)
-                        # self.speak("I can only set audio reminders up to 24 hours in advance, "
-                        #            "I will create a calendar event instead.", private=True)
-                # mobile_data = {'name': name,
-                #                'kind': kind,
-                #                'time': self.to_system(time).strftime('%s'),
-                #                'file': file,
-                #                'repeat': repeat}
-                # self.speak_dialog('MobileSchedule', mobile_data)
-                LOG.debug(f"kind in: {kind}")
-                if repeat and kind == "reminder":
-                    # Repeating reminders can be scheduled as alarms
-                    kind = "alarm"
-                # TODO: This reminder stuff will be removed when calendar events are sorted out on Android DM
-                elif delta.total_seconds() < 90 and kind == "reminder":
-                    # Short reminders should be scheduled as timers to prevent alarms set for next day
-                    kind = "timer"
-                elif delta.total_seconds() < 24 * 3600 and kind == "reminder" and file:
-                    # Same-Day reminders with audio should be scheduled as alarms until audio works with calendar events
-                    kind = "alarm"
-                elif delta.total_seconds() > 24*3600 and kind == "reminder" and file:
-                    # Notify user if audio reminder was requested but not currently possible
-                    self.speak_dialog("AudioReminderTooFar", private=True)
-                    # self.speak("I can only set audio reminders up to 24 hours in advance, "
-                    #            "I will create a calendar event instead.", private=True)
-                elif delta.total_seconds() > 24*3600 and kind == "alarm" and not repeat:
-                    # Handle 24H+ alarms as reminders on mobile
-                    kind = "reminder"
-                if kind == 'reminder' and "reminder" not in name.lower().split():
-                    name = f"Reminder {name}"
-
-                LOG.debug(f"kind out: {kind}")
-                if file:
-                    # TODO: Move file to somewhere accessible and update var
-                    pass
-                self.mobile_skill_intent("alert", {"name": name,
-                                                   "time": self.to_system_time(alert_time).strftime('%s'),
-                                                   "kind": kind,
-                                                   "file": file},
-                                         message)
-                # self.socket_io_emit('alert', f"&name={name}&time={self.to_system_time(alert_time).strftime('%s')}"
-                #                     f"&kind={kind}&file={file}&repeat={repeat}&utterance={utterance}", flac_filename)
-
-                if kind == "timer":
-                    # self.speak("Timer started.", private=True)
-                    self.speak_dialog("ConfirmTimer", {"duration": duration}, private=True)
-                    # self.enable_intent('timer_status')  mobile is handled on-device.
-                else:
-                    self.speak_dialog('ConfirmSet', {'kind': kind,
-                                                     'time': speak_time,
-                                                     'duration': duration}, private=True)
-                # elif kind == "alarm":
-                #     self.speak(f"Alarm scheduled for {speak_time}", private=True)
-                # elif kind == "reminder":
-                #     self.speak("Reminder scheduled.", private=True)
-
-            elif not repeat:
-                if speak_time:
-                    if data['file']:
-                        self.speak_dialog("ConfirmPlayback", {'name': name,
-                                                              'time': speak_time,
-                                                              'duration': duration}, private=True)
-                    else:
-                        self.speak_dialog('ConfirmSet', {'kind': kind,
-                                                         'time': speak_time,
-                                                         'duration': duration}, private=True)
-                else:
-                    self.enable_intent('timer_status')
-                    self.speak_dialog('ConfirmTimer', {'duration': duration}, private=True)
-                    if self.gui_enabled:
-                        self.display_timer_status(name, raw_duration)
-            else:
-                days = 'every '
-                if len(repeat) == 7:
-                    days += 'day'
-                else:
-                    days += ", ".join([WEEKDAY_NAMES[day] for day in repeat])
-                    # for day in repeat:
-                    #     days += str(day) + ', '
-                if data['file']:
-                    self.speak_dialog('RecurringPlayback', {'name': name,
-                                                            'time': speak_time,
-                                                            'days': days}, private=True)
-                else:
-                    self.speak_dialog('ConfirmRecurring', {'kind': kind,
-                                                           'time': speak_time,
-                                                           'days': days}, private=True)
-        elif not alert_time:
-            """Need to get a time for the alert"""
+        # No Time Extracted
+        if not alert_time:
             if kind == 'timer':
-                self.speak_dialog('HowLong', private=True)
+                self.speak_dialog('ErrorHowLong', private=True)
             else:
-                # self.speak(f"I didn't hear a time to set your {kind} for. Please try again.", private=True)
                 self.speak_dialog("ErrorNoTime", {"kind": kind}, private=True)
             # TODO: Get time and create event DM
-        elif not alert_time.tzinfo:
+            return
+        # This shouldn't be possible...
+        if not alert_time.tzinfo:
             LOG.error(f"Alert without tzinfo! {alert_time}")
             if self.server:
-                # self.speak(f"Something went wrong while scheduling your {kind}. "
-                #            f"Please make sure your location is set in your profile and try again.", private=True)
                 hint = "Please make sure your location is set in your profile and try again"
             else:
-                # self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
                 hint = "Please tell me your location and try again"
             self.speak_dialog("ErrorScheduling", {"kind": kind, "hint": hint}, private=True)
-        else:
-            LOG.error("Exception while scheduling alert!")
-            # self.speak(f"Something went wrong while scheduling your {kind}. Please try again.", private=True)
-            self.speak_dialog("ErrorScheduling", {"kind": kind, "hint": ""}, private=True)
+            return
 
-            # """Need to get a time for the alert"""
-            # if kind == 'timer':
-            #     self.speak_dialog('HowLong', private=True)
-            # else:
-            #     self.speak(f"I didn't hear a time to set your {kind} for. Please try again.", private=True)
+        LOG.debug(">>>>>" + str(alert_time))
+        spoken_time_remaining = self._get_spoken_time_remaining(alert_time, message)
+        spoken_alert_time = nice_time(alert_time, use_24hour=self.preference_unit(message)['time'] == 24)
 
-    def write_to_schedule(self, alert_data, message=None):
-        repeat = alert_data['repeat']
-        alert_time = self.to_system_time(parse(alert_data['time']))
-        name = alert_data['name']
-        LOG.debug(f'Write to Schedule: {alert_data}')
-        tz = self._get_user_tz(message)
+        data = {'user': self.get_utterance_user(message),
+                'name': name,
+                'time': str(alert_time),
+                'kind': kind,
+                'file': file,
+                'repeat': repeat,
+                'final': str(final),
+                'active': False,
+                'utterance': utterance,
+                'context': message.context}
+        # TODO: Handle file here: if mobile, need to get server reference to file DM
 
-        # LOG.debug(data)
+        self._write_event_to_schedule(data)
+
+        if self.request_from_mobile(message):
+            self._create_mobile_alert(kind, data, message)
+            return
+        if kind == "timer":
+            self.speak_dialog('ConfirmTimer', {'duration': spoken_time_remaining}, private=True)
+            if self.gui_enabled:
+                self._display_timer_status(name, alert_time)
+            return
         if not repeat:
-            # example:
-            # time = now_local() + timedelta(seconds=30)
-            # if kind == 'alarm':
-            #     self.schedule_event(self._alarm_expired, self.to_system(time), name=name)
-            # elif kind == 'timer':
-            #     self.schedule_event(self._timer_expired, self.to_system(time), name=name)
-            # elif kind == 'reminder':
-            # LOG.debug(time)
-            # LOG.debug(self.to_system(time))
-            self.schedule_event(self._alert_expired, alert_time, data=alert_data, name=name)
-            self.write_to_yml(alert_data)
-        else:
-            if repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
-                          Weekdays.SAT, Weekdays.SUN]:
-                alert_data['frequency'] = 86400  # Seconds in a day
-            elif repeat[0] not in [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
-                                   Weekdays.SAT, Weekdays.SUN]:
-                # This repeats on some time basis (i.e. every n hours)
-                LOG.debug(f"DM: repeat={repeat}")
-                duration, remainder = extract_duration(repeat[0], self.internal_language)
-                # _, duration = self.extract_duration(repeat[0])
-                LOG.debug(f"duration={int(duration)}")
-                alert_data['frequency'] = int(duration)
+            if data['file']:
+                self.speak_dialog("ConfirmPlayback", {'name': name,
+                                                      'time': spoken_alert_time,
+                                                      'duration': spoken_time_remaining}, private=True)
             else:
-                # Assume this is a list of days and handle scheduling
-                alert_data['frequency'] = 604800  # Seconds in a week
-                raw_time = parse(alert_data['time']).strftime("%I:%M %p")
-                for day in repeat:
-                    alert_time = extract_datetime(str(raw_time + ' ' + WEEKDAY_NAMES[day]),
-                                                  anchorDate=datetime.now(tz))[0]
-                    LOG.debug(alert_time)
-                    if ((alert_time - datetime.now(tz)) / timedelta(minutes=1)) < 0:
-                        alert_time = alert_time + timedelta(days=7)
-                    alert_data['time'] = str(alert_time)
-                    name = str(WEEKDAY_NAMES[day]) + name
-                    alert_time = self.to_system_time(alert_time)
-            alert_data["repeat"] = [int(day) for day in repeat]
-            LOG.info(name)
-            alert_data["context"] = message.context
-            LOG.info(alert_data)
-            self.schedule_repeating_event(self._alert_expired, alert_time, alert_data['frequency'],
-                                          data=alert_data, name=name)
-            self.write_to_yml(alert_data)
-
-    def write_to_yml(self, data):
-        # Write Next event to
-        kind = data['kind']
-        alert_time = data['time']
-        if kind == 'alarm':
-            # handler = self._alarm_expired
-            # time = self.to_system(time)
-            self.alarms[alert_time] = data
-            self.alerts_cache.update_yaml_file('alarms', value=self.alarms, final=True)
-        elif kind == 'timer':
-            # handler = self._timer_expired
-            self.timers[alert_time] = data
-            self.alerts_cache.update_yaml_file('timers', value=self.timers, final=True)
-        elif kind == 'reminder':
-            # handler = self._reminder_expired
-            self.reminders[alert_time] = data
-            self.alerts_cache.update_yaml_file('reminders', value=self.reminders, final=True)
+                self.speak_dialog('ConfirmSet', {'kind': kind,
+                                                 'time': spoken_alert_time,
+                                                 'duration': spoken_time_remaining}, private=True)
+        else:
+            if len(repeat) == 7:
+                days = 'every day'
+            else:
+                days = "every" + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
+            if data['file']:
+                self.speak_dialog('RecurringPlayback', {'name': name,
+                                                        'time': spoken_alert_time,
+                                                        'days': days}, private=True)
+            else:
+                self.speak_dialog('ConfirmRecurring', {'kind': kind,
+                                                       'time': spoken_alert_time,
+                                                       'days': days}, private=True)
 
     def handle_snooze_alert(self, message):
         """
@@ -918,144 +602,27 @@ class AlertSkill(MycroftSkill):
         Called at init of skill. Move any expired alerts that occurred to missed list and schedule any pending alerts.
         """
         tz = self._get_user_tz()
-        # LOG.debug('DM: missed alerts')
-        LOG.debug(self.alarms)
-        LOG.debug(self.timers)
-        LOG.debug(self.reminders)
-        for alarm in sorted(self.alarms.keys()):
-            if parse(alarm) < datetime.now(tz):
-                data = self.alarms.pop(alarm)
-                self.missed[alarm] = data
+        for alert in sorted(self.pending.keys()):
+            if parse(alert) < datetime.now(tz):
+                data = self.pending.pop(alert)
+                self.missed[alert] = data
             else:
-                data = self.alarms[alarm]
-                self.write_to_schedule(data)
-        for timer in sorted(self.timers.keys()):
-            LOG.debug(timer)
-            if parse(timer) < datetime.now(tz):
-                LOG.debug('True')
-                data = self.timers.pop(timer)
-
-                self.missed[timer] = data
-            else:
-                LOG.debug('Else')
-                data = self.timers[timer]
-                self.write_to_schedule(data)
-        for reminder in sorted(self.reminders.keys()):
-            if parse(reminder) < datetime.now(tz):
-                data = self.reminders.pop(reminder)
-                self.missed[reminder] = data
-            else:
-                data = self.reminders[reminder]
-                self.write_to_schedule(data)
+                data = self.pending[alert]
+                self._write_event_to_schedule(data)
 
             LOG.debug(self.missed)
             for data in self.missed.values():
                 self.cancel_scheduled_event(data['name'])
-            # for time, name in self.missed.items():
-            #     self.speak_dialog("MissedAlert", {'time': time,
-            #                                       'name': name})
-            #     self.missed.pop(name)
             LOG.debug(self.missed)
             self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
 
-    @staticmethod
-    def get_speak_time(alerts_list, single=True):
-        """
-        Returns speakable day, time, and name for the passed alerts_list
-        :param alerts_list: (dict) alerts to process (from yml)
-        :param single: (boolean) return only the first event if true
-        :return day, time, name: (str or list[str]) day of week, local time, and name of the alert(s)
-        """
-        # TODO: Depreciate or adapt this method;
-        if single:
-            str_alert = sorted(alerts_list.keys())[0]
-            next_alert = parse(str_alert)
-            # next_alert = datetime.strptime(next_alert, "%Y-%m-%d %H:%M:%S%z")
-            # next_alert = datetime.fromisoformat(next_alert)
-            day = next_alert.strftime('%A')
-            LOG.info(day)
-            if day == datetime.now().strftime('%A'):
-                day = 'Today'
-            # noinspection PyTypeChecker
-            alert_time = nice_time(next_alert, use_ampm=True)
-            # time = next_alert.key()
-            name = alerts_list[str_alert]['name']
-            if str(name).startswith("to ") and alerts_list[str_alert]["kind"] == "reminder":
-                name = f"Reminder {name}"
-            file = alerts_list[str_alert]['file']
-            LOG.debug(alert_time)
-            LOG.debug(name)
-            LOG.debug(alert_time)
-            LOG.debug(file)
-            return day, alert_time, name, file, None
-        else:
-            days = []
-            names = []
-            times = []
-            files = []
-            repeats = []
-            for str_alert in sorted(alerts_list.keys()):
-                next_alert = parse(str_alert)
-                # next_alert = datetime.strptime(next_alert, "%Y-%m-%d %H:%M:%S%z")
-                # next_alert = datetime.fromisoformat(next_alert)
-                day = next_alert.strftime('%A')
-                LOG.info(day)
-                if day == datetime.now().strftime('%A'):
-                    day = 'Today'
-                # noinspection PyTypeChecker
-                alert_time = nice_time(next_alert, use_ampm=True)
-                # time = next_alert.key()
-                name = alerts_list[str_alert]['name']
-                if str(name).startswith("to ") and alerts_list[str_alert]["kind"] == "reminder":
-                    name = f"Reminder {name}"
-                file = alerts_list[str_alert]['file']
-                if alerts_list[str_alert]['repeat']:
-                    repeat = ", ".join(alerts_list[str_alert]['repeat'])
-                    LOG.info("DM: Repeat")
-                else:
-                    repeat = None
-                if name not in names:
-                    days.append(day)
-                    names.append(name)
-                    times.append(alert_time)
-                    files.append(file)
-                    repeats.append(repeat)
-            LOG.debug(days)
-            LOG.debug(times)
-            LOG.debug(names)
-            LOG.debug(files)
-            LOG.debug(repeats)
-            return days, times, names, files, repeats
-
-    def get_rounded_time(self, alert_time, content) -> datetime:
-        LOG.info(f"DM: {alert_time}")
-        tz = self._get_user_tz()
-        if alert_time:
-            LOG.info(content)
-            LOG.info(alert_time - datetime.now(tz))
-            use_seconds = False
-            if "seconds" in content.split():
-                use_seconds = True
-            elif alert_time - datetime.now(tz) < timedelta(seconds=180):
-                use_seconds = True
-            LOG.info(use_seconds)
-            if not use_seconds:
-                round_off = timedelta(seconds=alert_time.second)
-                LOG.info(f"Rounding off {round_off} seconds")
-                alert_time = alert_time - round_off
-                # alert_time = alert_time - timedelta(seconds=seconds)
-                LOG.info(alert_time)
-        return alert_time
-
-    def display_timer_status(self, name, duration):
+    def _display_timer_status(self, name, alert_time: datetime):
         """
         Sets the gui to this timers' status until it expires
         :param name: Timer Name
-        :param duration: Time Left on Timer
-        :return: None
+        :param alert_time: Datetime of alert
         """
-        if isinstance(duration, int) or isinstance(duration, float):
-            duration = timedelta(seconds=duration)
+        duration = alert_time.replace(microsecond=0) - datetime.now(alert_time.tzinfo).replace(microsecond=0)
         LOG.info(duration)
         self.gui.show_text(str(duration), name)
         LOG.info(duration)
@@ -1068,58 +635,6 @@ class AlertSkill(MycroftSkill):
         self.gui.gui_set(Message("tick", {"text": ""}))
 
 # Parse setting things
-    @staticmethod
-    def _extract_content_str(message_data) -> str:
-        """
-        Processes alert intent matches and return an utterance with only a time and name (optional)
-        :param message_data: message.data object
-        :return: string without any matched vocab
-        """
-        LOG.debug(message_data)
-        keywords = ("alarm", "alert", "all", "cancel", "event", "list", "next", "playable", "reminder", "set",
-                    "setReminder", "snooze", "timer")
-
-        utt = str(message_data.get('utterance'))
-        LOG.debug(utt)
-        if message_data.get('Neon'):
-            neon = str(message_data.get('Neon'))
-            utt = utt.split(neon)[1]
-        try:
-            for keyword in keywords:
-                if message_data.get(keyword):
-                    utt = utt.replace(keyword, "")
-
-            words = utt.split()
-            # Parse transcribed a m /p m  to am/pm
-            for i in range(0, len(words) - 1):
-                if words[i].lower() in ("a", "p") and words[i + 1].lower() == "m":
-                    words[i] = f"{words[i]}{words[i + 1]}"
-                    words[i + 1] = ""
-            utt = " ".join([word for word in words if word])
-            LOG.debug(utt)
-            return utt
-        except Exception as e:
-            LOG.error(e)
-            return utt
-
-    def _extract_specified_name(self, content):
-        """
-        Extracts a name for an alert if present in the utterance.
-        :param content: str returned from extract_content
-        :return: name of an alert (str)
-        """
-        def _word_is_vocab_match(word):
-            vocabs = ("dayOfWeek", "everyday", "repeat", "until", "weekdays", "weekends", "articles")
-            return any([self.voc_match(word, voc) for voc in vocabs])
-        try:
-            content = re.sub(r'\d+', '', content).split()
-            content = [word for word in content if not _word_is_vocab_match(word)]
-            result = ' '.join(content)
-            LOG.debug(result)
-            return result
-        except Exception as e:
-            LOG.error(e)
-
     def _extract_alert_params(self, message: Message, alert_type: AlertType) -> dict:
         """
         Utility to parse relevant alert parameters from an input utterance into a generic dict
@@ -1139,8 +654,8 @@ class AlertSkill(MycroftSkill):
         # First try to extract a duration and use that for timers and reminders
         duration, words = extract_duration(keyword_str)
         if duration and alert_type in (AlertType.TIMER, AlertType.REMINDER):
-            name = self._extract_specified_name(words)
-            alert_time = datetime.now(self._get_user_tz(message)) + duration
+            name = self._extract_specified_name(words, alert_type)
+            alert_time = self._get_rounded_time(datetime.now(self._get_user_tz(message)) + duration)
             extracted_data["duration"] = duration
             extracted_data["alert_time"] = alert_time
             if not name:
@@ -1215,13 +730,67 @@ class AlertSkill(MycroftSkill):
         LOG.debug(remainder)
 
         # Get a name
-        name = self._extract_specified_name(remainder)
+        name = self._extract_specified_name(remainder, alert_type)
         if not name:
             name = self._generate_default_name(alert_type, extracted_data, message)
         extracted_data["name"] = name
 
         LOG.info(pformat(extracted_data))
         return extracted_data
+
+    @staticmethod
+    def _extract_content_str(message_data: dict) -> str:
+        """
+        Processes alert intent matches and return an utterance with only a time and name (optional)
+        :param message_data: message.data object
+        :return: string without any matched vocab
+        """
+        LOG.debug(message_data)
+        keywords = ("alarm", "alert", "all", "cancel", "event", "list", "next", "playable", "reminder", "set",
+                    "setReminder", "snooze", "timer")
+
+        utt = str(message_data.get('utterance'))
+        LOG.debug(utt)
+        if message_data.get('Neon'):
+            neon = str(message_data.get('Neon'))
+            utt = utt.split(neon)[1]
+        try:
+            for keyword in keywords:
+                if message_data.get(keyword):
+                    utt = utt.replace(keyword, "")
+
+            words = utt.split()
+            # Parse transcribed a m /p m  to am/pm
+            for i in range(0, len(words) - 1):
+                if words[i].lower() in ("a", "p") and words[i + 1].lower() == "m":
+                    words[i] = f"{words[i]}{words[i + 1]}"
+                    words[i + 1] = ""
+            utt = " ".join([word for word in words if word])
+            LOG.debug(utt)
+            return utt
+        except Exception as e:
+            LOG.error(e)
+            return utt
+
+    def _extract_specified_name(self, content: str, alert_type: AlertType = None) -> str:
+        """
+        Extracts a name for an alert if present in the utterance.
+        :param content: str returned from extract_content
+        :param alert_type: AlertType of alert we are naming
+        :return: name of an alert (str)
+        """
+        def _word_is_vocab_match(word):
+            vocabs = ("dayOfWeek", "everyday", "repeat", "until", "weekdays", "weekends", "articles")
+            return any([self.voc_match(word, voc) for voc in vocabs])
+        try:
+            content = re.sub(r'\d+', '', content).split()
+            content = [word for word in content if not _word_is_vocab_match(word)]
+            result = ' '.join(content)
+            LOG.debug(result)
+            # TODO: Format using POS tags and alert type DM
+            return result
+        except Exception as e:
+            LOG.error(e)
 
 # Generic Utilities
     def _get_user_tz(self, message=None):
@@ -1242,6 +811,10 @@ class AlertSkill(MycroftSkill):
         :param message: Message associated with request
         :return: Descriptive name for alert
         """
+        if alert_type == AlertType.ALL:
+            LOG.info(f"Not able to generate a name for an alert with 'all' type")
+            return ""
+
         if "duration" in alert_data.keys():
             spoken_duration = nice_duration(alert_data.get("duration").seconds)
             if alert_type == AlertType.TIMER:
@@ -1324,21 +897,254 @@ class AlertSkill(MycroftSkill):
         :param user: username requested
         :return: Dict of alert type (alarms/timers/reminders) to list of keys associated with the given user
         """
-        user_alarms = [alarm for alarm in self.alarms.keys() if self.alarms[alarm]["user"] == user]
-        user_timers = [timer for timer in self.timers.keys() if self.timers[timer]["user"] == user]
-        user_reminders = [reminder for reminder in self.reminders.keys() if self.reminders[reminder]["user"] == user]
-        user_alerts = {"alarms": user_alarms,
-                       "timers": user_timers,
-                       "reminders": user_reminders}
+        user_alarms = [alarm for alarm in self.pending.keys()
+                       if self.pending[alarm]["user"] == user and self.pending[alarm]["kind"] == "alarm"]
+        user_alarms.sort()
+        user_timers = [timer for timer in self.pending.keys()
+                       if self.pending[timer]["user"] == user and self.pending[timer]["kind"] == "timer"]
+        user_timers.sort()
+        user_reminders = [reminder for reminder in self.pending.keys()
+                          if self.pending[reminder]["user"] == user and self.pending[reminder]["kind"] == "reminder"]
+        user_reminders.sort()
+        user_alerts = {"alarm": user_alarms,
+                       "timer": user_timers,
+                       "reminder": user_reminders}
         LOG.info(user_alerts)
         return user_alerts
 
+    def _get_rounded_time(self, alert_time: datetime, cutoff: timedelta = timedelta(minutes=10)) -> datetime:
+        """
+        Round off seconds from the given alert_time if longer than the specified cutoff
+        :param alert_time: datetime object to round-off
+        :param cutoff: timedelta representing longest time for which to retain seconds
+        :return: datetime rounded to the nearest minute
+        """
+        LOG.info(f"DM: {alert_time}")
+        tz = self._get_user_tz()
+        use_seconds = False
+        if alert_time - datetime.now(tz) < cutoff:
+            use_seconds = True
+        LOG.info(use_seconds)
+        if not use_seconds:
+            round_off = timedelta(seconds=alert_time.second)
+            LOG.info(f"Rounding off {round_off} seconds")
+            alert_time = alert_time - round_off
+            LOG.info(alert_time)
+        return alert_time
+
+    def _get_spoken_time_remaining(self, alert_time: datetime, message: Message):
+        """
+        Gets a speakable string representing when
+        :param alert_time: Datetime to get duration until
+        :param message: Message associated with request
+        :return: speakable duration string
+        """
+        tz = self._get_user_tz(message)
+        time_delta_remaining = alert_time - datetime.now(tz) + timedelta(seconds=1)  # + 1 second to account for round
+        if time_delta_remaining > timedelta(hours=24):
+            # Round off minutes if more than a day
+            rounded_alert_time = alert_time.replace(minute=0, second=0)
+            rounded_now_time = datetime.now(tz).replace(minute=0, second=0)
+            time_delta_remaining = rounded_alert_time - rounded_now_time
+        elif time_delta_remaining > timedelta(hours=1):
+            # Round off seconds if more than an hour
+            rounded_alert_time = alert_time.replace(second=0)
+            rounded_now_time = datetime.now(tz).replace(second=0)
+            time_delta_remaining = rounded_alert_time - rounded_now_time
+        spoken_duration = nice_duration(time_delta_remaining.seconds)
+        return spoken_duration
+
+    def _get_speak_data_from_alert(self, alert: str) -> dict:
+        """
+        Extracts speakable parameters from a passed pending alert entry
+        :param alert: key for alert in pending_alerts
+        :return: dict of speakable parameters
+        """
+        alert_data = self.pending.get(alert)
+        kind = alert_data.get("kind")
+        name = alert_data.get("name")
+        file = os.path.splitext(os.path.basename(alert_data.get("file")))[0] if alert_data.get("file") else ""
+
+        if alert_data.get("time") - datetime.now(self._get_user_tz()) < timedelta(days=7):
+            day = alert_data.get("time").strftime('%A')
+        else:
+            day = nice_date(alert_data.get("time"))
+        alert_time = nice_time(alert_data.get("time"))
+
+        repeat_days = [WEEKDAY_NAMES[rep] for rep in alert_data.get("repeat", [])]
+        if repeat_days:
+            repeat_str = ", ".join(repeat_days)
+        else:
+            repeat_str = ""
+
+        return {"kind": kind, "name": name, "day": day, "time": alert_time, "file": file, "repeat": repeat_str}
+
+# Handlers for adding/removing alerts
+    def _write_event_to_schedule(self, alert_data: dict):
+        """
+        Writes the parsed and confirmed alert to the schedule, then updates configuration
+        :param alert_data: dict of alert_data created in confirm_alert
+        """
+        repeat = alert_data['repeat']
+        tz = parse(alert_data['time']).tzinfo
+        name = alert_data['name']
+        LOG.debug(f'Write to Schedule: {alert_data}')
+
+        if not repeat:
+            self._write_alert_to_config(alert_data, repeating=False)
+        else:
+            if repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
+                          Weekdays.SAT, Weekdays.SUN]:
+                # Repeats every day, schedule frequency is one day
+                alert_data['frequency'] = 86400  # Seconds in a day
+                self._write_alert_to_config(alert_data, True)
+            elif all([x in (Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
+                            Weekdays.SAT, Weekdays.SUN) for x in repeat]):
+                # Repeat is a list of days, schedule for each day to repeat weekly
+                alert_data['frequency'] = 604800  # Seconds in a week
+                raw_time = parse(alert_data['time']).strftime("%I:%M %p")
+                for day in repeat:
+                    alert_time = extract_datetime(str(raw_time + ' ' + WEEKDAY_NAMES[day]),
+                                                  anchorDate=datetime.now(tz))[0]
+                    LOG.debug(alert_time)
+                    if ((alert_time - datetime.now(tz)) / timedelta(minutes=1)) < 0:
+                        alert_time = alert_time + timedelta(days=7)
+                    alert_data['time'] = str(alert_time)
+                    name = str(WEEKDAY_NAMES[day]) + name
+                    alert_data['name'] = name
+                    self._write_alert_to_config(alert_data, True)
+            elif repeat[0] not in [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
+                                   Weekdays.SAT, Weekdays.SUN]:
+                # This repeats on some time basis (i.e. every n hours)
+                LOG.debug(f"DM: repeat={repeat}")
+                duration, remainder = extract_duration(repeat[0], self.internal_language)
+                # _, duration = self.extract_duration(repeat[0])
+                LOG.debug(f"duration={int(duration)}")
+                alert_data['frequency'] = int(duration)
+                self._write_alert_to_config(alert_data, True)
+
+    def _write_alert_to_config(self, data: dict, repeating: bool):
+        """
+        Write the passed data to internal self.pending dict and update alerts_cache yml for persistence
+        :param data: alert data
+        """
+        LOG.info(data)
+        if repeating:
+            self.schedule_repeating_event(self._alert_expired, self.to_system_time(parse(data['time'])),
+                                          data['frequency'],
+                                          data=data, name=data["time"])
+        else:
+            self.schedule_event(self._alert_expired, self.to_system_time(parse(data['time'])), data=data,
+                                name=data['name'])
+
+        alert_time = data['time']
+        self.pending[alert_time] = data
+        self.alerts_cache.update_yaml_file('pending', value=self.pending, final=True)
+
+    def _cancel_alert(self, alert_index: str):
+        """
+        Cancels an alert by removing it from yml config and cancelling any scheduled handlers
+        :param alert_index: Unique name alert is indexed by
+        :return:
+        """
+        self.cancel_scheduled_event(alert_index)
+        self.pending.pop(alert_index)
+        self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+
+    def _create_mobile_alert(self, kind, alert_content, message):
+        LOG.debug("Mobile response")
+        alert_time = parse(alert_content.get("time"))
+        name = alert_content.get("name")
+        file = alert_content.get("file")
+        repeat = alert_content.get("repeat")
+        tz = self._get_user_tz(message)
+
+        delta = alert_time - datetime.now(tz)
+        spoken_time_remaining = self._get_spoken_time_remaining(alert_time, message)
+        spoken_alert_time = nice_time(alert_time, use_24hour=self.preference_unit(message)['time'] == 24)
+
+        if file:
+            LOG.debug(file)
+            if delta > timedelta(hours=24) and not repeat:
+                self.speak_dialog("AudioReminderTooFar", private=True)
+        LOG.debug(f"kind in: {kind}")
+        if repeat and kind == "reminder":
+            # Repeating reminders can be scheduled as alarms
+            kind = "alarm"
+        # TODO: This reminder stuff will be removed when calendar events are sorted out on Android DM
+        elif delta.total_seconds() < 90 and kind == "reminder":
+            # Short reminders should be scheduled as timers to prevent alarms set for next day
+            kind = "timer"
+        elif delta.total_seconds() < 24 * 3600 and kind == "reminder" and file:
+            # Same-Day reminders with audio should be scheduled as alarms until audio works with calendar events
+            kind = "alarm"
+        elif delta.total_seconds() > 24 * 3600 and kind == "reminder" and file:
+            # Notify user if audio reminder was requested but not currently possible
+            self.speak_dialog("AudioReminderTooFar", private=True)
+            # self.speak("I can only set audio reminders up to 24 hours in advance, "
+            #            "I will create a calendar event instead.", private=True)
+        elif delta.total_seconds() > 24 * 3600 and kind == "alarm" and not repeat:
+            # Handle 24H+ alarms as reminders on mobile
+            kind = "reminder"
+        if kind == 'reminder' and "reminder" not in name.lower().split():
+            name = f"Reminder {name}"
+
+        LOG.debug(f"kind out: {kind}")
+        if file:
+            # TODO: Move file to somewhere accessible and update var
+            pass
+        self.mobile_skill_intent("alert", {"name": name,
+                                           "time": self.to_system_time(alert_time).strftime('%s'),
+                                           "kind": kind,
+                                           "file": file},
+                                 message)
+
+        if kind == "timer":
+            # self.speak("Timer started.", private=True)
+            self.speak_dialog("ConfirmTimer", {"duration": spoken_time_remaining}, private=True)
+            # self.enable_intent('timer_status')  mobile is handled on-device.
+        else:
+            self.speak_dialog('ConfirmSet', {'kind': kind,
+                                             'time': spoken_alert_time,
+                                             'duration': spoken_time_remaining}, private=True)
+
+    def _make_alert_active(self, alert_id: str):
+        alert = self.pending.pop(alert_id)
+        alert["active"] = True
+        self.active[alert_id] = alert
+        self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+
+    def _reschedule_recurring_alert(self, alert_data: dict):
+        """
+        Handle scheduling the next occurrence of an event upon expiration
+        :param alert_data: Alert data retrieved from event scheduler
+        """
+        new_time = parse(alert_data['time']) + timedelta(seconds=alert_data.get('frequency'))
+        alert_data['time'] = str(new_time)
+
+        # Check for final occurrence expiration
+        if not alert_data['final'] or (alert_data['final'] and (new_time - parse(alert_data['final'])) > timedelta(0)):
+            if alert_data['num_repeats']:
+                alert_data['num_repeats'] = alert_data['num_repeats'] - 1
+                if alert_data['num_repeats'] > 0:
+                    LOG.debug("reschedule")
+                    self._write_event_to_schedule(alert_data)
+            else:
+                LOG.debug("reschedule")
+                self._write_event_to_schedule(alert_data)
+
 # Handlers for expired alerts
+
     def _alert_expired(self, message):
         """
         Handler passed to messagebus on schedule of alert
         :param message: object containing alert details
         """
+        LOG.info(message)
+        LOG.info(message.data)
+        LOG.info(message.context)
+        context = message.data.pop("context")
+        message_for_prefs = Message("", message.data, context)
         alert_kind = message.data.get('kind')
         alert_time = message.data.get('time')
         alert_name = message.data.get('name')
@@ -1349,44 +1155,18 @@ class AlertSkill(MycroftSkill):
 
         if not active:
             # Remove from YML if this is the first expiration
-            if alert_kind == 'alarm':
-                self.alarms.pop(alert_time)
-                self.alerts_cache.update_yaml_file('alarms', value=self.alarms, final=True)
-                if self.gui_enabled:
-                    self.gui.show_text(alert_name, alert_kind)
-            elif alert_kind == 'timer':
-                self.timers.pop(alert_time)
-                self.alerts_cache.update_yaml_file('timers', value=self.timers, final=True)
-                if self.gui_enabled:
-                    self.gui.show_text("Time's up!", alert_name)
-            elif alert_kind == 'reminder':
-                self.reminders.pop(alert_time)
-                self.alerts_cache.update_yaml_file('reminders', value=self.reminders, final=True)
-                if self.gui_enabled:
-                    self.gui.show_text(alert_name, alert_kind)
-            self.clear_gui_timeout()
+            self._make_alert_active(alert_time)
+            if self.gui_enabled:
+                self.gui.show_text(alert_name, alert_kind)
+                self.clear_gui_timeout()
 
             # Write next Recurrence to Schedule
             if alert_freq:
-                data = message.data
-                new_time = parse(data['time']) + timedelta(seconds=alert_freq)
-                data['time'] = str(new_time)
-
-                # Check for final occurrence expiration
-                if not data['final'] or (data['final'] and (new_time - parse(data['final'])) > timedelta(0)):
-                    if data['num_repeats']:
-                        data['num_repeats'] = data['num_repeats'] - 1
-                        if data['num_repeats'] > 0:
-                            LOG.debug("DM: reschedule")
-                            self.write_to_schedule(data)
-                    else:
-                        LOG.debug("DM: reschedule")
-                        self.write_to_schedule(data)
-                else:
-                    LOG.debug("DM: No more occurences to reschedule")
+                self._reschedule_recurring_alert(message.data)
 
         # Notify Alert based on settings
         LOG.debug(message)
+
         # LOG.debug('>>>device:' + str(device))
         if self.server:
             LOG.debug(">>>On Server, speak this.")
@@ -1403,8 +1183,6 @@ class AlertSkill(MycroftSkill):
                 self._speak_notify_expired(message)
             else:
                 self._play_notify_expired(message)
-            if len(self.timers) == 0:
-                self.disable_intent('timer_status')
         elif alert_kind == 'reminder':
             self._speak_notify_expired(message)
 
