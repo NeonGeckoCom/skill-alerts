@@ -20,6 +20,7 @@
 import time
 import re
 import os
+import spacy
 
 from enum import IntEnum
 from pprint import pformat
@@ -64,11 +65,12 @@ class AlertSkill(MycroftSkill):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self.internal_language = "en"
         load_language(self.internal_language)
+        self.nlp = spacy.load("en_core_web_sm")
 
         self.snd_dir = os.path.join(self.configuration_available['dirVars']['coreDir'], "mycroft", "res", "snd")
         self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
 
-        self.alerts_cache = NGIConfig("alerts.yml", self.file_system.path)
+        self.alerts_cache = NGIConfig("alerts", self.file_system.path)
         self.missed = self.alerts_cache.content.get('missed', {})
         self.pending = self.alerts_cache.content.get("pending", {})
 
@@ -498,6 +500,9 @@ class AlertSkill(MycroftSkill):
         spoken_time_remaining = self._get_spoken_time_remaining(alert_time, message)
         spoken_alert_time = nice_time(alert_time, use_24hour=self.preference_unit(message)['time'] == 24)
 
+        if isinstance(repeat, list):
+            repeat = [int(r) for r in repeat]
+
         data = {'user': self.get_utterance_user(message),
                 'name': name,
                 'time': str(alert_time),
@@ -507,7 +512,6 @@ class AlertSkill(MycroftSkill):
                 'final': str(final),
                 'utterance': utterance,
                 'context': message.context}
-        # TODO: Handle file here: if mobile, need to get server reference to file DM
 
         self._write_event_to_schedule(data)
 
@@ -536,7 +540,7 @@ class AlertSkill(MycroftSkill):
             elif len(repeat) == 7:
                 repeat_interval = 'every day'
             else:
-                repeat_interval = "every" + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
+                repeat_interval = "every " + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
             if data['file']:
                 self.speak_dialog('RecurringPlayback', {'name': name,
                                                         'time': spoken_alert_time,
@@ -605,7 +609,8 @@ class AlertSkill(MycroftSkill):
         duration, words = extract_duration(keyword_str)
         if duration and alert_type in (AlertType.TIMER, AlertType.REMINDER):
             name = self._extract_specified_name(words, alert_type)
-            alert_time = self._get_rounded_time(datetime.now(self._get_user_tz(message)) + duration)
+            round_cutoff = timedelta(hours=1) if alert_type == AlertType.REMINDER else timedelta(days=7)
+            alert_time = self._get_rounded_time(datetime.now(self._get_user_tz(message)) + duration, round_cutoff)
             extracted_data["duration"] = duration
             extracted_data["alert_time"] = alert_time
             if not name:
@@ -655,9 +660,15 @@ class AlertSkill(MycroftSkill):
                     alert_time_str = alert_time_str.replace(word, "")
             if not repeat_days and repeat_str:
                 # Parse "every n durations" here
-                repeat_str = " ".join(alert_time_words[0:2])
+                if len(alert_time_words) > 3:
+                    repeat_str = " ".join(alert_time_words[0:2])
+                else:
+                    repeat_str = " ".join(alert_time_words)
                 repeat_interval = extract_duration(repeat_str)[0]
-                extracted_data["repeat_frequency"] = repeat_interval.seconds
+                if repeat_interval:
+                    extracted_data["repeat_frequency"] = repeat_interval.seconds
+                else:
+                    LOG.warning(f"Heard repeat but no frequency")
 
         else:
             repeat_days = None
@@ -688,12 +699,15 @@ class AlertSkill(MycroftSkill):
 
         # Get the alert time out
         LOG.debug(alert_time_str)
-        alert_time, remainder = extract_datetime(alert_time_str, anchorDate=datetime.now(self._get_user_tz(message)))
-        extracted_data["alert_time"] = alert_time
-        LOG.debug(remainder)
+        try:
+            alert_time, remainder = extract_datetime(alert_time_str, anchorDate=datetime.now(self._get_user_tz(message)))
+            extracted_data["alert_time"] = alert_time
+            LOG.debug(remainder)
+        except TypeError:
+            LOG.warning(f"No time extracted")
 
         # Get a name
-        name = self._extract_specified_name(remainder, alert_type)
+        name = self._extract_specified_name(alert_time_str, alert_type)
         if not name:
             name = self._generate_default_name(alert_type, extracted_data, message)
         extracted_data["name"] = name
@@ -738,19 +752,45 @@ class AlertSkill(MycroftSkill):
     def _extract_specified_name(self, content: str, alert_type: AlertType = None) -> str:
         """
         Extracts a name for an alert if present in the utterance.
-        :param content: str returned from extract_content
+        :param content: Utterance with 'until' condition removed
         :param alert_type: AlertType of alert we are naming
         :return: name of an alert (str)
         """
         def _word_is_vocab_match(word):
-            vocabs = ("dayOfWeek", "everyday", "repeat", "until", "weekdays", "weekends", "articles")
-            return any([self.voc_match(word, voc) for voc in vocabs])
+            vocabs = ("dayOfWeek", "everyday", "until", "weekdays", "weekends", "timeKeywords")
+            return any([self.voc_match(word.lower(), voc) for voc in vocabs])
+
+        if alert_type == AlertType.ALARM:
+            # Don't parse a name for an alarm, just use default name
+            return ""
+
         try:
             content = re.sub(r'\d+', '', content).split()
             content = [word for word in content if not _word_is_vocab_match(word)]
             result = ' '.join(content)
             LOG.debug(result)
-            # TODO: Format using POS tags and alert type DM
+
+            parsed = self.nlp(result)
+            s_subj, s_obj = None, None
+            for chunk in parsed.noun_chunks:
+                if "subj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Subject
+                    s_subj = chunk.text
+                elif "obj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Object
+                    s_obj = chunk.text
+            s_verbs = [token.lemma_ for token in parsed if token.pos_ == "VERB"]
+            s_adjs = [token.lemma_ for token in parsed if token.pos_ == "ADJ"]
+
+            LOG.debug(f"Extracted: {s_subj} | {s_obj} | {s_verbs}, | {s_adjs}")
+            if s_verbs and s_obj:
+                verb = s_verbs[len(s_verbs) - 1]
+                obj = s_obj
+                result = " ".join([verb, obj])
+            elif alert_type == AlertType.REMINDER:
+                result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
+                result = f"Reminder {result.title()}"
+            elif alert_type == AlertType.TIMER:
+                result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
+                result = f"{result.title()} Timer"
             return result
         except Exception as e:
             LOG.error(e)
@@ -940,6 +980,7 @@ class AlertSkill(MycroftSkill):
             return {}
         kind = alert_data.get("kind")
         name = alert_data.get("name")
+        alert_data["time"] = parse(alert_data["time"])
         file = os.path.splitext(os.path.basename(alert_data.get("file")))[0] if alert_data.get("file") else ""
 
         if alert_data.get("time") - datetime.now(self._get_user_tz()) < timedelta(days=7):
@@ -947,13 +988,13 @@ class AlertSkill(MycroftSkill):
         else:
             day = nice_date(alert_data.get("time"))
         alert_time = nice_time(alert_data.get("time"))
-
-        repeat_days = [WEEKDAY_NAMES[rep] for rep in alert_data.get("repeat", [])]
-        if repeat_days:
+        if isinstance(alert_data.get("repeat"), int):
+            repeat_str = nice_duration(alert_data.get("repeat"))
+        elif alert_data.get("repeat") and len(alert_data.get("repeat")) > 0:
+            repeat_days = [WEEKDAY_NAMES[rep] for rep in alert_data.get("repeat", [])]
             repeat_str = ", ".join(repeat_days)
         else:
             repeat_str = ""
-
         return {"kind": kind, "name": name, "day": day, "time": alert_time, "file": file, "repeat": repeat_str}
 
 # Handlers for adding/removing alerts
@@ -976,7 +1017,7 @@ class AlertSkill(MycroftSkill):
                 alert_data['frequency'] = repeat
                 self._write_alert_to_config(alert_data, True)
             elif repeat == [Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU, Weekdays.FRI,
-                          Weekdays.SAT, Weekdays.SUN]:
+                            Weekdays.SAT, Weekdays.SUN]:
                 # Repeats every day, schedule frequency is one day
                 alert_data['frequency'] = 86400  # Seconds in a day
                 self._write_alert_to_config(alert_data, True)
@@ -992,8 +1033,6 @@ class AlertSkill(MycroftSkill):
                     if ((alert_time - datetime.now(tz)) / timedelta(minutes=1)) < 0:
                         alert_time = alert_time + timedelta(days=7)
                     alert_data['time'] = str(alert_time)
-                    name = str(WEEKDAY_NAMES[day]) + name
-                    alert_data['name'] = name
                     self._write_alert_to_config(alert_data, True)
 
     def _write_alert_to_config(self, data: dict, repeating: bool):
@@ -1065,7 +1104,7 @@ class AlertSkill(MycroftSkill):
 
         LOG.debug(f"kind out: {kind}")
         if file:
-            # TODO: Move file to somewhere accessible and update var
+            # TODO: Move file to somewhere accessible and update var or else send to mobile device as bytes? DM
             pass
         self.mobile_skill_intent("alert", {"name": name,
                                            "time": self.to_system_time(alert_time).strftime('%s'),
@@ -1249,6 +1288,11 @@ class AlertSkill(MycroftSkill):
         else:
             self.gui.show_text(alert_name, alert_kind)
         self.clear_gui_timeout()
+
+    def shutdown(self):
+        LOG.debug(f"Shutdown, all active alerts are now missed!")
+        for alert in self.active.keys():
+            self._make_alert_missed(alert)
 
     def stop(self):
         self.clear_signals('ALRT')
