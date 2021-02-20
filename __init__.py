@@ -34,7 +34,8 @@ from lingua_franca.format import nice_duration, nice_time, nice_date
 from lingua_franca.parse import extract_datetime, extract_duration
 from lingua_franca import load_language
 
-from NGI.utilities.configHelper import NGIConfig
+# from NGI.utilities.configHelper import NGIConfig
+from json_database import JsonStorage
 from mycroft import Message
 from mycroft.util.log import LOG
 from mycroft.skills.core import MycroftSkill
@@ -70,9 +71,10 @@ class AlertSkill(MycroftSkill):
         self.snd_dir = os.path.join(self.configuration_available['dirVars']['coreDir'], "mycroft", "res", "snd")
         self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
 
-        self.alerts_cache = NGIConfig("alerts", self.file_system.path)
-        self.missed = self.alerts_cache.content.get('missed', {})
-        self.pending = self.alerts_cache.content.get("pending", {})
+        # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
+        self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
+        self.missed = self.alerts_cache.get('missed', {})
+        self.pending = self.alerts_cache.get("pending", {})
 
         self.active = {}
 
@@ -446,7 +448,9 @@ class AlertSkill(MycroftSkill):
             else:
                 self.speak_dialog("NoMissedAlerts", private=True)
             # Remove handled missed alerts from the list
-            self.alerts_cache.update_yaml_file('missed', value=self.missed)
+            self.alerts_cache["missed"] = self.missed
+            self.alerts_cache.store()
+            # self.alerts_cache.update_yaml_file('missed', value=self.missed)
 
     def converse(self, message=None):
         user = self.get_utterance_user(message)
@@ -565,7 +569,9 @@ class AlertSkill(MycroftSkill):
             for data in self.missed.values():
                 self.cancel_scheduled_event(data['name'])
             LOG.debug(self.missed)
-            self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
+            self.alerts_cache["missed"] = self.missed
+            self.alerts_cache.store()
+            # self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
             # TODO: Option to speak summary? (Have messages to use for locating users) DM
 
     def _display_timer_status(self, name, alert_time: datetime):
@@ -1043,7 +1049,9 @@ class AlertSkill(MycroftSkill):
 
         alert_time = data['time']
         self.pending[alert_time] = data
-        self.alerts_cache.update_yaml_file('pending', value=self.pending, final=True)
+        self.alerts_cache["pending"] = self.pending
+        self.alerts_cache.store()
+        # self.alerts_cache.update_yaml_file('pending', value=self.pending, final=True)
 
     def _cancel_alert(self, alert_index: str):
         """
@@ -1053,7 +1061,9 @@ class AlertSkill(MycroftSkill):
         """
         self.cancel_scheduled_event(alert_index)
         self.pending.pop(alert_index)
-        self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+        self.alerts_cache["pending"] = self.pending
+        self.alerts_cache.store()
+        # self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
 
     def _create_mobile_alert(self, kind, alert_content, message):
         # TODO: Consider other methodology for managing mobile alerts centrally
@@ -1122,7 +1132,9 @@ class AlertSkill(MycroftSkill):
         alert = self.pending.pop(alert_id)
         alert["active"] = True
         self.active[alert_id] = alert
-        self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+        self.alerts_cache["pending"] = self.pending
+        self.alerts_cache.store()
+        # self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
 
     def _make_alert_missed(self, alert_id: str):
         """
@@ -1131,14 +1143,18 @@ class AlertSkill(MycroftSkill):
         """
         if alert_id in self.pending.keys():
             alert = self.pending.pop(alert_id)
-            self.alerts_cache.update_yaml_file("pending", value=self.pending, multiple=True)
+            self.alerts_cache["pending"] = self.pending
+            self.alerts_cache.store()
+            # self.alerts_cache.update_yaml_file("pending", value=self.pending, multiple=True)
         elif alert_id in self.active.keys():
             alert = self.active.pop(alert_id)
         else:
             LOG.warning(f"No alert found with id: {alert_id}")
             return
         self.missed[alert_id] = alert
-        self.alerts_cache.update_yaml_file("missed", value=self.missed, final=True)
+        self.alerts_cache["missed"] = self.missed
+        self.alerts_cache.store()
+        # self.alerts_cache.update_yaml_file("missed", value=self.missed, final=True)
 
     def _reschedule_recurring_alert(self, alert_data: dict):
         """
