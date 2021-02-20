@@ -1259,7 +1259,9 @@ class AlertSkill(MycroftSkill):
                                      private=True)
             else:
                 play_audio_file(to_play).wait(60)
-            time.sleep(10)
+            time.sleep(5)
+        if alert_time in self.active.keys():
+            self._make_alert_missed(alert_time)
 
     def _speak_notify_expired(self, message):
         LOG.debug(message.data)
