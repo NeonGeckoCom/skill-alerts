@@ -870,7 +870,7 @@ class AlertSkill(MycroftSkill):
 
         # If no file, try using the audio associated with this utterance
         if not file:
-            file = message.context["cc_data"].get("audio_file", None)
+            file = message.context.get("audio_file", None)
 
         if file:
             LOG.debug("Playable Reminder: " + file)
