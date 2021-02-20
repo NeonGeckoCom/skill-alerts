@@ -40,6 +40,8 @@ from mycroft import Message
 from mycroft.util.log import LOG
 from mycroft.skills.core import MycroftSkill
 from mycroft.util import play_audio_file
+from mycroft.util import resolve_resource_file
+from neon_utils import stub_missing_parameters, skill_needs_patching
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -67,9 +69,11 @@ class AlertSkill(MycroftSkill):
         self.internal_language = "en"
         load_language(self.internal_language)
         self.nlp = spacy.load("en_core_web_sm")
-
-        self.snd_dir = os.path.join(self.configuration_available['dirVars']['coreDir'], "mycroft", "res", "snd")
-        self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
+        if skill_needs_patching(self):
+            stub_missing_parameters(self)
+            self.recording_dir = None
+        else:
+            self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
 
         # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
         self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
@@ -603,7 +607,7 @@ class AlertSkill(MycroftSkill):
         keyword_str = self._extract_content_str(message.data)
 
         # Handle any universal parsing
-        if message.data.get("playable"):
+        if message.data.get("playable") and self.neon_core:
             audio_file = self._find_reconveyance_recording(message)
             extracted_data["audio_file"] = audio_file
 
@@ -1243,9 +1247,15 @@ class AlertSkill(MycroftSkill):
             self.speak_dialog("AudioReminderIntro", private=True)
             to_play = alert_file
         elif alert_kind == 'alarm':
-            to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_alarm"])
+            # if self.snd_dir:
+            #     to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_alarm"])
+            # else:
+            to_play = resolve_resource_file(self.preference_skill(message)["sound_alarm"])
         elif alert_kind == 'timer':
-            to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_timer"])
+            # if self.snd_dir:
+            #     to_play = os.path.join(self.snd_dir, self.preference_skill(message)["sound_timer"])
+            # else:
+            to_play = resolve_resource_file(self.preference_skill(message)["sound_timer"])
         else:
             LOG.error(f"Nothing to play, just speak it!")
             self._speak_notify_expired(message)
