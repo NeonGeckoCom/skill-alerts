@@ -1302,7 +1302,8 @@ class AlertSkill(MycroftSkill):
             self.gui.show_text("Time's Up!", alert_name)
         else:
             self.gui.show_text(alert_name, alert_kind)
-        self.clear_gui_timeout()
+        if self.neon_core:
+            self.clear_gui_timeout()
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed!")
