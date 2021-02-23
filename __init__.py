@@ -427,8 +427,11 @@ class AlertSkill(MycroftSkill):
         """
         # TODO: for duration? Add event to schedule? DM
         if self.neon_in_request(message):
-            self.speak_dialog("QuietHoursStart", private=True)
-            self.update_skill_settings({"quiet_hours": True}, message)
+            if self.voc_match(message.data.get("utterance"), "endKeyword"):
+                self.handle_end_quiet_hours(message)
+            else:
+                self.speak_dialog("QuietHoursStart", private=True)
+                self.update_skill_settings({"quiet_hours": True}, message)
 
     def handle_end_quiet_hours(self, message):
         """
