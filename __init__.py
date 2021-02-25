@@ -64,6 +64,10 @@ class AlertType(IntEnum):
 
 
 class AlertSkill(MycroftSkill):
+
+    __location__ = os.path.realpath(
+        os.path.join(os.getcwd(), os.path.dirname(__file__)))
+
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self.internal_language = "en"
@@ -127,14 +131,16 @@ class AlertSkill(MycroftSkill):
         self.register_intent(next_event, self.handle_next_alert)
 
         create_alarm = IntentBuilder("create_alarm").optionally("set").require("alarm").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").build()
+            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
+            optionally("script").build()
         self.register_intent(create_alarm, self.handle_create_alarm)
 
         create_timer = IntentBuilder("create_timer").require("set").require("timer").optionally("Neon").build()
         self.register_intent(create_timer, self.handle_create_timer)
 
         create_reminder = IntentBuilder("create_reminder").require("set").require("reminder").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").build()
+            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
+            optionally("script").build()
         self.register_intent(create_reminder, self.handle_create_reminder)
 
         alternate_reminder = IntentBuilder("alternate_reminder").require("setReminder").optionally("playable").\
@@ -142,7 +148,8 @@ class AlertSkill(MycroftSkill):
         self.register_intent(alternate_reminder, self.handle_create_reminder)
 
         create_event = IntentBuilder("create_event").optionally("set").require("event").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").build()
+            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
+            optionally("script").build()
         self.register_intent(create_event, self.handle_create_event)
 
         start_quiet_hours = IntentBuilder("start_quiet_hours").require("startQuietHours").optionally("Neon").build()
@@ -482,6 +489,7 @@ class AlertSkill(MycroftSkill):
         file = alert_content.get("file")
         repeat = alert_content.get("repeat_frequency", alert_content.get("repeat_days"))
         final = alert_content.get("end_repeat")
+        script = alert_content.get("script_filename")
         utterance = message.data.get("utterance")
 
         # No Time Extracted
@@ -514,6 +522,7 @@ class AlertSkill(MycroftSkill):
                 'time': str(alert_time),
                 'kind': kind,
                 'file': file,
+                'script': script,
                 'repeat': repeat,
                 'final': str(final),
                 'utterance': utterance,
@@ -534,6 +543,10 @@ class AlertSkill(MycroftSkill):
                 self.speak_dialog("ConfirmPlayback", {'name': name,
                                                       'time': spoken_alert_time,
                                                       'duration': spoken_time_remaining}, private=True)
+            elif data.get('script'):
+                self.speak_dialog("ConfirmScript", {'name': name,
+                                                    'time': spoken_alert_time,
+                                                    'duration': spoken_time_remaining}, private=True)
             else:
                 self.speak_dialog('ConfirmSet', {'kind': kind,
                                                  'time': spoken_alert_time,
@@ -548,6 +561,10 @@ class AlertSkill(MycroftSkill):
             else:
                 repeat_interval = "every " + ", ".join([WEEKDAY_NAMES[day] for day in repeat])
             if data['file']:
+                self.speak_dialog('RecurringPlayback', {'name': name,
+                                                        'time': spoken_alert_time,
+                                                        'days': repeat_interval}, private=True)
+            elif data.get('script'):
                 self.speak_dialog('RecurringPlayback', {'name': name,
                                                         'time': spoken_alert_time,
                                                         'days': repeat_interval}, private=True)
@@ -610,6 +627,10 @@ class AlertSkill(MycroftSkill):
         if message.data.get("playable") and self.neon_core:
             audio_file = self._find_reconveyance_recording(message)
             extracted_data["audio_file"] = audio_file
+
+        if message.data.get("script") and self.neon_core:
+            file_to_run = self._find_script_file(message)
+            extracted_data["script_filename"] = file_to_run
 
         # First try to extract a duration and use that for timers and reminders
         duration, words = extract_duration(keyword_str)
@@ -801,6 +822,19 @@ class AlertSkill(MycroftSkill):
             LOG.error(e)
 
 # Generic Utilities
+    def _script_file_exists(self, script_name):
+        """
+        Checks if the requested script exits
+        :param script_name: script basename (script name with " " replaced with "_")
+        :return: Boolean file exists
+        """
+        file_path_to_check = self.__location__ + "/script_txt/" + script_name + self.file_ext
+        LOG.info(file_path_to_check)
+        if not os.path.isfile(file_path_to_check):
+            second_path_to_check = self.__location__ + "/script_txt/" + script_name + ".nct"
+            return os.path.isfile(second_path_to_check)
+        return True
+
     def _get_user_tz(self, message=None):
         """
         Gets a timezone object for the user associated with the given message
@@ -891,6 +925,38 @@ class AlertSkill(MycroftSkill):
                 # TODO: Server file selection
             else:
                 self.speak_dialog("RecordingNotFound", private=True)
+                root = Tk()
+                root.withdraw()
+                file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
+                                       parent=root)
+        return file
+
+    def _find_script_file(self, message: Message) -> str:
+        """
+        Tries to locate a filename in the input utterance and returns that path or None
+        :param message: Message associated with request
+        :return: Path to requested audio (may be None)
+        """
+        file = None
+        utt = message.data.get("utterance")
+        file_path_to_check = os.path.join(self.__location__, "/script_txt/")
+        # Look for recording by name if recordings are available
+        for f in os.listdir(file_path_to_check):
+            filename = f.split('.')[0]
+            # TODO: Use regex to filter files by user associated instead of iterating all DM
+            LOG.info(f"Looking for {filename} in {utt}")
+            file = os.path.join(file_path_to_check, f)
+            break
+
+        if file:
+            LOG.debug("Script Alert: " + file)
+        else:
+            # If no script, prompt user selection
+            if self.server:
+                pass
+                # TODO: Server file selection
+            else:
+                self.speak_dialog("ScriptNotFound", private=True)
                 root = Tk()
                 root.withdraw()
                 file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
@@ -1221,13 +1287,14 @@ class AlertSkill(MycroftSkill):
     def _notify_expired(self, message):
         alert_kind = message.data.get('kind')
         alert_file = message.data.get('file')
+        alert_script = message.data.get('script')
         skill_prefs = self.preference_skill(message)
 
         if self.gui_enabled:
             self._gui_notify_expired(message)
 
         # We have audio to reconvey
-        if alert_file:
+        if alert_file or alert_script:
             self._play_notify_expired(message)
         elif alert_kind == "alarm" and not skill_prefs["speak_alarm"]:
             self._play_notify_expired(message)
@@ -1240,8 +1307,21 @@ class AlertSkill(MycroftSkill):
         LOG.debug(message.data)
         alert_kind = message.data.get('kind')
         alert_time = message.data.get('time')
+        alert_script = message.data.get('script')
         alert_file = message.data.get('file')
         alert_name = message.data.get('name')
+
+        # run the script with CC
+        if alert_script:
+            try:
+                # TODO: run the script with CustomConversations AP
+                LOG.info("The script has been executed with CC")
+            except Exception as e:
+                LOG.error(e)
+            # TODO: do we need a custom notification here? AP DONE
+            self._speak_script_expired(message)
+            return
+
         if alert_file:
             LOG.debug(alert_file)
             self.speak_dialog("AudioReminderIntro", private=True)
@@ -1290,6 +1370,22 @@ class AlertSkill(MycroftSkill):
             time.sleep(10)
         if alert_time in self.active.keys():
             self._make_alert_missed(alert_time)
+
+    def _speak_script_expired(self, message):
+        LOG.debug(message.data)
+        kind = message.data.get('kind')
+        name = message.data.get('name')
+        alert_time = message.data.get('time')
+
+        # Notify user until they dismiss the alert
+        timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
+        while alert_time in self.active.keys() and time.time() < timeout:
+            if kind == 'reminder':
+                self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
+            else:
+                self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
+            self.make_active()
+            time.sleep(10)
 
     def _gui_notify_expired(self, message):
         """
