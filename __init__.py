@@ -64,7 +64,6 @@ class AlertType(IntEnum):
 
 
 class AlertSkill(MycroftSkill):
-
     __location__ = os.path.realpath(
         os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
@@ -611,7 +610,7 @@ class AlertSkill(MycroftSkill):
             duration = duration - timedelta(seconds=1)
         self.gui.gui_set(Message("tick", {"text": ""}))
 
-# Parse setting things
+    # Parse setting things
     def _extract_alert_params(self, message: Message, alert_type: AlertType) -> dict:
         """
         Utility to parse relevant alert parameters from an input utterance into a generic dict
@@ -629,8 +628,11 @@ class AlertSkill(MycroftSkill):
             extracted_data["audio_file"] = audio_file
 
         if message.data.get("script") and self.neon_core:
-            file_to_run = self._find_script_file(message)
-            extracted_data["script_filename"] = file_to_run
+            # check if CC can access the required script and get its valid name
+            resp = self.bus.wait_for_response(Message("neon.script_exists", data=message.data,
+                                                      context=message.context))
+            is_valid = resp.data.get("script_exists", False)
+            extracted_data["script_filename"] = resp.data.get("script_name", None) if is_valid else None
 
         # First try to extract a duration and use that for timers and reminders
         duration, words = extract_duration(keyword_str)
@@ -821,19 +823,7 @@ class AlertSkill(MycroftSkill):
         except Exception as e:
             LOG.error(e)
 
-# Generic Utilities
-    def _script_file_exists(self, script_name):
-        """
-        Checks if the requested script exits
-        :param script_name: script basename (script name with " " replaced with "_")
-        :return: Boolean file exists
-        """
-        file_path_to_check = self.__location__ + "/script_txt/" + script_name + self.file_ext
-        LOG.info(file_path_to_check)
-        if not os.path.isfile(file_path_to_check):
-            second_path_to_check = self.__location__ + "/script_txt/" + script_name + ".nct"
-            return os.path.isfile(second_path_to_check)
-        return True
+    # Generic Utilities
 
     def _get_user_tz(self, message=None):
         """
@@ -925,38 +915,6 @@ class AlertSkill(MycroftSkill):
                 # TODO: Server file selection
             else:
                 self.speak_dialog("RecordingNotFound", private=True)
-                root = Tk()
-                root.withdraw()
-                file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
-                                       parent=root)
-        return file
-
-    def _find_script_file(self, message: Message) -> str:
-        """
-        Tries to locate a filename in the input utterance and returns that path or None
-        :param message: Message associated with request
-        :return: Path to requested audio (may be None)
-        """
-        file = None
-        utt = message.data.get("utterance")
-        file_path_to_check = os.path.join(self.__location__, "/script_txt/")
-        # Look for recording by name if recordings are available
-        for f in os.listdir(file_path_to_check):
-            filename = f.split('.')[0]
-            # TODO: Use regex to filter files by user associated instead of iterating all DM
-            LOG.info(f"Looking for {filename} in {utt}")
-            file = os.path.join(file_path_to_check, f)
-            break
-
-        if file:
-            LOG.debug("Script Alert: " + file)
-        else:
-            # If no script, prompt user selection
-            if self.server:
-                pass
-                # TODO: Server file selection
-            else:
-                self.speak_dialog("ScriptNotFound", private=True)
                 root = Tk()
                 root.withdraw()
                 file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
@@ -1258,6 +1216,7 @@ class AlertSkill(MycroftSkill):
             except Exception as e:
                 LOG.error(e)
                 LOG.error(idx)
+
 # Handlers for expired alerts
 
     def _alert_expired(self, message):
@@ -1270,6 +1229,7 @@ class AlertSkill(MycroftSkill):
         alert_time = message.data.get('time')
         alert_name = message.data.get('name')
         alert_freq = message.data.get('frequency')
+        alert_script = message.data.get('script')
         self.cancel_scheduled_event(alert_name)
 
         # Write next Recurrence to Schedule
@@ -1279,7 +1239,9 @@ class AlertSkill(MycroftSkill):
         if not self.preference_skill(message)["quiet_hours"]:
             self._make_alert_active(alert_time)
         else:
-            self._make_alert_missed(alert_time)
+            # TODO: should we find another way to manage quiet hours for scripts? AP
+            if not alert_script:
+                self._make_alert_missed(alert_time)
             return
 
         self._notify_expired(message)
@@ -1293,8 +1255,10 @@ class AlertSkill(MycroftSkill):
         if self.gui_enabled:
             self._gui_notify_expired(message)
 
-        # We have audio to reconvey
-        if alert_file or alert_script:
+        # We have a script to run or an audio to reconvey
+        if alert_script:
+            self._run_notify_expired(message)
+        elif alert_file:
             self._play_notify_expired(message)
         elif alert_kind == "alarm" and not skill_prefs["speak_alarm"]:
             self._play_notify_expired(message)
@@ -1303,24 +1267,24 @@ class AlertSkill(MycroftSkill):
         else:
             self._speak_notify_expired(message)
 
+    def _run_notify_expired(self, message):
+        LOG.debug(message.data)
+        try:
+            message.data["file_to_run"] = message.data.get("script")
+            # emit a message telling CustomConversations to run a script
+            self.bus.emit(Message("neon.run_alert_script", data=message.data, context=message.context))
+            LOG.info("The script has been executed with CC")
+        except Exception as e:
+            LOG.error(e)
+            LOG.info("The alarm script has expired with an error, notify without added to missed")
+            self._script_error_notify_expired(message)
+
     def _play_notify_expired(self, message):
         LOG.debug(message.data)
         alert_kind = message.data.get('kind')
         alert_time = message.data.get('time')
-        alert_script = message.data.get('script')
         alert_file = message.data.get('file')
         alert_name = message.data.get('name')
-
-        # run the script with CC
-        if alert_script:
-            try:
-                # TODO: run the script with CustomConversations AP
-                LOG.info("The script has been executed with CC")
-            except Exception as e:
-                LOG.error(e)
-            # TODO: do we need a custom notification here? AP DONE
-            self._speak_script_expired(message)
-            return
 
         if alert_file:
             LOG.debug(alert_file)
@@ -1371,7 +1335,7 @@ class AlertSkill(MycroftSkill):
         if alert_time in self.active.keys():
             self._make_alert_missed(alert_time)
 
-    def _speak_script_expired(self, message):
+    def _script_error_notify_expired(self, message):
         LOG.debug(message.data)
         kind = message.data.get('kind')
         name = message.data.get('name')
