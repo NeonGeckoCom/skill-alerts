@@ -64,8 +64,6 @@ class AlertType(IntEnum):
 
 
 class AlertSkill(MycroftSkill):
-    __location__ = os.path.realpath(
-        os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
@@ -627,7 +625,7 @@ class AlertSkill(MycroftSkill):
             audio_file = self._find_reconveyance_recording(message)
             extracted_data["audio_file"] = audio_file
 
-        if message.data.get("script") and self.neon_core:
+        if message.data.get("script"):
             # check if CC can access the required script and get its valid name
             resp = self.bus.wait_for_response(Message("neon.script_exists", data=message.data,
                                                       context=message.context))
@@ -1236,7 +1234,7 @@ class AlertSkill(MycroftSkill):
         if alert_freq:
             self._reschedule_recurring_alert(message.data)
 
-        if not self.preference_skill(message)["quiet_hours"]:
+        if not self.preference_skill(message).get("quiet_hours"):
             self._make_alert_active(alert_time)
         else:
             # TODO: should we find another way to manage quiet hours for scripts? AP
@@ -1252,7 +1250,7 @@ class AlertSkill(MycroftSkill):
         alert_script = message.data.get('script')
         skill_prefs = self.preference_skill(message)
 
-        if self.gui_enabled:
+        if self.gui_enabled and self.neon_core:
             self._gui_notify_expired(message)
 
         # We have a script to run or an audio to reconvey
@@ -1277,7 +1275,7 @@ class AlertSkill(MycroftSkill):
         except Exception as e:
             LOG.error(e)
             LOG.info("The alarm script has expired with an error, notify without added to missed")
-            self._script_error_notify_expired(message)
+            self._speak_notify_expired(message)
 
     def _play_notify_expired(self, message):
         LOG.debug(message.data)
@@ -1335,21 +1333,21 @@ class AlertSkill(MycroftSkill):
         if alert_time in self.active.keys():
             self._make_alert_missed(alert_time)
 
-    def _script_error_notify_expired(self, message):
-        LOG.debug(message.data)
-        kind = message.data.get('kind')
-        name = message.data.get('name')
-        alert_time = message.data.get('time')
-
-        # Notify user until they dismiss the alert
-        timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
-        while alert_time in self.active.keys() and time.time() < timeout:
-            if kind == 'reminder':
-                self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
-            else:
-                self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
-            self.make_active()
-            time.sleep(10)
+    # def _script_error_notify_expired(self, message):
+    #     LOG.debug(message.data)
+    #     kind = message.data.get('kind')
+    #     name = message.data.get('name')
+    #     alert_time = message.data.get('time')
+    #
+    #     # Notify user until they dismiss the alert
+    #     timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
+    #     while alert_time in self.active.keys() and time.time() < timeout:
+    #         if kind == 'reminder':
+    #             self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
+    #         else:
+    #             self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
+    #         self.make_active()
+    #         time.sleep(10)
 
     def _gui_notify_expired(self, message):
         """
