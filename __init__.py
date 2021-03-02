@@ -63,6 +63,19 @@ class AlertType(IntEnum):
     REMINDER = 2
 
 
+class Priority(IntEnum):
+    one = 1
+    two = 2
+    three = 3
+    four = 4
+    five = 5
+    six = 6
+    seven = 7
+    eight = 8
+    nine = 9
+    ten = 10
+
+
 class AlertSkill(MycroftSkill):
 
     def __init__(self):
@@ -82,6 +95,8 @@ class AlertSkill(MycroftSkill):
         self.pending = self.alerts_cache.get("pending", {})
 
         self.active = {}
+
+        self._priority_cutoff = 8
 
     def initialize(self):
         list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
@@ -490,6 +505,7 @@ class AlertSkill(MycroftSkill):
         repeat = alert_content.get("repeat_frequency", alert_content.get("repeat_days"))
         final = alert_content.get("end_repeat")
         script = alert_content.get("script_filename")
+        priority = alert_content.get("priority")
         utterance = message.data.get("utterance")
 
         # No Time Extracted
@@ -523,6 +539,7 @@ class AlertSkill(MycroftSkill):
                 'kind': kind,
                 'file': file,
                 'script': script,
+                'priority': priority,
                 'repeat': repeat,
                 'final': str(final),
                 'utterance': utterance,
@@ -635,6 +652,13 @@ class AlertSkill(MycroftSkill):
             is_valid = resp.data.get("script_exists", False)
             extracted_data["script_filename"] = resp.data.get("script_name", None) if is_valid else None
 
+        # Handle priority extraction
+        extracted_data["priority"] = 5  # default for non-script alerts
+        if message.data.get("script"):
+            extracted_data["priority"] = 10     # default for script alerts
+        if message.data.get("priority"):
+            extracted_data["priority"] = self._extract_priority(message)
+
         # First try to extract a duration and use that for timers and reminders
         duration, words = extract_duration(keyword_str)
         if duration and alert_type in (AlertType.TIMER, AlertType.REMINDER):
@@ -743,6 +767,14 @@ class AlertSkill(MycroftSkill):
 
         LOG.info(pformat(extracted_data))
         return extracted_data
+
+    @staticmethod
+    def _extract_priority(message: Message) -> int:
+        utt = message.data.get("utterance")
+        for i in Priority:
+            priority = f"priority {i.name}"
+            if priority in utt:
+                return i.value
 
     @staticmethod
     def _extract_content_str(message_data: dict) -> str:
@@ -1231,19 +1263,19 @@ class AlertSkill(MycroftSkill):
         alert_name = message.data.get('name')
         alert_freq = message.data.get('frequency')
         alert_script = message.data.get('script')
+        alert_priority = message.data.get('priority', 1)
         self.cancel_scheduled_event(alert_name)
 
         # Write next Recurrence to Schedule
         if alert_freq:
             self._reschedule_recurring_alert(message.data)
-
         if not self.preference_skill(message).get("quiet_hours"):
             self._make_alert_active(alert_time)
         else:
-            # TODO: should we find another way to manage quiet hours for scripts? AP
-            if not alert_script:
+            if alert_priority < self._priority_cutoff:
                 self._make_alert_missed(alert_time)
-            return
+            else:
+                self._make_alert_active(alert_time)
 
         self._notify_expired(message)
 
