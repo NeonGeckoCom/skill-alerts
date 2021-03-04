@@ -84,8 +84,6 @@ class AlertSkill(MycroftSkill):
 
         self.active = {}
 
-        self._priority_cutoff = 8
-
     def initialize(self):
         list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
         self.register_intent(list_alarms, self.handle_list_alerts)
@@ -1257,7 +1255,6 @@ class AlertSkill(MycroftSkill):
         alert_time = message.data.get('time')
         alert_name = message.data.get('name')
         alert_freq = message.data.get('frequency')
-        alert_script = message.data.get('script')
         alert_priority = message.data.get('priority', 1)
         self.cancel_scheduled_event(alert_name)
 
@@ -1267,7 +1264,7 @@ class AlertSkill(MycroftSkill):
         if not self.preference_skill(message).get("quiet_hours"):
             self._make_alert_active(alert_time)
         else:
-            if alert_priority < self._priority_cutoff:
+            if alert_priority < self.preference_skill(message).get("priority_cutoff"):
                 self._make_alert_missed(alert_time)
                 return
             else:

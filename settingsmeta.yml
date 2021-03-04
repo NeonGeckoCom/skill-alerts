@@ -30,3 +30,7 @@ skillMetadata:
           type: number
           label: Default alert timeout duration in minutes
           value: 2
+        - name: priority_cutoff
+          type: number
+          label: Default alert priority cutoff
+          value: 8
