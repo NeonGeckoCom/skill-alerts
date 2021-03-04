@@ -32,6 +32,7 @@ from tkinter.filedialog import askopenfilename
 from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date
 from lingua_franca.parse import extract_datetime, extract_duration
+from lingua_franca.parse import extract_number
 from lingua_franca import load_language
 
 # from NGI.utilities.configHelper import NGIConfig
@@ -762,7 +763,7 @@ class AlertSkill(MycroftSkill):
             priority_remainder = utt.split(message.data.get("priority"), 1)[1].strip()
             try:
                 priority = priority_remainder.split()[0]
-                priority = int(priority) if int(priority) <= 10 else 10
+                priority = extract_number(priority) if extract_number(priority) <= 10 else 10
             except IndexError:
                 LOG.warning(f"The utterance is not complete. Returning the default settings.")
             except ValueError:
