@@ -162,6 +162,8 @@ class AlertSkill(MycroftSkill):
         timer_status = IntentBuilder("timer_status").require('howMuchTime').optionally("Neon").build()
         self.register_intent(timer_status, self.handle_timer_status)
 
+        self.add_event("sl.get_events", self._get_events)
+
         self._check_for_missed_alerts()
 
     def handle_create_alarm(self, message):
@@ -585,6 +587,8 @@ class AlertSkill(MycroftSkill):
             if parse(alert) < datetime.now(tz):
                 data = self.pending.pop(alert)
                 self.missed[alert] = data
+                if data.get("frequency"):
+                    self._reschedule_recurring_alert(data)
             else:
                 data = self.pending[alert]
                 self._write_event_to_schedule(data)
@@ -1391,6 +1395,32 @@ class AlertSkill(MycroftSkill):
             self.gui.show_text(alert_name, alert_kind)
         if self.neon_core:
             self.clear_gui_timeout()
+
+    def _get_events(self, message):
+        """
+        Handles a request to get scheduled events for a specified user and disposition
+        :param message: Message specifying 'user' (optional) and 'disposition' (pending/missed)
+        :return:
+        """
+        requested_user = message.data.get("user")
+        disposition = message.data.get("disposition", "pending")
+        if disposition == "pending":
+            considered = self.pending
+        elif disposition == "missed":
+            considered = self.missed
+        else:
+            LOG.error(f"Invalid disposition requested: {disposition}")
+            self.bus.emit(message.response({"error": "Invalid disposition"}))
+            return
+        if requested_user:
+            matched = {k:considered[k] for k in considered.keys() if considered[k]["user"] == requested_user}
+        else:
+            matched = {k:considered[k] for k in considered.keys()}
+
+        for event in matched.keys():
+            matched[event].pop("context")
+        LOG.info(pformat(matched))
+        self.bus.emit(message.response(matched))
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed!")
