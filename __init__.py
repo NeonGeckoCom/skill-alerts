@@ -487,7 +487,7 @@ class AlertSkill(MycroftSkill):
         """
         alert_time = alert_content.get("alert_time")
         name = alert_content.get("name")
-        file = alert_content.get("file")
+        file = alert_content.get("audio_file")
         repeat = alert_content.get("repeat_frequency", alert_content.get("repeat_days"))
         final = alert_content.get("end_repeat")
         script = alert_content.get("script_filename")
@@ -1033,14 +1033,15 @@ class AlertSkill(MycroftSkill):
             return {}
         kind = alert_data.get("kind")
         name = alert_data.get("name")
-        alert_data["time"] = parse(alert_data["time"])
+        # alert_data["time"] = parse(alert_data["time"])
+        alert_datetime = parse(alert_data.get("time"))
         file = os.path.splitext(os.path.basename(alert_data.get("file")))[0] if alert_data.get("file") else ""
 
-        if alert_data.get("time") - datetime.now(self._get_user_tz()) < timedelta(days=7):
-            day = alert_data.get("time").strftime('%A')
+        if alert_datetime - datetime.now(self._get_user_tz()) < timedelta(days=7):
+            day = alert_datetime.strftime('%A')
         else:
-            day = nice_date(alert_data.get("time"))
-        alert_time = nice_time(alert_data.get("time"))
+            day = nice_date(alert_datetime)
+        alert_time = nice_time(alert_datetime)
         if isinstance(alert_data.get("repeat"), int):
             repeat_str = nice_duration(alert_data.get("repeat"))
         elif alert_data.get("repeat") and len(alert_data.get("repeat")) > 0:
