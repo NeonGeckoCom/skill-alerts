@@ -399,25 +399,36 @@ class AlertSkill(MycroftSkill):
         """
         tz = self._get_user_tz(message)
         user = self.get_utterance_user(message)
-        utt = message.data.get('utterance')
-        snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
-        new_time = datetime.now(tz) + snooze_duration
-        tz = gettz(self.preference_location(message)["tz"])
+        utt = message.data.get('utterances')[0]
+        snooze_duration = None
+        new_time = None
+
+        try:  # Extract requested duration
+            snooze_duration, remainder = extract_duration(utt, self.internal_language)
+            if snooze_duration:
+                new_time = datetime.now(tz) + snooze_duration
+        except Exception as e:
+            LOG.error(e)
+
         if not new_time:
-            new_time = extract_datetime(utt, anchorDate=self._get_user_tz(message))[0]
-        if not new_time:
+            try:  # Extract requested time
+                new_time = extract_datetime(utt, anchorDate=datetime.now(tz))[0]
+                snooze_duration = new_time - datetime.now(tz)
+            except Exception as e:
+                LOG.error(e)
+
+        if not new_time:  # Use default snooze
             new_time = datetime.now(tz) + timedelta(minutes=self.preference_skill(message)['snooze_mins'])
-            snooze_duration = self.preference_skill(message)['snooze_mins']*60
+            snooze_duration = timedelta(minutes=self.preference_skill(message)['snooze_mins'])
+
         LOG.debug(new_time)
         active_alerts = self._get_alerts_for_user(user)["active"]
         for alert_index in active_alerts:
             data = self.active[alert_index]
             old_name = data['name']
-            name = "Snoozed " + old_name
+            name = " ".join(("Snoozed", old_name.strip()))
             self.pending[str(new_time)] = data
-            if type(snooze_duration) not in (int, float):
-                snooze_duration = self.preference_skill(message)['snooze_mins']*60
-            duration = nice_duration(snooze_duration)
+            duration = nice_duration(snooze_duration.total_seconds())
             self.active.pop(alert_index)
 
             data['name'] = name
@@ -470,6 +481,7 @@ class AlertSkill(MycroftSkill):
         user = self.get_utterance_user(message)
         user_alerts = self._get_alerts_for_user(user)
         utterance = message.data.get("utterances")[0]
+        LOG.info(user_alerts["active"])
         if user_alerts["active"]:
             # User has an active alert they probably want to dismiss or snooze
             if self.voc_match(utterance, "snooze"):
@@ -584,7 +596,7 @@ class AlertSkill(MycroftSkill):
         """
         tz = self._get_user_tz()
         for alert in sorted(self.pending.keys()):
-            if parse(alert) < datetime.now(tz):
+            if parse(self.pending[alert].get("time")) <= datetime.now(tz):
                 data = self.pending.pop(alert)
                 self.missed[alert] = data
                 if data.get("frequency"):
@@ -671,7 +683,7 @@ class AlertSkill(MycroftSkill):
         if message.data.get("until"):
             alert_time_str, alert_repeat_end = keyword_str.split(message.data.get("until"), 1)
             extracted_data["end_repeat"] = extract_datetime(alert_repeat_end,
-                                                            anchorDate=self._get_user_tz(message))[0]
+                                                            anchorDate=datetime.now(self._get_user_tz(message)))[0]
         else:
             alert_time_str = keyword_str
             extracted_data["end_repeat"] = None
@@ -1098,6 +1110,7 @@ class AlertSkill(MycroftSkill):
         :param data: alert data
         """
         LOG.info(data)
+        data["alert_id"] = str(round(time.time() * 1000))
         if repeating:
             self.schedule_repeating_event(self._alert_expired, self.to_system_time(parse(data['time'])),
                                           data['frequency'],
@@ -1105,9 +1118,8 @@ class AlertSkill(MycroftSkill):
         else:
             self.schedule_event(self._alert_expired, self.to_system_time(parse(data['time'])), data=data,
                                 name=data['name'])
-
-        alert_time = data['time']
-        self.pending[alert_time] = data
+        # alert_time = data['time']
+        self.pending[data["alert_id"]] = data
         self.alerts_cache["pending"] = self.pending
         self.alerts_cache.store()
         # self.alerts_cache.update_yaml_file('pending', value=self.pending, final=True)
@@ -1118,10 +1130,13 @@ class AlertSkill(MycroftSkill):
         :param alert_index: Unique name alert is indexed by
         :return:
         """
-        self.cancel_scheduled_event(alert_index)
-        self.pending.pop(alert_index)
-        self.alerts_cache["pending"] = self.pending
-        self.alerts_cache.store()
+        try:
+            self.cancel_scheduled_event(alert_index)
+            self.pending.pop(alert_index)
+            self.alerts_cache["pending"] = self.pending
+            self.alerts_cache.store()
+        except Exception as e:
+            LOG.error(e)
         # self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
 
     def _create_mobile_alert(self, kind, alert_content, message):
@@ -1257,7 +1272,8 @@ class AlertSkill(MycroftSkill):
         """
         LOG.info(message.data)
         message.context = message.data.pop("context")  # Replace message context with original context
-        alert_time = message.data.get('time')
+        alert_id = message.data.get("alert_id")
+        # alert_time = message.data.get('time')
         alert_name = message.data.get('name')
         alert_freq = message.data.get('frequency')
         alert_priority = message.data.get('priority', 1)
@@ -1267,13 +1283,13 @@ class AlertSkill(MycroftSkill):
         if alert_freq:
             self._reschedule_recurring_alert(message.data)
         if not self.preference_skill(message).get("quiet_hours"):
-            self._make_alert_active(alert_time)
+            self._make_alert_active(alert_id)
         else:
             if alert_priority < self.preference_skill(message).get("priority_cutoff"):
-                self._make_alert_missed(alert_time)
+                self._make_alert_missed(alert_id)
                 return
             else:
-                self._make_alert_active(alert_time)
+                self._make_alert_active(alert_id)
 
         self._notify_expired(message)
 
@@ -1313,9 +1329,10 @@ class AlertSkill(MycroftSkill):
     def _play_notify_expired(self, message):
         LOG.debug(message.data)
         alert_kind = message.data.get('kind')
-        alert_time = message.data.get('time')
+        # alert_time = message.data.get('time')
         alert_file = message.data.get('file')
         alert_name = message.data.get('name')
+        alert_id = message.data.get("alert_id")
 
         if alert_file:
             LOG.debug(alert_file)
@@ -1337,7 +1354,7 @@ class AlertSkill(MycroftSkill):
             return
 
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
-        while alert_time in self.active.keys() and time.time() < timeout:
+        while alert_id in self.active.keys() and time.time() < timeout:
             if self.server:
                 self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': alert_name}), alert_file,
                                      message,
@@ -1345,26 +1362,28 @@ class AlertSkill(MycroftSkill):
             else:
                 play_audio_file(to_play).wait(60)
             time.sleep(5)
-        if alert_time in self.active.keys():
-            self._make_alert_missed(alert_time)
+
+        if alert_id in self.active.keys():
+            self._make_alert_missed(alert_id)
 
     def _speak_notify_expired(self, message):
         LOG.debug(message.data)
         kind = message.data.get('kind')
         name = message.data.get('name')
-        alert_time = message.data.get('time')
+        # alert_time = message.data.get('time')
+        alert_id = message.data.get("alert_id")
 
         # Notify user until they dismiss the alert
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
-        while alert_time in self.active.keys() and time.time() < timeout:
+        while alert_id in self.active.keys() and time.time() < timeout:
             if kind == 'reminder':
                 self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
             else:
                 self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
             self.make_active()
-            time.sleep(10)
-        if alert_time in self.active.keys():
-            self._make_alert_missed(alert_time)
+            time.sleep(60)
+        if alert_id in self.active.keys():
+            self._make_alert_missed(alert_id)
 
     # def _script_error_notify_expired(self, message):
     #     LOG.debug(message.data)
@@ -1413,9 +1432,9 @@ class AlertSkill(MycroftSkill):
             self.bus.emit(message.response({"error": "Invalid disposition"}))
             return
         if requested_user:
-            matched = {k:considered[k] for k in considered.keys() if considered[k]["user"] == requested_user}
+            matched = {k: considered[k] for k in considered.keys() if considered[k]["user"] == requested_user}
         else:
-            matched = {k:considered[k] for k in considered.keys()}
+            matched = {k: considered[k] for k in considered.keys()}
 
         for event in matched.keys():
             matched[event].pop("context")
