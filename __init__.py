@@ -584,23 +584,27 @@ class AlertSkill(MycroftSkill):
         """
         tz = self._get_user_tz()
         for alert in sorted(self.pending.keys()):
-            if parse(alert) < datetime.now(tz):
-                data = self.pending.pop(alert)
-                self.missed[alert] = data
-                if data.get("frequency"):
-                    self._reschedule_recurring_alert(data)
-            else:
-                data = self.pending[alert]
-                self._write_event_to_schedule(data)
+            try:
+                if parse(self.pending[alert]["time"]) < datetime.now(tz):
+                    # data = self.pending.pop(alert)
+                    if self.pending[alert].get("frequency"):
+                        self._reschedule_recurring_alert(self.pending[alert])
+                    self._make_alert_missed(alert)
+                    # self.missed[alert] = data
+                else:
+                    data = self.pending[alert]
+                    self._write_event_to_schedule(data)
+            except Exception as e:
+                LOG.error(e)
 
-            # LOG.debug(self.missed)
-            for data in self.missed.values():
-                self.cancel_scheduled_event(data['name'])
-            LOG.debug(self.missed)
-            self.alerts_cache["missed"] = self.missed
-            self.alerts_cache.store()
-            # self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
-            # TODO: Option to speak summary? (Have messages to use for locating users) DM
+        # LOG.debug(self.missed)
+        for data in self.missed.values():
+            self.cancel_scheduled_event(data['name'])
+        LOG.debug(self.missed)
+        self.alerts_cache["missed"] = self.missed
+        self.alerts_cache.store()
+        # self.alerts_cache.update_yaml_file('missed', value=self.missed, final=True)
+        # TODO: Option to speak summary? (Have messages to use for locating users) DM
 
     def _display_timer_status(self, name, alert_time: datetime):
         """
@@ -1413,9 +1417,9 @@ class AlertSkill(MycroftSkill):
             self.bus.emit(message.response({"error": "Invalid disposition"}))
             return
         if requested_user:
-            matched = {k:considered[k] for k in considered.keys() if considered[k]["user"] == requested_user}
+            matched = {k: considered[k] for k in considered.keys() if considered[k]["user"] == requested_user}
         else:
-            matched = {k:considered[k] for k in considered.keys()}
+            matched = {k: considered[k] for k in considered.keys()}
 
         for event in matched.keys():
             matched[event].pop("context")
