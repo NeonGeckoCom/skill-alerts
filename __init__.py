@@ -64,6 +64,11 @@ class AlertType(IntEnum):
     REMINDER = 2
 
 
+class AlertStatus(IntEnum):
+    PENDING = 0
+    MISSED = 1
+
+
 class AlertSkill(MycroftSkill):
 
     def __init__(self):
@@ -162,7 +167,7 @@ class AlertSkill(MycroftSkill):
         timer_status = IntentBuilder("timer_status").require('howMuchTime').optionally("Neon").build()
         self.register_intent(timer_status, self.handle_timer_status)
 
-        self.add_event("sl.get_events", self._get_events)
+        self.add_event("neon.get_events", self._get_events)
 
         self._check_for_missed_alerts()
 
@@ -1110,6 +1115,7 @@ class AlertSkill(MycroftSkill):
         self.pending[alert_time] = data
         self.alerts_cache["pending"] = self.pending
         self.alerts_cache.store()
+        self._emit_alert_change(data, AlertStatus.PENDING)
         # self.alerts_cache.update_yaml_file('pending', value=self.pending, final=True)
 
     def _cancel_alert(self, alert_index: str):
@@ -1203,7 +1209,7 @@ class AlertSkill(MycroftSkill):
         if alert_id in self.pending.keys():
             alert = self.pending.pop(alert_id)
             self.alerts_cache["pending"] = self.pending
-            self.alerts_cache.store()
+            # self.alerts_cache.store()
             # self.alerts_cache.update_yaml_file("pending", value=self.pending, multiple=True)
         elif alert_id in self.active.keys():
             alert = self.active.pop(alert_id)
@@ -1213,6 +1219,7 @@ class AlertSkill(MycroftSkill):
         self.missed[alert_id] = alert
         self.alerts_cache["missed"] = self.missed
         self.alerts_cache.store()
+        self._emit_alert_change(alert, AlertStatus.MISSED)
         # self.alerts_cache.update_yaml_file("missed", value=self.missed, final=True)
 
     def _reschedule_recurring_alert(self, alert_data: dict):
@@ -1421,6 +1428,15 @@ class AlertSkill(MycroftSkill):
             matched[event].pop("context")
         LOG.info(pformat(matched))
         self.bus.emit(message.response(matched))
+
+    def _emit_alert_change(self, data: dict, status: AlertStatus):
+        """
+        Emits a change in an alert's status for any other services monitoring alerts
+        :param data: Alert Data
+        :param status: New alert status
+        """
+        self.bus.emit(Message("neon.alert_changed", data, {"status": AlertStatus(status),
+                                                           "origin": self.skill_id}))
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed!")
