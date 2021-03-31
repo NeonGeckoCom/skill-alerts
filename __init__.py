@@ -27,13 +27,10 @@ from pprint import pformat
 from dateutil.tz import gettz
 from datetime import datetime, timedelta
 from dateutil.parser import parse
-from tkinter import Tk
-from tkinter.filedialog import askopenfilename
 from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date
 from lingua_franca.parse import extract_datetime, extract_duration
 from lingua_franca.parse import extract_number
-from lingua_franca import load_language
 
 # from NGI.utilities.configHelper import NGIConfig
 from json_database import JsonStorage
@@ -45,6 +42,12 @@ from mycroft.util import resolve_resource_file
 # from neon_utils import stub_missing_parameters, skill_needs_patching
 from neon_utils.skills.neon_skill import NeonSkill, LOG
 
+try:
+    from lingua_franca import load_language
+    from tkinter import Tk
+    from tkinter.filedialog import askopenfilename
+except Exception as x:
+    LOG.error(x)
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
@@ -74,8 +77,12 @@ class AlertSkill(NeonSkill):
 
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
-        self.internal_language = "en"
-        load_language(self.internal_language)
+        try:
+            self.internal_language = "en"
+            load_language(self.internal_language)
+        except Exception as e:
+            # TODO: This is for Mycroft compat until they update LF DM
+            LOG.error(e)
         self.nlp = spacy.load("en_core_web_sm")
         # if skill_needs_patching(self):
         #     stub_missing_parameters(self)
@@ -956,10 +963,13 @@ class AlertSkill(NeonSkill):
                 # TODO: Server file selection
             else:
                 self.speak_dialog("RecordingNotFound", private=True)
-                root = Tk()
-                root.withdraw()
-                file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
-                                       parent=root)
+                try:
+                    root = Tk()
+                    root.withdraw()
+                    file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
+                                           parent=root)
+                except Exception as e:
+                    LOG.error(e)
         return file
 
     def _get_alerts_for_user(self, user: str) -> dict:
