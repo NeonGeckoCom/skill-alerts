@@ -38,11 +38,12 @@ from lingua_franca import load_language
 # from NGI.utilities.configHelper import NGIConfig
 from json_database import JsonStorage
 from mycroft import Message
-from mycroft.util.log import LOG
-from mycroft.skills.core import MycroftSkill
+# from mycroft.util.log import LOG
+# from mycroft.skills.core import MycroftSkill
 from mycroft.util import play_audio_file
 from mycroft.util import resolve_resource_file
-from neon_utils import stub_missing_parameters, skill_needs_patching
+# from neon_utils import stub_missing_parameters, skill_needs_patching
+from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -69,18 +70,19 @@ class AlertStatus(IntEnum):
     MISSED = 1
 
 
-class AlertSkill(MycroftSkill):
+class AlertSkill(NeonSkill):
 
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self.internal_language = "en"
         load_language(self.internal_language)
         self.nlp = spacy.load("en_core_web_sm")
-        if skill_needs_patching(self):
-            stub_missing_parameters(self)
-            self.recording_dir = None
-        else:
-            self.recording_dir = os.path.join(self.configuration_available['dirVars']['docsDir'], "neon_recordings")
+        # if skill_needs_patching(self):
+        #     stub_missing_parameters(self)
+        #     self.recording_dir = None
+        # else:
+        self.recording_dir = os.path.join(self.configuration_available.get('dirVars', {})
+                                          .get('docsDir', os.path.expanduser("~/.neon")), "neon_recordings")
 
         # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
         self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
