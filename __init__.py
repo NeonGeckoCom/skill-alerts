@@ -1210,12 +1210,15 @@ class AlertSkill(NeonSkill):
         Makes a pending alert active
         :param alert_id: alert to mark as active
         """
-        alert = self.pending.pop(alert_id)
-        alert["active"] = True
-        self.active[alert_id] = alert
-        self.alerts_cache["pending"] = self.pending
-        self.alerts_cache.store()
-        # self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+        try:
+            alert = self.pending.pop(alert_id)
+            alert["active"] = True
+            self.active[alert_id] = alert
+            self.alerts_cache["pending"] = self.pending
+            self.alerts_cache.store()
+            # self.alerts_cache.update_yaml_file("pending", value=self.pending, final=True)
+        except KeyError:
+            LOG.error(f"Expired alert no longer pending!")
 
     def _make_alert_missed(self, alert_id: str):
         """
