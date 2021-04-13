@@ -34,6 +34,9 @@ from lingua_franca.parse import extract_number
 
 # from NGI.utilities.configHelper import NGIConfig
 from json_database import JsonStorage
+from neon_utils.location_utils import to_system_time
+from neon_utils.message_utils import request_from_mobile
+
 from mycroft import Message
 # from mycroft.util.log import LOG
 # from mycroft.skills.core import MycroftSkill
@@ -326,7 +329,7 @@ class AlertSkill(NeonSkill):
                 return
 
             # Handle mobile intents that need cancellation
-            if self.request_from_mobile(message):
+            if request_from_mobile(message):
                 if kind == AlertType.ALL:
                     self.mobile_skill_intent("alert_cancel", {"kind": "all"}, message)
                 else:
@@ -377,7 +380,7 @@ class AlertSkill(NeonSkill):
         Intent handler to handle request for timer status (name optionally specified)
         :param message: Message associated with request
         """
-        if self.request_from_mobile(message):
+        if request_from_mobile(message):
             self.mobile_skill_intent("alert_status", {"kind": "current_timer"}, message)
             return
 
@@ -549,7 +552,7 @@ class AlertSkill(NeonSkill):
 
         self._write_event_to_schedule(data)
 
-        if self.request_from_mobile(message):
+        if request_from_mobile(message):
             self._create_mobile_alert(kind, data, message)
             return
         if kind == "timer":
@@ -1120,11 +1123,11 @@ class AlertSkill(NeonSkill):
         """
         LOG.info(data)
         if repeating:
-            self.schedule_repeating_event(self._alert_expired, self.to_system_time(parse(data['time'])),
+            self.schedule_repeating_event(self._alert_expired, to_system_time(parse(data['time'])),
                                           data['frequency'],
                                           data=data, name=data["time"])
         else:
-            self.schedule_event(self._alert_expired, self.to_system_time(parse(data['time'])), data=data,
+            self.schedule_event(self._alert_expired, to_system_time(parse(data['time'])), data=data,
                                 name=data['name'])
 
         alert_time = data['time']
@@ -1191,7 +1194,7 @@ class AlertSkill(NeonSkill):
             # TODO: Move file to somewhere accessible and update var or else send to mobile device as bytes? DM
             pass
         self.mobile_skill_intent("alert", {"name": name,
-                                           "time": self.to_system_time(alert_time).strftime('%s'),
+                                           "time": to_system_time(alert_time).strftime('%s'),
                                            "kind": kind,
                                            "file": file},
                                  message)
