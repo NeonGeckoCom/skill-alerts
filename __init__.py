@@ -20,7 +20,6 @@
 import time
 import re
 import os
-import spacy
 
 from enum import IntEnum
 from pprint import pformat
@@ -44,6 +43,11 @@ from mycroft.util import play_audio_file
 from mycroft.util import resolve_resource_file
 # from neon_utils import stub_missing_parameters, skill_needs_patching
 from neon_utils.skills.neon_skill import NeonSkill, LOG
+
+try:
+    import spacy
+except Exception as x:
+    LOG.error(x)
 
 try:
     from lingua_franca import load_language
@@ -86,7 +90,10 @@ class AlertSkill(NeonSkill):
         except Exception as e:
             # TODO: This is for Mycroft compat until they update LF DM
             LOG.error(e)
-        self.nlp = spacy.load("en_core_web_sm")
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except Exception as e:
+            LOG.error(e)
         # if skill_needs_patching(self):
         #     stub_missing_parameters(self)
         #     self.recording_dir = None
@@ -849,27 +856,30 @@ class AlertSkill(NeonSkill):
             result = ' '.join(content)
             LOG.debug(result)
 
-            parsed = self.nlp(result)
-            s_subj, s_obj = None, None
-            for chunk in parsed.noun_chunks:
-                if "subj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Subject
-                    s_subj = chunk.text
-                elif "obj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Object
-                    s_obj = chunk.text
-            s_verbs = [token.lemma_ for token in parsed if token.pos_ == "VERB"]
-            s_adjs = [token.lemma_ for token in parsed if token.pos_ == "ADJ"]
+            try:
+                parsed = self.nlp(result)
+                s_subj, s_obj = None, None
+                for chunk in parsed.noun_chunks:
+                    if "subj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Subject
+                        s_subj = chunk.text
+                    elif "obj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Object
+                        s_obj = chunk.text
+                s_verbs = [token.lemma_ for token in parsed if token.pos_ == "VERB"]
+                s_adjs = [token.lemma_ for token in parsed if token.pos_ == "ADJ"]
 
-            LOG.debug(f"Extracted: {s_subj} | {s_obj} | {s_verbs}, | {s_adjs}")
-            if s_verbs and s_obj:
-                verb = s_verbs[len(s_verbs) - 1]
-                obj = s_obj
-                result = " ".join([verb, obj])
-            elif alert_type == AlertType.REMINDER:
-                result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
-                result = f"Reminder {result.title()}"
-            elif alert_type == AlertType.TIMER:
-                result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
-                result = f"{result.title()} Timer"
+                LOG.debug(f"Extracted: {s_subj} | {s_obj} | {s_verbs}, | {s_adjs}")
+                if s_verbs and s_obj:
+                    verb = s_verbs[len(s_verbs) - 1]
+                    obj = s_obj
+                    result = " ".join([verb, obj])
+                elif alert_type == AlertType.REMINDER:
+                    result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
+                    result = f"Reminder {result.title()}"
+                elif alert_type == AlertType.TIMER:
+                    result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
+                    result = f"{result.title()} Timer"
+            except Exception as c:
+                LOG.error(c)
             return result
         except Exception as e:
             LOG.error(e)
