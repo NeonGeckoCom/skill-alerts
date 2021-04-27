@@ -816,7 +816,7 @@ class AlertSkill(NeonSkill):
         # LOG.debug(utt)
         if message_data.get('Neon'):
             neon = str(message_data.get('Neon'))
-            utt = utt.split(neon)[1]
+            utt = "".join(utt.split(neon))
         try:
             for keyword in keywords:
                 if message_data.get(keyword):
