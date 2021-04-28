@@ -98,7 +98,7 @@ class AlertSkill(NeonSkill):
         #     stub_missing_parameters(self)
         #     self.recording_dir = None
         # else:
-        self.recording_dir = os.path.join(self.configuration_available.get('dirVars', {})
+        self.recording_dir = os.path.join(self.local_config.get('dirVars', {})
                                           .get('docsDir', os.path.expanduser("~/.neon")), "neon_recordings")
 
         # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
