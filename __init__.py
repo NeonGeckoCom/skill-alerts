@@ -493,7 +493,10 @@ class AlertSkill(NeonSkill):
     def converse(self, message=None):
         user = self.get_utterance_user(message)
         user_alerts = self._get_alerts_for_user(user)
-        utterance = message.data.get("utterances")[0]
+        utterance = message.data.get("utterances", [])[0]
+        if not utterance:
+            LOG.warning(f"no utterances in data={message.data}")
+            return False
         if user_alerts["active"]:
             # User has an active alert they probably want to dismiss or snooze
             if self.voc_match(utterance, "snooze"):
