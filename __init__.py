@@ -1316,7 +1316,7 @@ class AlertSkill(NeonSkill):
                 return
             else:
                 self._make_alert_active(alert_time)
-
+        self.bus.emit(message.forward("neon.alert_expired", message.data))
         self._notify_expired(message)
 
     def _notify_expired(self, message):
