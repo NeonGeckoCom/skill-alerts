@@ -98,8 +98,10 @@ class AlertSkill(NeonSkill):
         #     stub_missing_parameters(self)
         #     self.recording_dir = None
         # else:
-        self.recording_dir = os.path.join(self.local_config.get('dirVars', {})
-                                          .get('docsDir', os.path.expanduser("~/.neon")), "neon_recordings")
+        # TODO: This should be retrieved from audio-record skill DM
+        self.recording_dir = os.path.expanduser(os.path.join(self.local_config.get('dirVars', {})
+                                                             .get('docsDir') or "~/.neon",
+                                                             "neon_recordings"))
 
         # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
         self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
@@ -955,6 +957,9 @@ class AlertSkill(NeonSkill):
         """
         file = None
         utt = message.data.get("utterance")
+        if not os.path.isdir(self.recording_dir):
+            LOG.error(f"recordings directory not found! {self.recording_dir}")
+            return file
         # Look for recording by name if recordings are available
         for f in os.listdir(self.recording_dir):
             filename = f.split('.')[0]
