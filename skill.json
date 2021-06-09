@@ -49,7 +49,7 @@
         "arm64",
         "arm"
     ],
-    "branch": "dev",
+    "branch": "master",
     "license": "NeonAI License v1.0",
     "icon": "logo.svg",
     "category": "Productivity",
