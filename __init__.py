@@ -33,6 +33,7 @@ from lingua_franca.parse import extract_number
 
 # from NGI.utilities.configHelper import NGIConfig
 from json_database import JsonStorage
+from neon_utils.configuration_utils import get_neon_device_type
 from neon_utils.location_utils import to_system_time
 from neon_utils.message_utils import request_from_mobile
 
@@ -1008,7 +1009,9 @@ class AlertSkill(NeonSkill):
         user_reminders = [reminder for reminder in self.pending.keys()
                           if self.pending[reminder]["user"] == user and self.pending[reminder]["kind"] == "reminder"]
         user_reminders.sort()
-        user_active = [alert for alert in self.active.keys() if self.active[alert]["user"] == user]
+        # Active alerts are user-agnostic on a non-server device
+        user_active = [alert for alert in self.active.keys() if
+                       (self.active[alert]["user"] == user or get_neon_device_type() != "server")]
         user_active.sort()
         user_missed = [alert for alert in self.missed.keys() if self.missed[alert]["user"] == user]
         user_missed.sort()
@@ -1390,6 +1393,7 @@ class AlertSkill(NeonSkill):
                                      message,
                                      private=True)
             else:
+                # TODO: Interrupt this if alert is dismissed DM
                 play_audio_file(to_play).wait(60)
             time.sleep(5)
         if alert_time in self.active.keys():
