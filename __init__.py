@@ -23,6 +23,7 @@ import os
 
 from enum import IntEnum
 from pprint import pformat
+from typing import Optional
 from dateutil.tz import gettz
 from datetime import datetime, timedelta
 from dateutil.parser import parse
@@ -30,32 +31,34 @@ from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date
 from lingua_franca.parse import extract_datetime, extract_duration
 from lingua_franca.parse import extract_number
-
-# from NGI.utilities.configHelper import NGIConfig
 from json_database import JsonStorage
 from neon_utils.configuration_utils import get_neon_device_type
 from neon_utils.location_utils import to_system_time
 from neon_utils.message_utils import request_from_mobile
+from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft import Message
-# from mycroft.util.log import LOG
-# from mycroft.skills.core import MycroftSkill
 from mycroft.util import play_audio_file
 from mycroft.util import resolve_resource_file
-# from neon_utils import stub_missing_parameters, skill_needs_patching
-from neon_utils.skills.neon_skill import NeonSkill, LOG
+
+# TODO: This try/except is for Mycroft compat until they update LF DM
+try:
+    from lingua_franca import load_language
+except ImportError:
+    load_language = None
 
 try:
     import spacy
-except Exception as x:
-    LOG.error(x)
+except ImportError:
+    spacy = None
 
 try:
-    from lingua_franca import load_language
     from tkinter import Tk
     from tkinter.filedialog import askopenfilename
-except Exception as x:
-    LOG.error(x)
+except ImportError:
+    Tk = None
+    askopenfilename = None
+
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
@@ -85,12 +88,10 @@ class AlertSkill(NeonSkill):
 
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
-        try:
+        if load_language:
             self.internal_language = "en"
             load_language(self.internal_language)
-        except Exception as e:
-            # TODO: This is for Mycroft compat until they update LF DM
-            LOG.error(e)
+
         try:
             self.nlp = spacy.load("en_core_web_sm")
         except Exception as e:
@@ -863,6 +864,7 @@ class AlertSkill(NeonSkill):
             LOG.debug(result)
 
             try:
+                # TODO: Extract this to utils DM
                 parsed = self.nlp(result)
                 s_subj, s_obj = None, None
                 for chunk in parsed.noun_chunks:
@@ -950,7 +952,7 @@ class AlertSkill(NeonSkill):
             elif alert_type == AlertType.ALARM:
                 return f"{spoken_time} Alarm"
 
-    def _find_reconveyance_recording(self, message: Message) -> str:
+    def _find_reconveyance_recording(self, message: Message) -> Optional[str]:
         """
         Tries to locate a filename in the input utterance and returns that path or None
         :param message: Message associated with request
@@ -985,13 +987,12 @@ class AlertSkill(NeonSkill):
                 # TODO: Server file selection
             else:
                 self.speak_dialog("RecordingNotFound", private=True)
-                try:
+                if Tk:
                     root = Tk()
                     root.withdraw()
                     file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
                                            parent=root)
-                except Exception as e:
-                    LOG.error(e)
+
         return file
 
     def _get_alerts_for_user(self, user: str) -> dict:
