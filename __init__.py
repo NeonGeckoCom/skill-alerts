@@ -346,6 +346,9 @@ class AlertSkill(NeonSkill):
                 else:
                     self.mobile_skill_intent("alert_cancel", {"kind": spoken_kind}, message)
 
+            # Clear anything in the gui
+            self.gui.clear()
+
             # Cancel all alerts (of a type)
             if message.data.get("all"):
                 if kind in (AlertType.ALARM, AlertType.ALL):
