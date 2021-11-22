@@ -1,21 +1,28 @@
 # NEON AI (TM) SOFTWARE, Software Development Kit & Application Development System
-#
-# Copyright 2008-2021 Neongecko.com Inc. | All Rights Reserved
-#
-# Notice of License - Duplicating this Notice of License near the start of any file containing
-# a derivative of this software is a condition of license for this software.
-# Friendly Licensing:
-# No charge, open source royalty free use of the Neon AI software source and object is offered for
-# educational users, noncommercial enthusiasts, Public Benefit Corporations (and LLCs) and
-# Social Purpose Corporations (and LLCs). Developers can contact developers@neon.ai
-# For commercial licensing, distribution of derivative works or redistribution please contact licenses@neon.ai
-# Distributed on an "AS IS” basis without warranties or conditions of any kind, either express or implied.
-# Trademarks of Neongecko: Neon AI(TM), Neon Assist (TM), Neon Communicator(TM), Klat(TM)
-# Authors: Guy Daniels, Daniel McKnight, Regina Bloomstine, Elon Gasper, Richard Leeds
-#
-# Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
-# US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
-# China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+# All trademark and other rights reserved by their respective owners
+# Copyright 2008-2021 Neongecko.com Inc.
+# BSD-3
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from this
+#    software without specific prior written permission.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+# CONTRIBUTORS  BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+# OR PROFITS;  OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import time
 import re
@@ -23,11 +30,11 @@ import os
 
 from enum import IntEnum
 from pprint import pformat
-from typing import Optional
 from dateutil.tz import gettz
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from adapt.intent import IntentBuilder
+from lingua_franca import load_language
 from lingua_franca.format import nice_duration, nice_time, nice_date
 from lingua_franca.parse import extract_datetime, extract_duration
 from lingua_franca.parse import extract_number
@@ -41,23 +48,18 @@ from mycroft import Message
 from mycroft.util import play_audio_file
 from mycroft.util import resolve_resource_file
 
-# TODO: This try/except is for Mycroft compat until they update LF DM
 try:
-    from lingua_franca import load_language
+    from neon_transcripts_controller.util import find_user_recording
 except ImportError:
-    load_language = None
+    # TODO: Extension goes here
+    find_user_recording = None
+    LOG.warning("transcripts not enabled on this system")
 
 try:
     import spacy
 except ImportError:
     spacy = None
 
-try:
-    from tkinter import Tk
-    from tkinter.filedialog import askopenfilename
-except ImportError:
-    Tk = None
-    askopenfilename = None
 
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -96,16 +98,7 @@ class AlertSkill(NeonSkill):
             self.nlp = spacy.load("en_core_web_sm")
         except Exception as e:
             LOG.error(e)
-        # if skill_needs_patching(self):
-        #     stub_missing_parameters(self)
-        #     self.recording_dir = None
-        # else:
-        # TODO: This should be retrieved from audio-record skill DM
-        self.recording_dir = os.path.expanduser(os.path.join(self.local_config.get('dirVars', {})
-                                                             .get('docsDir') or "~/.neon",
-                                                             "neon_recordings"))
 
-        # self.alerts_cache = NGIConfig("alerts", self.file_system.path)
         self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
         self.missed = self.alerts_cache.get('missed', {})
         self.pending = self.alerts_cache.get("pending", {})
@@ -669,8 +662,10 @@ class AlertSkill(NeonSkill):
         keyword_str = self._extract_content_str(message.data)
 
         # Handle any universal parsing
-        if message.data.get("playable") and self.neon_core:
-            audio_file = self._find_reconveyance_recording(message)
+        if message.data.get("playable") and find_user_recording:
+            audio_file = find_user_recording(message)
+            if not audio_file:
+                LOG.info(f"Could not locate recording: {message.data}")
             extracted_data["audio_file"] = audio_file
 
         if message.data.get("script"):
@@ -954,49 +949,6 @@ class AlertSkill(NeonSkill):
                 return f"{spoken_time} Reminder"
             elif alert_type == AlertType.ALARM:
                 return f"{spoken_time} Alarm"
-
-    def _find_reconveyance_recording(self, message: Message) -> Optional[str]:
-        """
-        Tries to locate a filename in the input utterance and returns that path or None
-        :param message: Message associated with request
-        :return: Path to requested audio (may be None)
-        """
-        file = None
-        utt = message.data.get("utterance")
-        if not os.path.isdir(self.recording_dir):
-            LOG.error(f"recordings directory not found! {self.recording_dir}")
-            return file
-        # Look for recording by name if recordings are available
-        for f in os.listdir(self.recording_dir):
-            filename = f.split('.')[0]
-            # TODO: Use regex to filter files by user associated instead of iterating all DM
-            if '-' in filename:
-                user, name = filename.split('-', 1)
-                LOG.info(f"Looking for {name} in {utt}")
-                if name in utt and user == self.get_utterance_user(message):
-                    file = os.path.join(self.recording_dir, f)
-                    break
-
-        # If no file, try using the audio associated with this utterance
-        if not file:
-            file = message.context.get("audio_file", None)
-
-        if file:
-            LOG.debug("Playable Reminder: " + file)
-        else:
-            # If no recording, prompt user selection
-            if self.server:
-                pass
-                # TODO: Server file selection
-            else:
-                self.speak_dialog("RecordingNotFound", private=True)
-                if Tk:
-                    root = Tk()
-                    root.withdraw()
-                    file = askopenfilename(title="Select Audio for Alert", initialdir=self.recording_dir,
-                                           parent=root)
-
-        return file
 
     def _get_alerts_for_user(self, user: str) -> dict:
         """
