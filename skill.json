@@ -1,6 +1,6 @@
 {
     "title": "Alerts",
-    "url": "https://github.com/NeonGeckoCom/alerts.neon",
+    "url": "https://github.com/NeonGeckoCom/skill-alerts.git",
     "summary": "A skill to schedule alarms, timers, and reminders",
     "short_description": "A skill to schedule alarms, timers, and reminders",
     "description": "The skill provides functionality to create alarms, timers and reminders, remove them by name, time, or type, and ask for what is active. You may also silence all alerts and ask for a summary of what was missed if you were away, your device was off, or you had quiet hours enabled. Alarms and reminders may be set to recur daily or weekly. An active alert may be snoozed for a specified amount of time while it is active. Any alerts that are not acknowledged will be added to a list of missed alerts that may be read and cleared when requested.",
@@ -37,11 +37,7 @@
         "system": {},
         "skill": []
     },
-    "incompatible_skills": [
-        "https://github.com/mycroftai/skill-reminder",
-        "https://github.com/mycroftai/skill-alarm",
-        "https://github.com/mycroftai/mycroft-timer"
-    ],
+    "incompatible_skills": [],
     "platforms": [
         "i386",
         "x86_64",
@@ -50,7 +46,7 @@
         "arm"
     ],
     "branch": "master",
-    "license": "NeonAI License v1.0",
+    "license": "BSD-3-Clause",
     "icon": "logo.svg",
     "category": "Productivity",
     "categories": [
@@ -58,7 +54,7 @@
         "Daily"
     ],
     "tags": [
-        "NeonGecko",
+        "NeonGecko Original",
         "NeonAI",
         "alert",
         "alarm",
@@ -66,7 +62,17 @@
         "reminder",
         "schedule"
     ],
+    "credits": [
+        "NeonGeckoCom",
+        "NeonDaniel"
+    ],
     "skillname": "Alerts",
     "authorname": "NeonGeckoCom",
-    "foldername": null
+    "foldername": null,
+    "incompatible skills": [
+        "this skill has known intent collisions with the following skills:",
+        "[skill-reminder.mycroftai](https://github.com/mycroftai/skill-reminder)",
+        "[skill-alarm.mycroftai](https://github.com/mycroftai/skill-alarm)",
+        "[mycroft-timer.mycroftai](https://github.com/mycroftai/mycroft-timer)"
+    ]
 }
