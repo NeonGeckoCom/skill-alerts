@@ -38,10 +38,9 @@
         "skill": []
     },
     "incompatible_skills": [
-        "this skill has known intent collisions with the following skills:",
-        "[skill-reminder.mycroftai](https://github.com/mycroftai/skill-reminder)",
-        "[skill-alarm.mycroftai](https://github.com/mycroftai/skill-alarm)",
-        "[mycroft-timer.mycroftai](https://github.com/mycroftai/mycroft-timer)"
+        "https://github.com/mycroftai/skill-reminder",
+        "https://github.com/mycroftai/skill-alarm",
+        "https://github.com/mycroftai/mycroft-timer"
     ],
     "platforms": [
         "i386",
