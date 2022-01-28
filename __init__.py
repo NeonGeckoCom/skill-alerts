@@ -36,10 +36,6 @@ from dateutil.tz import gettz
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from adapt.intent import IntentBuilder
-from lingua_franca import load_language
-from lingua_franca.format import nice_duration, nice_time, nice_date
-from lingua_franca.parse import extract_datetime, extract_duration
-from lingua_franca.parse import extract_number
 from json_database import JsonStorage
 from neon_utils.configuration_utils import get_neon_device_type
 from neon_utils.location_utils import to_system_time
@@ -49,6 +45,8 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 from mycroft import Message
 from mycroft.util import play_audio_file
 from mycroft.util import resolve_resource_file
+from mycroft.util.format import nice_duration, nice_time, nice_date
+from mycroft.util.parse import extract_datetime, extract_duration, extract_number
 
 try:
     from neon_transcripts_controller.util import find_user_recording
@@ -92,10 +90,6 @@ class AlertSkill(NeonSkill):
 
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
-        if load_language:
-            self.internal_language = "en"
-            load_language(self.internal_language)
-
         try:
             self.nlp = spacy.load("en_core_web_sm")
         except Exception as e:
