@@ -101,11 +101,23 @@ class AlertSkill(NeonSkill):
         except Exception as e:
             LOG.error(e)
 
-        self.alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
-        self.missed = self.alerts_cache.get('missed', {})
-        self.pending = self.alerts_cache.get("pending", {})
+        self._alerts_cache = None
 
         self.active = {}
+
+    @property
+    def alerts_cache(self):
+        if self._alerts_cache is None:
+            self._alerts_cache = JsonStorage(os.path.join(self.file_system.path, "alerts"))
+        return self._alerts_cache
+
+    @property
+    def missed(self):
+        return self.alerts_cache.get('missed', {})
+
+    @property
+    def pending(self):
+        return self.alerts_cache.get("pending", {})
 
     def initialize(self):
         list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
