@@ -36,19 +36,21 @@ from dateutil.tz import gettz
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from adapt.intent import IntentBuilder
-from lingua_franca import load_language
-from lingua_franca.format import nice_duration, nice_time, nice_date
-from lingua_franca.parse import extract_datetime, extract_duration
-from lingua_franca.parse import extract_number
+from mycroft_bus_client import Message
 from json_database import JsonStorage
 from neon_utils.configuration_utils import get_neon_device_type
 from neon_utils.location_utils import to_system_time
 from neon_utils.message_utils import request_from_mobile
 from neon_utils.skills.neon_skill import NeonSkill, LOG
 
-from mycroft import Message
-from mycroft.util import play_audio_file
-from mycroft.util import resolve_resource_file
+from mycroft.skills import intent_handler
+from mycroft.util import play_audio_file, resolve_resource_file
+from mycroft.util.parse import extract_number, extract_datetime,\
+    extract_duration
+from mycroft.util.format import nice_duration, nice_time, nice_date
+
+from .util import AlertManager
+from .util.alert import AlertType, Weekdays
 
 try:
     from neon_transcripts_controller.util import find_user_recording
@@ -66,43 +68,21 @@ except ImportError:
 WEEKDAY_NAMES = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
 
-class Weekdays(IntEnum):
-    MON = 0
-    TUE = 1
-    WED = 2
-    THU = 3
-    FRI = 4
-    SAT = 5
-    SUN = 6
-
-
-class AlertType(IntEnum):
-    ALL = -1
-    ALARM = 0
-    TIMER = 1
-    REMINDER = 2
-
-
 class AlertStatus(IntEnum):
     PENDING = 0
     MISSED = 1
 
 
 class AlertSkill(NeonSkill):
-
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
-        if load_language:
-            self.internal_language = "en"
-            load_language(self.internal_language)
-
         try:
+            # TODO: This should be an external util with language support DM
             self.nlp = spacy.load("en_core_web_sm")
         except Exception as e:
             LOG.error(e)
 
         self._alerts_cache = None
-
         self.active = {}
 
     @property
@@ -120,87 +100,14 @@ class AlertSkill(NeonSkill):
         return self.alerts_cache.get("pending", {})
 
     def initialize(self):
-        list_alarms = IntentBuilder("list_alarms").require("list").require("alarm").optionally("Neon").build()
-        self.register_intent(list_alarms, self.handle_list_alerts)
-
-        list_timers = IntentBuilder("list_timers").require("list").require("timer").optionally("Neon").build()
-        self.register_intent(list_timers, self.handle_list_alerts)
-
-        list_reminders = IntentBuilder("list_reminders").require("list").require("reminder").optionally("Neon").build()
-        self.register_intent(list_reminders, self.handle_list_alerts)
-
-        list_events = IntentBuilder("list_events").require("list").require("event").optionally("Neon").build()
-        self.register_intent(list_events, self.handle_list_alerts)
-
-        list_alerts = IntentBuilder("list_alerts").require("list").require("alert").optionally("Neon").build()
-        self.register_intent(list_alerts, self.handle_list_alerts)
-
-        cancel_alarm = IntentBuilder("cancel_alarm").require("cancel").require("alarm").optionally("all").\
-            optionally("Neon").build()
-        self.register_intent(cancel_alarm, self.handle_cancel_alert)
-
-        cancel_timer = IntentBuilder("cancel_timer").require("cancel").require("timer").optionally("all").\
-            optionally("Neon").build()
-        self.register_intent(cancel_timer, self.handle_cancel_alert)
-
-        cancel_reminder = IntentBuilder("cancel_reminder").require("cancel").require("reminder").optionally("all").\
-            optionally("Neon").build()
-        self.register_intent(cancel_reminder, self.handle_cancel_alert)
-
-        cancel_all = IntentBuilder("cancel_all").require("cancel").require("alert").require("all"). \
-            optionally("Neon").build()
-        self.register_intent(cancel_all, self.handle_cancel_alert)
-
-        next_alarm = IntentBuilder("next_alarm").require("next").require("alarm").optionally("Neon").build()
-        self.register_intent(next_alarm, self.handle_next_alert)
-
-        next_timer = IntentBuilder("next_timer").require("next").require("timer").optionally("Neon").build()
-        self.register_intent(next_timer, self.handle_next_alert)
-
-        next_reminder = IntentBuilder("next_reminder").require("next").require("reminder").optionally("Neon").build()
-        self.register_intent(next_reminder, self.handle_next_alert)
-
-        next_event = IntentBuilder("next_event").require("next").require("event").optionally("Neon").build()
-        self.register_intent(next_event, self.handle_next_alert)
-
-        create_alarm = IntentBuilder("create_alarm").optionally("set").require("alarm").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
-            optionally("script").optionally("priority").build()
-        self.register_intent(create_alarm, self.handle_create_alarm)
-
-        create_timer = IntentBuilder("create_timer").require("set").require("timer").optionally("Neon").build()
-        self.register_intent(create_timer, self.handle_create_timer)
-
-        create_reminder = IntentBuilder("create_reminder").require("set").require("reminder").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
-            optionally("script").optionally("priority").build()
-        self.register_intent(create_reminder, self.handle_create_reminder)
-
-        alternate_reminder = IntentBuilder("alternate_reminder").require("setReminder").optionally("playable").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").build()
-        self.register_intent(alternate_reminder, self.handle_create_reminder)
-
-        create_event = IntentBuilder("create_event").optionally("set").require("event").\
-            optionally("playable").optionally("Neon").optionally("repeat").optionally("until").\
-            optionally("script").optionally("priority").build()
-        self.register_intent(create_event, self.handle_create_event)
-
-        start_quiet_hours = IntentBuilder("start_quiet_hours").require("startQuietHours").optionally("Neon").build()
-        self.register_intent(start_quiet_hours, self.handle_start_quiet_hours)
-
-        end_quiet_hours = IntentBuilder("end_quiet_hours").require("endQuietHours").optionally("Neon").build()
-        self.register_intent(end_quiet_hours, self.handle_end_quiet_hours)
-
-        # snooze_alert = IntentBuilder("snooze_alert").require("snooze").optionally("Neon").build()
-        # self.register_intent(snooze_alert, self.handle_snooze_alert)
-
-        timer_status = IntentBuilder("timer_status").require('howMuchTime').optionally("Neon").build()
-        self.register_intent(timer_status, self.handle_timer_status)
-
         self.add_event("neon.get_events", self._get_events)
-
         self._check_for_missed_alerts()
 
+# Intent Handlers
+    @intent_handler(IntentBuilder("create_alarm").optionally("set")
+                    .require("alarm").optionally("playable").optionally("Neon")
+                    .optionally("repeat").optionally("until")
+                    .optionally("script").optionally("priority"))
     def handle_create_alarm(self, message):
         """
         Intent handler for creating an alarm
@@ -212,6 +119,8 @@ class AlertSkill(NeonSkill):
             LOG.info(content)
             self.confirm_alert("alarm", content, message)
 
+    @intent_handler(IntentBuilder("create_timer").require("set")
+                    .require("timer").optionally("Neon"))
     def handle_create_timer(self, message):
         """
         Intent handler for creating a timer
@@ -223,6 +132,11 @@ class AlertSkill(NeonSkill):
             LOG.info(content)
             self.confirm_alert("timer", content, message)
 
+    @intent_handler(IntentBuilder("create_reminder").require("set")
+                    .require("reminder").optionally("playable")
+                    .optionally("Neon").optionally("repeat")
+                    .optionally("until").optionally("script")
+                    .optionally("priority"))
     def handle_create_reminder(self, message):
         """
         Intent handler for creating a reminder
@@ -234,6 +148,17 @@ class AlertSkill(NeonSkill):
             LOG.info(content)
             self.confirm_alert('reminder', content, message)
 
+    @intent_handler(IntentBuilder("alternate_reminder").require("setReminder")
+                    .optionally("playable").optionally("playable")
+                    .optionally("Neon").optionally("repeat")
+                    .optionally("until"))
+    def handle_create_reminder_alt(self, message):
+        self.handle_create_reminder(message)
+
+    @intent_handler(IntentBuilder("create_event").optionally("set")
+                    .require("event").optionally("playable").optionally("Neon")
+                    .optionally("repeat").optionally("until")
+                    .optionally("script").optionally("priority"))
     def handle_create_event(self, message):
         """
         Intent handler for creating an event. Wraps create_reminder
@@ -242,6 +167,9 @@ class AlertSkill(NeonSkill):
         LOG.debug("Create Event calling Reminder")
         self.handle_create_reminder(message)
 
+    @intent_handler(IntentBuilder("next_alert").optionally("Neon")
+                    .require("next")
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_next_alert(self, message):
         """
         Intent handler to handle request for the next alert (kind optionally specified)
@@ -277,6 +205,9 @@ class AlertSkill(NeonSkill):
                 else:
                     self.speak_dialog("NextAlert", data, private=True)
 
+    @intent_handler(IntentBuilder("list_alerts").optionally("Neon")
+                    .require("list")
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
         Intent handler to handle request for all alerts (kind optionally specified)
@@ -314,6 +245,9 @@ class AlertSkill(NeonSkill):
                     else:
                         self.speak_dialog("ListAlerts", data, private=True)
 
+    @intent_handler(IntentBuilder("cancel_alert").optionally("Neon")
+                    .require("cancel").optionally("all")
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_cancel_alert(self, message):
         """
         Intent handler to handle request to cancel alerts (kind and 'all' optionally specified)
@@ -396,6 +330,8 @@ class AlertSkill(NeonSkill):
             # Nothing matched, Assume user meant an active alert
             self._cancel_active_alerts(user_alerts["active"])
 
+    @intent_handler(IntentBuilder("timer_status").require('howMuchTime')
+                    .optionally("Neon"))
     def handle_timer_status(self, message):
         """
         Intent handler to handle request for timer status (name optionally specified)
@@ -429,6 +365,64 @@ class AlertSkill(NeonSkill):
                                                       'duration': duration}, private=True)
         else:
             self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
+
+    @intent_handler(IntentBuilder("start_quiet_hours")
+                    .require("startQuietHours").optionally("Neon"))
+    def handle_start_quiet_hours(self, message):
+        """
+        Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
+        """
+        # TODO: for duration? Add event to schedule? DM
+        if self.neon_in_request(message):
+            if self.voc_match(message.data.get("utterance"), "endKeyword"):
+                self.handle_end_quiet_hours(message)
+            else:
+                self.speak_dialog("QuietHoursStart", private=True)
+                self.update_skill_settings({"quiet_hours": True}, message)
+
+    @intent_handler(IntentBuilder("end_quiet_hours")
+                    .require("endQuietHours").optionally("Neon"))
+    def handle_end_quiet_hours(self, message):
+        """
+        Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
+        """
+        if self.neon_in_request(message):
+            if self.preference_skill(message)["quiet_hours"]:
+                self.speak_dialog("QuietHoursEnd", private=True)
+            self.update_skill_settings({"quiet_hours": False}, message)
+            user = self.get_utterance_user(message)
+            missed = self._get_alerts_for_user(user)["missed"]
+            if missed:
+                self.speak_dialog("MissedAlertIntro", private=True)
+                for alert in missed:
+                    data = self._get_speak_data_from_alert(alert)
+                    if data["repeat"]:
+                        self.speak_dialog("ListRepeatingAlerts", data, private=True)
+                    else:
+                        self.speak_dialog("ListAlerts", data, private=True)
+                    self.missed.pop(alert)
+            else:
+                self.speak_dialog("NoMissedAlerts", private=True)
+            # Remove handled missed alerts from the list
+            self.alerts_cache["missed"] = self.missed
+            self.alerts_cache.store()
+            # self.alerts_cache.update_yaml_file('missed', value=self.missed)
+
+    def converse(self, message=None):
+        """
+        If there is an active alert, see if the user is trying to dismiss it
+        """
+        user = self.get_utterance_user(message)
+        user_alerts = self._get_alerts_for_user(user)
+        if user_alerts["active"]:  # User has an active alert
+            for utterance in message.data.get("utterances"):
+                if self.voc_match(utterance, "snooze"):
+                    self.handle_snooze_alert(message)
+                    return True
+                elif self.voc_match(utterance, "dismiss"):
+                    self._cancel_active_alerts(user_alerts["active"])
+                    return True
+        return False
 
     def handle_snooze_alert(self, message):
         """
@@ -465,61 +459,6 @@ class AlertSkill(NeonSkill):
             self._write_event_to_schedule(data)
             self.speak_dialog("SnoozeAlert", {'name': old_name,
                                               'duration': duration}, private=True)
-
-    def handle_start_quiet_hours(self, message):
-        """
-        Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
-        """
-        # TODO: for duration? Add event to schedule? DM
-        if self.neon_in_request(message):
-            if self.voc_match(message.data.get("utterance"), "endKeyword"):
-                self.handle_end_quiet_hours(message)
-            else:
-                self.speak_dialog("QuietHoursStart", private=True)
-                self.update_skill_settings({"quiet_hours": True}, message)
-
-    def handle_end_quiet_hours(self, message):
-        """
-        Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
-        """
-        if self.neon_in_request(message):
-            if self.preference_skill(message)["quiet_hours"]:
-                self.speak_dialog("QuietHoursEnd", private=True)
-            self.update_skill_settings({"quiet_hours": False}, message)
-            user = self.get_utterance_user(message)
-            missed = self._get_alerts_for_user(user)["missed"]
-            if missed:
-                self.speak_dialog("MissedAlertIntro", private=True)
-                for alert in missed:
-                    data = self._get_speak_data_from_alert(alert)
-                    if data["repeat"]:
-                        self.speak_dialog("ListRepeatingAlerts", data, private=True)
-                    else:
-                        self.speak_dialog("ListAlerts", data, private=True)
-                    self.missed.pop(alert)
-            else:
-                self.speak_dialog("NoMissedAlerts", private=True)
-            # Remove handled missed alerts from the list
-            self.alerts_cache["missed"] = self.missed
-            self.alerts_cache.store()
-            # self.alerts_cache.update_yaml_file('missed', value=self.missed)
-
-    def converse(self, message=None):
-        user = self.get_utterance_user(message)
-        user_alerts = self._get_alerts_for_user(user)
-        utterance = message.data.get("utterances", [])[0]
-        if not utterance:
-            LOG.warning(f"no utterances in data={message.data}")
-            return False
-        if user_alerts["active"]:
-            # User has an active alert they probably want to dismiss or snooze
-            if self.voc_match(utterance, "snooze"):
-                self.handle_snooze_alert(message)
-                return True
-            elif self.voc_match(utterance, "dismiss"):
-                self._cancel_active_alerts(user_alerts["active"])
-                return True
-        return False
 
     def confirm_alert(self, kind, alert_content: dict, message: Message):
         """
@@ -1414,8 +1353,6 @@ class AlertSkill(NeonSkill):
             self.gui.show_text("Time's Up!", alert_name)
         else:
             self.gui.show_text(alert_name, alert_kind)
-        if self.neon_core:
-            self.clear_gui_timeout()
 
     def _get_events(self, message):
         """
@@ -1458,7 +1395,6 @@ class AlertSkill(NeonSkill):
             self._make_alert_missed(alert)
 
     def stop(self):
-        self.clear_signals('ALRT')
         if self.gui_enabled:
             self.gui.clear()
 
