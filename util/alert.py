@@ -27,9 +27,10 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import datetime
+import json
 
 from enum import IntEnum
-from typing import Set, Optional
+from typing import Set, Optional, Union
 from neon_utils.logger import LOG
 
 
@@ -62,15 +63,22 @@ class Alert:
         self._data = data or dict()
 
     @property
-    def data(self):
+    def data(self) -> dict:
         """
         Return a json-dumpable dict representation of this alert
         """
         return self._data
 
     @property
+    def serialize(self) -> str:
+        """
+        Return a string representation of the alert
+        """
+        return json.dumps(self._data)
+
+    @property
     def alert_type(self) -> AlertType:
-        return AlertType(self._data.get("alert_type") or 99)
+        return AlertType(self._data.get("alert_type", 99))
 
     @property
     def priority(self) -> int:
@@ -82,12 +90,13 @@ class Alert:
             if self._data.get("end_repeat") else None
 
     @property
-    def repeat_days(self) -> Optional[set]:
-        return set([Weekdays(d) for d in self._data.get("repeat_days")])
+    def repeat_days(self) -> Optional[Set[Weekdays]]:
+        return set([Weekdays(d) for d in self._data.get("repeat_days")]) \
+            if self._data.get("repeat_days") else None
 
     @property
     def repeat_frequency(self) -> Optional[datetime.timedelta]:
-        return datetime.timedelta(self._data.get("repeat_frequency")) \
+        return datetime.timedelta(seconds=self._data.get("repeat_frequency")) \
             if self._data.get("repeat_frequency") else None
 
     @property
@@ -118,13 +127,26 @@ class Alert:
         return now >= expiration
 
     @property
+    def time_to_expiration(self) -> Optional[datetime.timedelta]:
+        """
+        Return the time until `next_expiration_time` or None if alert expired
+        """
+        if self.is_expired:
+            return None
+        expiration = \
+            datetime.datetime.fromisoformat(self._data["next_expiration_time"])
+        now = datetime.datetime.now(expiration.tzinfo)
+        now.replace(microsecond=0)
+        return expiration - now
+
+    @property
     def next_expiration(self) -> Optional[datetime.datetime]:
         """
         Return the next valid expiration time for this alert. Returns None if
         the alert is expired and has no valid repeat options
         """
         if self.is_expired:
-            LOG.info("Alert expired, checking for next expiration time"),
+            LOG.info("Alert expired, checking for next expiration time")
         return self._get_next_expiration_time()
 
     def _get_next_expiration_time(self) -> Optional[datetime.datetime]:
@@ -147,12 +169,14 @@ class Alert:
             while expiration < now or \
                     Weekdays(expiration.weekday()) not in self.repeat_days:
                 expiration = expiration + datetime.timedelta(days=1)
+            print(expiration.weekday())
         else:
             # Alert expired with no repeat
             return None
         if self.end_repeat and expiration > self.end_repeat:
             # This alert is expired
             return None
+        expiration = expiration.replace(microsecond=0)
         self._data["next_expiration_time"] = expiration.isoformat()
         return expiration
 
@@ -166,10 +190,19 @@ class Alert:
         return Alert(alert_data)
 
     @staticmethod
-    def create(expiration: datetime.datetime,
-               alert_type: AlertType, alert_name: str = None,
+    def deserialize(alert_str: str):
+        """
+        Parse a serialized alert into an Alert object
+        :param alert_str: str returned by `Alert.serialize`
+        """
+        data = json.loads(alert_str)
+        return Alert(data)
+
+    @staticmethod
+    def create(expiration: datetime.datetime, alert_name: str = None,
+               alert_type: AlertType = AlertType.UNKNOWN,
                priority: int = AlertPriority.AVERAGE.value,
-               repeat_frequency: datetime.timedelta = None,
+               repeat_frequency: Union[int, datetime.timedelta] = None,
                repeat_days: Set[Weekdays] = None,
                end_repeat: datetime.datetime = None,
                audio_file: str = None, script_file: str = None,
@@ -178,8 +211,8 @@ class Alert:
         """
         Object representing an arbitrary alert
         :param expiration: datetime representing first alert expiration
-        :param alert_type: type of alert (i.e. alarm, timer, reminder)
         :param alert_name: human-readable name for this alert
+        :param alert_type: type of alert (i.e. alarm, timer, reminder)
         :param priority: int priority 1-10
         :param repeat_frequency: time in seconds between alert occurrences
         :param repeat_days: set of weekdays for an alert to repeat
@@ -188,12 +221,26 @@ class Alert:
         :param script_file: ncs filename to run on alert expiration
         :param alert_context: Message context associated with alert
         """
-        # Round off any microseconds
-        expiration.replace(microsecond=0)
-        end_repeat.replace(microsecond=0)
+        # Validate passed datetime objects
+        if not expiration.tzinfo:
+            raise ValueError("expiration missing tzinfo")
+        if end_repeat and not end_repeat.tzinfo:
+            raise ValueError("end_repeat missing tzinfo")
+        if isinstance(repeat_frequency, datetime.timedelta):
+            # Convert timedelta to int
+            repeat_frequency = round(repeat_frequency.total_seconds()) \
+                if repeat_frequency else None
 
-        # Convert timedelta to int
-        repeat_frequency = round(repeat_frequency.total_seconds()) if repeat_frequency else None
+        # Convert repeat_days to int representation
+        repeat_days = [d.value for d in repeat_days] if repeat_days else None
+
+        # Convert end condition to rounded str representation
+        if end_repeat:
+            end_repeat = end_repeat.replace(microsecond=0)
+            end_repeat = end_repeat.isoformat()
+
+        # Round off any microseconds
+        expiration = expiration.replace(microsecond=0)
 
         # Enforce and Default Values
         alert_name = alert_name or "unnamed alert"
@@ -204,8 +251,8 @@ class Alert:
             "alert_type": alert_type.value,
             "priority": priority,
             "repeat_frequency": repeat_frequency,
-            "repeat_days": [d.value for d in repeat_days],
-            "end_repeat": end_repeat.isoformat(),
+            "repeat_days": repeat_days,
+            "end_repeat": end_repeat,
             "alert_name": alert_name,
             "audio_file": audio_file,
             "script_filename": script_file,
