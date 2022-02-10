@@ -129,7 +129,9 @@ class Alert:
     @property
     def time_to_expiration(self) -> Optional[datetime.timedelta]:
         """
-        Return the time until `next_expiration_time` or None if alert expired
+        Return the time until `next_expiration_time` or None if alert expired.
+        This does not account for any repeat behavior, call `next_expiration`
+        to check for a repeating event.
         """
         if self.is_expired:
             return None
@@ -143,7 +145,8 @@ class Alert:
     def next_expiration(self) -> Optional[datetime.datetime]:
         """
         Return the next valid expiration time for this alert. Returns None if
-        the alert is expired and has no valid repeat options
+        the alert is expired and has no valid repeat options. If there is a
+        valid repeat, the alert will no longer report as expired.
         """
         if self.is_expired:
             LOG.info("Alert expired, checking for next expiration time")
