@@ -216,6 +216,25 @@ class TestSkillUtils(unittest.TestCase):
                                dt.timedelta(weeks=1, hours=-1).total_seconds(),
                                delta=5)
 
+    def test_alert_add_context(self):
+        alert_time = dt.datetime.now(dt.timezone.utc)
+        original_context = {"testing": True}
+        alert = Alert.create(
+            alert_time,
+            "test alert context",
+            alert_context=original_context
+        )
+        self.assertEqual(alert.context, original_context)
+        alert.add_context({"ident": "ident"})
+        self.assertEqual(alert.context, {"ident": "ident",
+                                         "testing": True})
+        alert.add_context({"ident": "new_ident"})
+        self.assertEqual(alert.context, {"ident": "new_ident",
+                                         "testing": True})
+
+    def test_alert_manager_init(self):
+        pass
+
 
 if __name__ == '__main__':
     pytest.main()

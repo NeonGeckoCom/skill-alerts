@@ -29,33 +29,9 @@
 import datetime
 import json
 
-from enum import IntEnum
 from typing import Set, Optional, Union
 from neon_utils.logger import LOG
-
-
-class AlertType(IntEnum):
-    ALL = -1
-    ALARM = 0
-    TIMER = 1
-    REMINDER = 2
-    UNKNOWN = 99
-
-
-class AlertPriority(IntEnum):
-    HIGHEST = 10
-    AVERAGE = 5
-    LOWEST = 1
-
-
-class Weekdays(IntEnum):
-    MON = 0
-    TUE = 1
-    WED = 2
-    THU = 3
-    FRI = 4
-    SAT = 5
-    SUN = 6
+from . import AlertType, AlertPriority, Weekdays
 
 
 class Alert:
@@ -151,6 +127,14 @@ class Alert:
         if self.is_expired:
             LOG.info("Alert expired, checking for next expiration time")
         return self._get_next_expiration_time()
+
+    def add_context(self, ctx: dict):
+        """
+        Add the requested context to the alert, conflicting values will be
+        overwritten with the new context.
+        :param ctx: new context to add to alert
+        """
+        self._data["context"] = {**self.context, **ctx}
 
     def _get_next_expiration_time(self) -> Optional[datetime.datetime]:
         """
