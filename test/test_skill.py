@@ -434,8 +434,6 @@ class TestSkillUtils(unittest.TestCase):
         alert_no_user.add_context({"user": "new_user"})
         self.assertEqual(get_alert_user(alert_no_user), "new_user")
 
-    # TODO: Test get_user_alerts
-
     def test_get_alert_id(self):
         from util.alert_manager import get_alert_id
         alert_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
@@ -493,6 +491,52 @@ class TestSkillUtils(unittest.TestCase):
         for alert in reminders:
             self.assertIsInstance(alert, Alert)
             self.assertEqual(alert.alert_type, AlertType.REMINDER)
+
+    def test_round_nearest_minute(self):
+        from util.parse_utils import round_nearest_minute
+        now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        alert_time = now_time + dt.timedelta(minutes=9, seconds=5)
+        rounded = round_nearest_minute(alert_time)
+        self.assertEqual(rounded, alert_time)
+
+        rounded = round_nearest_minute(alert_time, dt.timedelta(minutes=5))
+        self.assertEqual(rounded, alert_time.replace(second=0))
+
+    def test_spoken_time_remaining(self):
+        from util.parse_utils import spoken_time_remaining
+        now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        seconds_alert = now_time + dt.timedelta(minutes=59, seconds=59)
+        to_speak = spoken_time_remaining(seconds_alert, now_time)
+        self.assertTrue(all([word for word in ("minutes", "seconds")
+                             if word in to_speak.split()]))
+        self.assertEqual(to_speak, "fifty nine minutes fifty nine seconds")
+
+        minutes_alert = now_time + dt.timedelta(hours=23, minutes=59,
+                                                seconds=59)
+        to_speak = spoken_time_remaining(minutes_alert, now_time)
+        self.assertTrue(all([word for word in ("hours", "minutes")
+                             if word in to_speak.split()]))
+        self.assertNotIn("seconds", to_speak.split())
+        self.assertEqual(to_speak, "twenty three hours fifty nine minutes")
+
+        hours_alert = now_time + dt.timedelta(days=6, hours=23, minutes=59,
+                                              seconds=59)
+        to_speak = spoken_time_remaining(hours_alert, now_time)
+        self.assertTrue(all([word for word in ("days", "hours")
+                             if word in to_speak.split()]))
+        self.assertTrue(all([not word for word in ("minutes", "seconds")
+                             if word in to_speak.split()]))
+        self.assertEqual(to_speak, "six days twenty three hours")
+
+        days_alert = now_time + dt.timedelta(weeks=1, days=1, hours=1,
+                                             minutes=1, seconds=1)
+        to_speak = spoken_time_remaining(days_alert, now_time)
+        self.assertTrue(all([word for word in ("days",)
+                             if word in to_speak.split()]))
+        self.assertTrue(all([not word for word in ("hours", "minutes",
+                                                   "seconds")
+                             if word in to_speak.split()]))
+        self.assertEqual(to_speak, "eight days")
 
 
 if __name__ == '__main__':
