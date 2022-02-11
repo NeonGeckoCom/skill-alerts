@@ -36,6 +36,8 @@ from . import AlertType, AlertPriority, Weekdays
 
 class Alert:
     def __init__(self, data: dict = None):
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected a dict, but got: {type(data)}")
         self._data = data or dict()
 
     @property
@@ -77,7 +79,7 @@ class Alert:
 
     @property
     def context(self) -> dict:
-        return self.data.get("context") or dict()
+        return self._data.get("context") or dict()
 
     @property
     def alert_name(self) -> str:
@@ -85,7 +87,7 @@ class Alert:
 
     @property
     def audio_file(self) -> Optional[str]:
-        return self.data.get("audio_file")
+        return self._data.get("audio_file")
 
     @property
     def script_filename(self) -> Optional[str]:
@@ -156,7 +158,6 @@ class Alert:
             while expiration < now or \
                     Weekdays(expiration.weekday()) not in self.repeat_days:
                 expiration = expiration + datetime.timedelta(days=1)
-            print(expiration.weekday())
         else:
             # Alert expired with no repeat
             return None

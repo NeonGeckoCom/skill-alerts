@@ -16,6 +16,7 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+import datetime
 import datetime as dt
 import sys
 import shutil
@@ -25,10 +26,13 @@ import pytest
 from os import mkdir
 from os.path import dirname, join, exists
 from mock import Mock
+from mycroft_bus_client import Message
+from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 
 sys.path.append(dirname(dirname(__file__)))
 from util.alert import Alert, AlertType, AlertPriority, Weekdays
+from util.alert_manager import AlertManager
 
 
 class TestSkill(unittest.TestCase):
@@ -70,6 +74,10 @@ class TestSkill(unittest.TestCase):
 
 
 class TestSkillUtils(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.manager_path = join(dirname(__file__), "test_cache")
+
     def test_alert_create(self):
         now_time_valid = dt.datetime.now(dt.timezone.utc)
         now_time_invalid = dt.datetime.now()
@@ -233,7 +241,38 @@ class TestSkillUtils(unittest.TestCase):
                                          "testing": True})
 
     def test_alert_manager_init(self):
+        def alert_expired(message: Message):
+            pass
+
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+        past_alert = Alert.create(now_time + datetime.timedelta(minutes=-1))
+        future_alert = Alert.create(now_time + datetime.timedelta(minutes=5))
+
+        test_file = join(self.manager_path, "alerts.json")
+        scheduler = EventSchedulerInterface("test")
+        alert_manager = AlertManager(test_file, scheduler, alert_expired)
+        self.assertEqual(alert_manager.missed_alerts, dict())
+        self.assertEqual(alert_manager.pending_alerts, dict())
+        self.assertEqual(alert_manager.active_alerts, dict())
+
+        with self.assertRaises(ValueError):
+            alert_manager.add_alert(past_alert)
+
+        alert_id = alert_manager.add_alert(future_alert)
+        self.assertIn(alert_id, alert_manager.pending_alerts)
+        self.assertEqual(len(scheduler.events.events), 1)
+        self.assertEqual(alert_manager.pending_alerts[alert_id]
+                         .next_expiration, future_alert.next_expiration)
+
+        alert_manager.rm_alert(alert_id)
+        self.assertNotIn(alert_id, alert_manager.pending_alerts)
+        self.assertEqual(len(scheduler.events.events), 0)
+
+        # TODO: Test expiration and callback
+
+    def test_alert_manager_caching(self):
         pass
+        # TODO: Test read/write from cache
 
 
 if __name__ == '__main__':

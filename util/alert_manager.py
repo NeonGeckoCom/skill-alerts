@@ -27,12 +27,14 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from copy import deepcopy
+from typing import Optional
 
 from json_database import JsonStorage
 from uuid import uuid4 as uuid
 from mycroft_bus_client import Message
 from neon_utils.logger import LOG
 from neon_utils.location_utils import to_system_time
+from neon_utils.lock_utils import create_lock
 from ovos_utils.events import EventSchedulerInterface
 
 from . import AlertState
@@ -49,43 +51,41 @@ class AlertManager:
         self._pending_alerts = dict()
         self._missed_alerts = dict()
         self._active_alerts = dict()
+        self._read_lock = create_lock("alert_manager")
 
-        # Load cached alerts into internal objects
-        for ident, alert_json in self._alerts_store.items():
-            alrt = Alert.deserialize(alert_json)
-            if alrt.is_expired:
-                self._missed_alerts[ident] = alrt
-            else:
-                self._schedule_alert_expiration(alrt, ident)
+        self._load_cache()
 
     @property
     def missed_alerts(self):
         """
         Returns a static dict of current missed alerts
         """
-        return deepcopy(self._missed_alerts)
+        with self._read_lock:
+            return deepcopy(self._missed_alerts)
 
     @property
     def pending_alerts(self):
         """
         Returns a static dict of current pending alerts
         """
-        return deepcopy(self._pending_alerts)
+        with self._read_lock:
+            return deepcopy(self._pending_alerts)
 
     @property
     def active_alerts(self):
         """
         Returns a static dict of current active alerts
         """
-        return deepcopy(self._active_alerts)
+        with self._read_lock:
+            return deepcopy(self._active_alerts)
 
-    def get_alert_status(self, alert_id: str) -> AlertState:
+    def get_alert_status(self, alert_id: str) -> Optional[AlertState]:
         """
         Get the current state of the requested alert_id. If a repeating alert
         exists in multiple states, it will report in priority order:
         ACTIVE, MISSED, PENDING
         :param alert_id: ID of alert to query
-        :returns: AlertState of the requested alert
+        :returns: AlertState of the requested alert or None if alert not found
         """
         if alert_id in self._active_alerts:
             return AlertState.ACTIVE
@@ -93,6 +93,7 @@ class AlertManager:
             return AlertState.MISSED
         if alert_id in self._pending_alerts:
             return AlertState.PENDING
+        LOG.error(f"{alert_id} not found")
 
     def make_alert_missed(self, alert_id: str):
         """
@@ -120,10 +121,32 @@ class AlertManager:
         :returns: string identifier for the scheduled alert
         """
         # TODO: Consider checking ident is unique
-        ident = alert.context.get("ident") or uuid()
+        ident = alert.context.get("ident") or str(uuid())
         self._schedule_alert_expiration(alert, ident)
         return ident
 
+    def rm_alert(self, alert_id: str):
+        """
+        Remove a pending alert
+        :param alert_id: ident of active alert to remove
+        """
+        try:
+            self._pending_alerts.pop(alert_id)
+        except KeyError:
+            LOG.error(f"{alert_id} is not pending")
+        self._scheduler.cancel_scheduled_event(alert_id)
+
+    def shutdown(self):
+        """
+        Shutdown the Alert Manager. Mark any active alerts as missed and update
+        the alerts cache on disk
+        """
+        with self._read_lock:
+            for alert in self._active_alerts:
+                self.make_alert_missed(alert)
+        self._dump_cache()
+
+    # Alert Event Handlers
     def _schedule_alert_expiration(self, alrt: Alert, ident: str):
         """
         Schedule an event for the next expiration of the specified Alert
@@ -142,7 +165,7 @@ class AlertManager:
         LOG.debug(f"Scheduling alert: {ident}")
         self._scheduler.schedule_event(self._handle_alert_expiration,
                                        to_system_time(expire_time),
-                                       data, context=context)
+                                       data, ident, context=context)
 
     def _handle_alert_expiration(self, message: Message):
         """
@@ -161,3 +184,34 @@ class AlertManager:
             LOG.info(f"Scheduling repeating alert: {alert}")
             self._schedule_alert_expiration(alert, ident)
         self._callback(alert)
+
+    # File Operations
+    def _dump_cache(self):
+        """
+        Write current alerts to the cache on disk. Active alerts are not cached
+        """
+        with self._read_lock:
+            self._alerts_store["missed"] = self._missed_alerts
+            self._alerts_store["pending"] = self._pending_alerts
+            self._alerts_store.store()
+
+    def _load_cache(self):
+        """
+        Read alerts from cache on disk. Any loaded alerts will be overwritten.
+        """
+        # Load cached alerts into internal objects
+        with self._read_lock:
+            missed = self._alerts_store.get("missed") or dict()
+            pending = self._alerts_store.get("pending") or dict()
+            for ident, alert_json in missed.items():
+                alert = Alert.deserialize(alert_json)
+                self._missed_alerts[ident] = alert
+            for ident, alert_json in pending.items():
+                alert = Alert.deserialize(alert_json)
+                if alert.is_expired:
+                    self._missed_alerts[ident] = alert
+                try:
+                    self._schedule_alert_expiration(alert, ident)
+                except ValueError:
+                    # Alert is expired with no valid repeat param
+                    pass
