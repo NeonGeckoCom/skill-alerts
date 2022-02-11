@@ -21,9 +21,11 @@ import datetime as dt
 import sys
 import shutil
 import unittest
+from threading import Event
+
 import pytest
 
-from os import mkdir
+from os import mkdir, remove
 from os.path import dirname, join, exists
 from mock import Mock
 from mycroft_bus_client import Message
@@ -31,7 +33,8 @@ from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 
 sys.path.append(dirname(dirname(__file__)))
-from util.alert import Alert, AlertType, AlertPriority, Weekdays
+from util import AlertType, AlertState, AlertPriority, Weekdays
+from util.alert import Alert
 from util.alert_manager import AlertManager
 
 
@@ -241,13 +244,22 @@ class TestSkillUtils(unittest.TestCase):
                                          "testing": True})
 
     def test_alert_manager_init(self):
-        def alert_expired(message: Message):
-            pass
+        called = Event()
+        test_alert: Alert = None
+
+        def alert_expired(alert: Alert):
+            nonlocal test_alert
+            self.assertEqual(alert.data, test_alert.data)
+            called.set()
 
         now_time = datetime.datetime.now(datetime.timezone.utc)
         past_alert = Alert.create(now_time + datetime.timedelta(minutes=-1))
         future_alert = Alert.create(now_time + datetime.timedelta(minutes=5))
+        repeat_alert = Alert.create(now_time,
+                                    repeat_frequency=datetime.timedelta(
+                                        seconds=1))
 
+        # Load empty cache
         test_file = join(self.manager_path, "alerts.json")
         scheduler = EventSchedulerInterface("test")
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
@@ -255,24 +267,124 @@ class TestSkillUtils(unittest.TestCase):
         self.assertEqual(alert_manager.pending_alerts, dict())
         self.assertEqual(alert_manager.active_alerts, dict())
 
+        # Add past alert
         with self.assertRaises(ValueError):
             alert_manager.add_alert(past_alert)
 
+        # Add valid alert
         alert_id = alert_manager.add_alert(future_alert)
         self.assertIn(alert_id, alert_manager.pending_alerts)
         self.assertEqual(len(scheduler.events.events), 1)
         self.assertEqual(alert_manager.pending_alerts[alert_id]
                          .next_expiration, future_alert.next_expiration)
+        self.assertEqual(alert_manager.get_alert_status(alert_id),
+                         AlertState.PENDING)
 
+        # Remove valid alert
         alert_manager.rm_alert(alert_id)
         self.assertNotIn(alert_id, alert_manager.pending_alerts)
         self.assertEqual(len(scheduler.events.events), 0)
+        self.assertIsNone(alert_manager.get_alert_status(alert_id))
 
-        # TODO: Test expiration and callback
+        def _make_active_alert(ident, alert):
+            nonlocal test_alert
+            test_alert = alert
+            self.assertIn(ident, alert_manager.pending_alerts)
+            data = alert.data
+            context = alert.context
+            message = Message(f"alert.{ident}", data, context)
+            self.assertEqual(alert_manager.get_alert_status(ident),
+                             AlertState.PENDING)
+            alert_manager._handle_alert_expiration(message)
+            self.assertTrue(called.wait(5))
+            self.assertIn(ident, alert_manager.active_alerts)
+            self.assertEqual(alert_manager.active_alerts[ident].data,
+                             alert.data)
+            self.assertEqual(alert_manager.get_alert_status(ident),
+                             AlertState.ACTIVE)
+
+        # Handle dismiss active alert no repeat
+        alert_id = alert_manager.add_alert(future_alert)
+        _make_active_alert(alert_id, future_alert)
+        dismissed_alert = alert_manager.dismiss_active_alert(alert_id)
+        self.assertEqual(dismissed_alert.data, future_alert.data)
+
+        # Mark active alert as missed (no repeat)
+        alert_id = alert_manager.add_alert(future_alert)
+        _make_active_alert(alert_id, future_alert)
+        alert_manager.mark_alert_missed(alert_id)
+        self.assertEqual(alert_manager.active_alerts, dict())
+        self.assertIn(alert_id, alert_manager.missed_alerts)
+        self.assertEqual(alert_manager.missed_alerts[alert_id].data,
+                         future_alert.data)
+        self.assertEqual(alert_manager.get_alert_status(alert_id),
+                         AlertState.MISSED)
+
+        # Dismiss missed alert
+        missed_alert = alert_manager.dismiss_missed_alert(alert_id)
+        self.assertEqual(missed_alert.data, future_alert.data)
+        self.assertEqual(alert_manager.missed_alerts, dict())
+
+        # Schedule repeating alert
+        alert_id = alert_manager.add_alert(repeat_alert)
+        _make_active_alert(alert_id, repeat_alert)
+        self.assertIn(alert_id, alert_manager.pending_alerts)
+        self.assertIn(alert_id, alert_manager.active_alerts)
+        alert_manager.mark_alert_missed(alert_id)
+        self.assertIn(alert_id, alert_manager.missed_alerts)
+        self.assertIn(alert_id, alert_manager.pending_alerts)
+        self.assertNotIn(alert_id, alert_manager.active_alerts)
+
+        # Dismiss repeating alert
+        missed_alert = alert_manager.dismiss_missed_alert(alert_id)
+        self.assertEqual(missed_alert.data, repeat_alert.data)
+        self.assertIn(alert_id, alert_manager.pending_alerts)
+        self.assertNotIn(alert_id, alert_manager.missed_alerts)
+        self.assertNotIn(alert_id, alert_manager.active_alerts)
 
     def test_alert_manager_caching(self):
-        pass
-        # TODO: Test read/write from cache
+        alert_expired = Mock()
+
+        # Load empty cache
+        test_file = join(self.manager_path, "alerts.json")
+        scheduler = EventSchedulerInterface("test")
+        alert_manager = AlertManager(test_file, scheduler, alert_expired)
+
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+        future_alert = Alert.create(now_time + datetime.timedelta(minutes=5))
+        repeat_alert = Alert.create(now_time,
+                                    repeat_frequency=datetime.timedelta(
+                                        seconds=1))
+
+        # Add alerts to manager
+        alert_manager.add_alert(future_alert)
+        alert_id = alert_manager.add_alert(repeat_alert)
+        # Cancel the event that would usually be cancelled on expiration
+        scheduler.cancel_scheduled_event(alert_id)
+        alert_manager._handle_alert_expiration(repeat_alert)
+        self.assertEqual(len(alert_manager.pending_alerts), 2)
+        self.assertEqual(len(alert_manager.active_alerts), 1)
+        self.assertEqual(alert_manager.missed_alerts, dict())
+
+        # Check scheduled events
+        self.assertEqual(len(scheduler.events.events), 2)
+
+        # Shutdown manager
+        alert_manager.shutdown()
+        self.assertFalse(scheduler.events.events)
+
+        # Create new manager
+        new_manager = AlertManager(test_file, scheduler, alert_expired)
+        self.assertEqual(len(new_manager.pending_alerts), 2)
+        self.assertEqual(len(new_manager.missed_alerts), 1)
+        self.assertEqual(new_manager.active_alerts, dict())
+        self.assertEqual(alert_manager.pending_alerts.keys(),
+                         new_manager.pending_alerts.keys())
+
+        # Check scheduled events
+        self.assertEqual(len(scheduler.events.events), 2)
+
+        remove(test_file)
 
 
 if __name__ == '__main__':

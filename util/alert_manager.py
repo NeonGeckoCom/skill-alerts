@@ -95,25 +95,40 @@ class AlertManager:
             return AlertState.PENDING
         LOG.error(f"{alert_id} not found")
 
-    def make_alert_missed(self, alert_id: str):
+    def mark_alert_missed(self, alert_id: str):
         """
         Mark an active alert as missed
         :param alert_id: ident of active alert to mark as missed
         """
         try:
-            self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
+            with self._read_lock:
+                self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
-    def dismiss_active_alert(self, alert_id: str):
+    def dismiss_active_alert(self, alert_id: str) -> Alert:
         """
         Dismiss an active alert
         :param alert_id: ident of active alert to dismiss
+        :returns: active Alert that was dismissed (None if alert_id invalid)
         """
         try:
-            self._active_alerts.pop(alert_id)
+            with self._read_lock:
+                return self._active_alerts.pop(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not active")
+
+    def dismiss_missed_alert(self, alert_id: str) -> Alert:
+        """
+        Dismiss a missed alert
+        :param alert_id: ident of active alert to dismiss
+        :returns: active Alert that was dismissed (None if alert_id invalid)
+        """
+        try:
+            with self._read_lock:
+                return self._missed_alerts.pop(alert_id)
+        except KeyError:
+            LOG.error(f"{alert_id} is not missed")
 
     def add_alert(self, alert: Alert) -> str:
         """
@@ -131,7 +146,8 @@ class AlertManager:
         :param alert_id: ident of active alert to remove
         """
         try:
-            self._pending_alerts.pop(alert_id)
+            with self._read_lock:
+                self._pending_alerts.pop(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
         self._scheduler.cancel_scheduled_event(alert_id)
@@ -139,11 +155,13 @@ class AlertManager:
     def shutdown(self):
         """
         Shutdown the Alert Manager. Mark any active alerts as missed and update
-        the alerts cache on disk
+        the alerts cache on disk. Remove all events from the EventScheduler.
         """
-        with self._read_lock:
-            for alert in self._active_alerts:
-                self.make_alert_missed(alert)
+        for alert in self.active_alerts:
+            self.mark_alert_missed(alert)
+            self._scheduler.cancel_scheduled_event(alert)
+        for alert in self.pending_alerts:
+            self._scheduler.cancel_scheduled_event(alert)
         self._dump_cache()
 
     # Alert Event Handlers
@@ -157,9 +175,9 @@ class AlertManager:
         if not expire_time:
             raise ValueError(
                 f"Requested alert has no valid expiration: {ident}")
-        self._pending_alerts[ident] = alrt
         alrt.add_context({"ident": ident})  # Ensure ident is correct in alert
-
+        with self._read_lock:
+            self._pending_alerts[ident] = alrt
         data = alrt.data
         context = data.get("context")
         LOG.debug(f"Scheduling alert: {ident}")
@@ -176,8 +194,9 @@ class AlertManager:
         alert = Alert.from_dict(message.data)
         ident = message.context.get("ident")
         try:
-            self._pending_alerts.pop(ident)
-            self._active_alerts[ident] = deepcopy(alert)
+            with self._read_lock:
+                self._pending_alerts.pop(ident)
+                self._active_alerts[ident] = deepcopy(alert)
         except IndexError:
             LOG.error(f"Expired alert not pending: {ident}")
         if alert.next_expiration:
@@ -191,8 +210,12 @@ class AlertManager:
         Write current alerts to the cache on disk. Active alerts are not cached
         """
         with self._read_lock:
-            self._alerts_store["missed"] = self._missed_alerts
-            self._alerts_store["pending"] = self._pending_alerts
+            missed_alerts = {ident: alert.serialize for
+                             ident, alert in self._missed_alerts.items()}
+            pending_alerts = {ident: alert.serialize for
+                              ident, alert in self._pending_alerts.items()}
+            self._alerts_store["missed"] = missed_alerts
+            self._alerts_store["pending"] = pending_alerts
             self._alerts_store.store()
 
     def _load_cache(self):
@@ -203,15 +226,21 @@ class AlertManager:
         with self._read_lock:
             missed = self._alerts_store.get("missed") or dict()
             pending = self._alerts_store.get("pending") or dict()
-            for ident, alert_json in missed.items():
-                alert = Alert.deserialize(alert_json)
+
+        # Populate previously missed alerts
+        for ident, alert_json in missed.items():
+            alert = Alert.deserialize(alert_json)
+            with self._read_lock:
                 self._missed_alerts[ident] = alert
-            for ident, alert_json in pending.items():
-                alert = Alert.deserialize(alert_json)
-                if alert.is_expired:
+
+        # Populate previously pending alerts
+        for ident, alert_json in pending.items():
+            alert = Alert.deserialize(alert_json)
+            if alert.is_expired:  # Alert expired while shut down
+                with self._read_lock:
                     self._missed_alerts[ident] = alert
-                try:
-                    self._schedule_alert_expiration(alert, ident)
-                except ValueError:
-                    # Alert is expired with no valid repeat param
-                    pass
+            try:
+                self._schedule_alert_expiration(alert, ident)
+            except ValueError:
+                # Alert is expired with no valid repeat param
+                pass
