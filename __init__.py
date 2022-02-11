@@ -49,8 +49,8 @@ from mycroft.util.parse import extract_number, extract_datetime,\
     extract_duration
 from mycroft.util.format import nice_duration, nice_time, nice_date
 
-from .util import AlertManager
-from .util.alert import AlertType, Weekdays
+from .util.alert_manager import AlertManager
+from .util.alert import Alert, AlertType, Weekdays
 
 try:
     from neon_transcripts_controller.util import find_user_recording
