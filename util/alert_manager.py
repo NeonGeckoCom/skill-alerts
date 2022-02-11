@@ -26,9 +26,10 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from copy import deepcopy
-from typing import Optional
+import datetime as dt
 
+from copy import deepcopy
+from typing import Optional, List
 from json_database import JsonStorage
 from uuid import uuid4 as uuid
 from mycroft_bus_client import Message
@@ -37,8 +38,56 @@ from neon_utils.location_utils import to_system_time
 from neon_utils.lock_utils import create_lock
 from ovos_utils.events import EventSchedulerInterface
 
-from . import AlertState
+from . import AlertState, AlertType
 from .alert import Alert
+
+_DEFAULT_USER = "local"
+
+
+def get_alert_user(alert: Alert):
+    """
+    Get the user associated with the specified alert.
+    :param alert: Alert object to check
+    :returns: username associated with the alert or _DEFAULT_USER
+    """
+    return alert.context.get("user") or _DEFAULT_USER
+
+
+def get_alert_id(alert: Alert) -> Optional[str]:
+    """
+    Get the unique id associated with the specified alert.
+    :param alert: Alert object to check
+    :returns: Alert identifier if specified, else None
+    """
+    return alert.context.get("ident")
+
+
+def sort_alerts_list(alerts: List[Alert]) -> List[Alert]:
+    """
+    Sort the passed list of alerts by time of next expiration,
+    chronologically ascending
+    :param alerts: list of Alert objects to sort
+    :returns: sorted list of alerts
+    """
+    alerts.sort(key=lambda alert: dt.datetime.fromisoformat(
+        alert.data["next_expiration_time"]))
+    return alerts
+
+
+def get_alerts_by_type(alerts: List[Alert]) -> dict:
+    """
+    Parse a list of alerts into a dict of alerts by alert type.
+    :param alerts: list of Alert objects to organize
+    :returns: dict of AlertType to list of alerts
+    """
+    sorted_dict = dict()
+    for alert in AlertType:
+        sorted_dict.setdefault(alert, list())
+    for alert in alerts:
+        key = alert.alert_type
+        sorted_dict[key].append(alert)
+
+    return sorted_dict
 
 
 class AlertManager:
@@ -79,6 +128,7 @@ class AlertManager:
         with self._read_lock:
             return deepcopy(self._active_alerts)
 
+    # Query Methods
     def get_alert_status(self, alert_id: str) -> Optional[AlertState]:
         """
         Get the current state of the requested alert_id. If a repeating alert
@@ -95,6 +145,20 @@ class AlertManager:
             return AlertState.PENDING
         LOG.error(f"{alert_id} not found")
 
+    def get_user_alerts(self, user: str = _DEFAULT_USER) -> dict:
+        """
+        Get a sorted list of alerts for the requested user.
+        :param user: Username to retrieve alerts for
+        :returns: dict of disposition to sorted alerts for the specified user
+        """
+        missed, active, pending = self._get_user_alerts(user)
+        return {
+            "missed": sort_alerts_list(missed),
+            "active": sort_alerts_list(active),
+            "pending": sort_alerts_list(pending)
+        }
+
+    # Alert Management
     def mark_alert_missed(self, alert_id: str):
         """
         Mark an active alert as missed
@@ -244,3 +308,19 @@ class AlertManager:
             except ValueError:
                 # Alert is expired with no valid repeat param
                 pass
+
+    # Data Operations
+    def _get_user_alerts(self, user: str = _DEFAULT_USER) -> tuple:
+        """
+        Get all alerts for the specified user.
+        :param user: Username to get alerts for
+        :returns: unsorted lists of missed, active, pending alerts
+        """
+        with self._read_lock:
+            user_missed = [alert for alert in self._missed_alerts.values() if
+                           get_alert_user(alert) == user]
+            user_active = [alert for alert in self._active_alerts.values() if
+                           get_alert_user(alert) == user]
+            user_pending = [alert for alert in self._pending_alerts.values() if
+                            get_alert_user(alert) == user]
+        return user_missed, user_active, user_pending

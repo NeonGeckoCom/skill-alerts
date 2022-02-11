@@ -18,6 +18,7 @@
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
 import datetime
 import datetime as dt
+import random
 import sys
 import shutil
 import unittest
@@ -181,7 +182,7 @@ class TestSkillUtils(unittest.TestCase):
             "expired alert name",
             repeat_frequency=dt.timedelta(hours=1),
             end_repeat=now_time_valid - dt.timedelta(hours=1),
-            alert_context={"testing": True}
+            context={"testing": True}
         )
         # Test alert properties
         self.assertEqual(expired_alert_expired_repeat.repeat_frequency,
@@ -203,7 +204,7 @@ class TestSkillUtils(unittest.TestCase):
             alert_time,
             "expired weekly alert name",
             repeat_days={Weekdays(alert_time.weekday())},
-            alert_context={"testing": True}
+            context={"testing": True}
         )
         # Test alert properties
         self.assertIsNone(expired_alert_weekday_repeat.end_repeat)
@@ -233,7 +234,7 @@ class TestSkillUtils(unittest.TestCase):
         alert = Alert.create(
             alert_time,
             "test alert context",
-            alert_context=original_context
+            context=original_context
         )
         self.assertEqual(alert.context, original_context)
         alert.add_context({"ident": "ident"})
@@ -385,6 +386,113 @@ class TestSkillUtils(unittest.TestCase):
         self.assertEqual(len(scheduler.events.events), 2)
 
         remove(test_file)
+
+    def test_get_user_alerts(self):
+        from util.alert_manager import get_alert_user
+
+        alert_expired = Mock()
+
+        # Load empty cache
+        test_file = join(self.manager_path, "alerts.json")
+        scheduler = EventSchedulerInterface("test")
+        alert_manager = AlertManager(test_file, scheduler, alert_expired)
+
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+        for i in range(10):
+            if i in range(5):
+                user = "test_user"
+            else:
+                user = "other_user"
+            alert_time = now_time + dt.timedelta(minutes=random.randint(1, 60))
+            alert = Alert.create(alert_time, context={"user": user})
+            alert_manager.add_alert(alert)
+
+        test_user_alerts = alert_manager.get_user_alerts("test_user")
+        other_user_alerts = alert_manager.get_user_alerts("other_user")
+        self.assertEqual(len(test_user_alerts["pending"]), 5)
+        self.assertEqual(len(other_user_alerts["pending"]), 5)
+        self.assertTrue(all([get_alert_user(alert) == "test_user" for alert in
+                             [*test_user_alerts["pending"],
+                              *test_user_alerts["active"],
+                              *test_user_alerts["missed"]]]))
+        self.assertTrue(all([get_alert_user(alert) == "other_user" for alert in
+                             [*other_user_alerts["pending"],
+                              *other_user_alerts["active"],
+                              *other_user_alerts["missed"]]]))
+
+    def test_get_alert_user(self):
+        from util.alert_manager import get_alert_user, _DEFAULT_USER
+        test_user = "tester"
+        alert_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
+        alert_no_user = Alert.create(alert_time)
+        alert_with_user = Alert.create(alert_time, context={"user": test_user})
+        self.assertEqual(get_alert_user(alert_no_user), _DEFAULT_USER)
+        self.assertEqual(get_alert_user(alert_with_user), test_user)
+
+        alert_no_user.add_context({"user": test_user})
+        self.assertEqual(get_alert_user(alert_no_user), test_user)
+        alert_no_user.add_context({"user": "new_user"})
+        self.assertEqual(get_alert_user(alert_no_user), "new_user")
+
+    # TODO: Test get_user_alerts
+
+    def test_get_alert_id(self):
+        from util.alert_manager import get_alert_id
+        alert_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
+        alert_no_id = Alert.create(alert_time)
+        alert_with_id = Alert.create(alert_time, context={"ident": "test"})
+
+        self.assertIsNone(get_alert_id(alert_no_id))
+        self.assertEqual(get_alert_id(alert_with_id), "test")
+
+    def test_sort_alerts_list(self):
+        from copy import deepcopy
+        from util.alert_manager import sort_alerts_list
+        now_time = dt.datetime.now(dt.timezone.utc)
+        alerts = list()
+
+        for i in range(10):
+            alert_time = now_time + dt.timedelta(minutes=random.randint(1, 60))
+            alert = Alert.create(alert_time)
+            alerts.append(alert)
+
+        unsorted = deepcopy(alerts)
+        alerts = sort_alerts_list(alerts)
+        self.assertEqual(len(unsorted), len(alerts))
+        self.assertEqual(len(alerts), 10)
+        for i in range(1, len(alerts)):
+            self.assertLessEqual(alerts[i-1].next_expiration,
+                                 alerts[i].next_expiration)
+
+    def test_get_alert_by_type(self):
+        from util.alert_manager import get_alerts_by_type
+        now_time = dt.datetime.now(dt.timezone.utc)
+        alerts = list()
+
+        for i in range(15):
+            if i in range(5):
+                alert_type = AlertType.ALARM
+            elif i in range(10):
+                alert_type = AlertType.TIMER
+            else:
+                alert_type = AlertType.REMINDER
+            alert_time = now_time + dt.timedelta(minutes=random.randint(1, 60))
+            alert = Alert.create(alert_time, alert_type=alert_type)
+            alerts.append(alert)
+
+        by_type = get_alerts_by_type(alerts)
+        alarms = by_type[AlertType.ALARM]
+        timers = by_type[AlertType.TIMER]
+        reminders = by_type[AlertType.REMINDER]
+        for alert in alarms:
+            self.assertIsInstance(alert, Alert)
+            self.assertEqual(alert.alert_type, AlertType.ALARM)
+        for alert in timers:
+            self.assertIsInstance(alert, Alert)
+            self.assertEqual(alert.alert_type, AlertType.TIMER)
+        for alert in reminders:
+            self.assertIsInstance(alert, Alert)
+            self.assertEqual(alert.alert_type, AlertType.REMINDER)
 
 
 if __name__ == '__main__':

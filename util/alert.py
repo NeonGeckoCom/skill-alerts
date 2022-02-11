@@ -194,7 +194,7 @@ class Alert:
                repeat_days: Set[Weekdays] = None,
                end_repeat: datetime.datetime = None,
                audio_file: str = None, script_file: str = None,
-               alert_context: dict = None
+               context: dict = None
                ):
         """
         Object representing an arbitrary alert
@@ -207,7 +207,7 @@ class Alert:
         :param end_repeat: datetime of final repeating alert occurrence
         :param audio_file: audio_file to playback on alert expiration
         :param script_file: ncs filename to run on alert expiration
-        :param alert_context: Message context associated with alert
+        :param context: Message context associated with alert
         """
         # Validate passed datetime objects
         if not expiration.tzinfo:
@@ -244,6 +244,6 @@ class Alert:
             "alert_name": alert_name,
             "audio_file": audio_file,
             "script_filename": script_file,
-            "context": alert_context
+            "context": context
         }
         return Alert(data)
