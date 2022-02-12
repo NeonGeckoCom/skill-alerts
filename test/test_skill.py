@@ -538,6 +538,135 @@ class TestSkillUtils(unittest.TestCase):
                              if word in to_speak.split()]))
         self.assertEqual(to_speak, "eight days")
 
+    def test_chunk_utterance_alarm(self):
+        from util.parse_utils import tokenize_utterance
+
+        examples_dir = join(dirname(__file__), "example_messages")
+
+        def _get_message_from_file(filename: str):
+            with open(join(examples_dir, filename)) as f:
+                contents = f.read()
+            return Message.deserialize(contents)
+
+        daily = _get_message_from_file("create_alarm_daily.json")
+        tokens = tokenize_utterance(daily)
+        self.assertEqual(tokens, ['create', 'an', 'alarm', 'for 10', 'daily'])
+
+        weekly = _get_message_from_file("create_alarm_every_tuesday.json")
+        tokens = tokenize_utterance(weekly)
+        self.assertEqual(tokens, ['set', 'an', 'alarm', 'for 9 a m', 'every',
+                                  'tuesday'])
+
+        weekdays = _get_message_from_file("create_alarm_weekdays.json")
+        tokens = tokenize_utterance(weekdays)
+        self.assertEqual(tokens, ['set', 'an', 'alarm', 'for 8 am on',
+                                  'weekdays'])
+
+        wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        tokens = tokenize_utterance(wakeup_at)
+        self.assertEqual(tokens, ['neon', 'wake me up', 'at 7 am'])
+
+        wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+        tokens = tokenize_utterance(wakeup_in)
+        self.assertEqual(tokens, ['wake me up', 'in 8 hours'])
+
+        multi_day_repeat = \
+            _get_message_from_file("alarm_every_monday_thursday.json")
+        tokens = tokenize_utterance(multi_day_repeat)
+        self.assertEqual(tokens, ['wake me up', 'every',
+                                  'monday and thursday at 9 am'])
+
+    def test_get_unmatched_chunks_alarm(self):
+        from util.parse_utils import get_unmatched_tokens
+        examples_dir = join(dirname(__file__), "example_messages")
+
+        def _get_message_from_file(filename: str):
+            with open(join(examples_dir, filename)) as f:
+                contents = f.read()
+            return Message.deserialize(contents)
+
+        daily = _get_message_from_file("create_alarm_daily.json")
+        tokens = get_unmatched_tokens(daily)
+        self.assertIsInstance(tokens, list)
+        self.assertEqual(tokens, ['an', 'for 10'])
+
+        weekly = _get_message_from_file("create_alarm_every_tuesday.json")
+        tokens = get_unmatched_tokens(weekly)
+        self.assertIsInstance(tokens, list)
+        self.assertEqual(tokens, ['an', 'for 9 a m', 'tuesday'])
+
+        weekdays = _get_message_from_file("create_alarm_weekdays.json")
+        tokens = get_unmatched_tokens(weekdays)
+        self.assertIsInstance(tokens, list)
+        self.assertEqual(tokens, ['an', 'for 8 am on'])
+
+        wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        tokens = get_unmatched_tokens(wakeup_at)
+        self.assertIsInstance(tokens, list)
+        self.assertEqual(tokens, ['neon', 'at 7 am'])
+
+        wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+        tokens = get_unmatched_tokens(wakeup_in)
+        self.assertIsInstance(tokens, list)
+        self.assertEqual(tokens, ['in 8 hours'])
+
+        multi_day_repeat = \
+            _get_message_from_file("alarm_every_monday_thursday.json")
+        tokens = get_unmatched_tokens(multi_day_repeat)
+        self.assertEqual(tokens, ['monday and thursday at 9 am'])
+
+    def test_parse_repeat_from_message(self):
+        from util.parse_utils import parse_repeat_from_message,\
+            tokenize_utterance
+        examples_dir = join(dirname(__file__), "example_messages")
+
+        def _get_message_from_file(filename: str):
+            with open(join(examples_dir, filename)) as f:
+                contents = f.read()
+            return Message.deserialize(contents)
+
+        daily = _get_message_from_file("create_alarm_daily.json")
+        repeat = parse_repeat_from_message(daily)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [Weekdays.MON, Weekdays.TUE, Weekdays.WED,
+                                  Weekdays.THU, Weekdays.FRI, Weekdays.SAT,
+                                  Weekdays.SUN])
+
+        weekly = _get_message_from_file("create_alarm_every_tuesday.json")
+        tokens = tokenize_utterance(weekly)
+        repeat = parse_repeat_from_message(weekly, tokens)
+        self.assertNotIn("tuesday", tokens)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [Weekdays.TUE])
+
+        weekdays = _get_message_from_file("create_alarm_weekdays.json")
+        repeat = parse_repeat_from_message(weekdays)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [Weekdays.MON, Weekdays.TUE, Weekdays.WED,
+                                  Weekdays.THU, Weekdays.FRI])
+
+        wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        repeat = parse_repeat_from_message(wakeup_at)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [])
+
+        wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+        repeat = parse_repeat_from_message(wakeup_in)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [])
+
+        # TODO
+        # multi_day_repeat = \
+        #     _get_message_from_file("alarm_every_monday_thursday.json")
+        # repeat = parse_repeat_from_message(multi_day_repeat)
+        # self.assertIsInstance(repeat, list)
+        # self.assertEqual(repeat, [Weekdays.MON, Weekdays.THU])
+
+        # TODO: Parse weekends
+        # TODO: Parse time interval
+
+    # TODO: Test end_condition, audio_file, script_file
+
 
 if __name__ == '__main__':
     pytest.main()

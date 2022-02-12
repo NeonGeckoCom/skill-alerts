@@ -1,0 +1,53 @@
+{
+  "type": "skill-alerts.neongeckocom:create_alarm",
+  "data": {
+    "utterances": [
+      "neon wake me up at 7 am"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "target": null,
+    "confidence": 0.19565217391304346,
+    "__tags__": [
+      {
+        "start_token": 1,
+        "entities": [
+          {
+            "key": "wake me up",
+            "match": "wake me up",
+            "data": [
+              [
+                "wake me up",
+                "skill_alerts_neongeckocomalarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "confidence": 1.0,
+        "end_token": 3,
+        "match": "wake me up",
+        "key": "wake me up",
+        "from_context": false
+      }
+    ],
+    "utterance": "neon wake me up at 7 am",
+    "alarm": "wake me up"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644629389.4842777,
+      "transcribed": 1644629389.4842777,
+      "save_transcript": 1.0967254638671875e-05,
+      "text_parsers": 6.29425048828125e-05
+    },
+    "skill_id": "skill-alerts.neongeckocom"
+  }
+}
