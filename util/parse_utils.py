@@ -25,7 +25,6 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 import datetime as dt
 
 from typing import Optional, List, Union
@@ -82,22 +81,6 @@ def spoken_time_remaining(alert_time: dt.datetime,
                          resolution=resolution, lang="en-us")
 
 
-def extract_message_priority(message: Message,
-                             tokens: Optional[list] = None) -> AlertPriority:
-    """
-    Extract the requested alert priority from intent message.
-    If tokens are provided, handled tokens are removed.
-    :param message: Message associated with request
-    :param tokens: optional tokens parsed from message by `tokenize_utterances`
-    """
-    # TODO: Parse requested priority from utterance
-    if message.data.get("script"):
-        priority = _SCRIPT_PRIORITY
-    else:
-        priority = AlertPriority.AVERAGE
-    return priority
-
-
 def tokenize_utterance(message: Message) -> List[str]:
     """
     Get utterance tokens, split on matched vocab
@@ -145,7 +128,7 @@ def parse_repeat_from_message(message: Message,
     :returns: list of parsed repeat Weekdays or timedelta between occurrences
     """
     repeat_days = list()
-
+    load_language(message.data.get("lang", "en-us"))
     if message.data.get("everyday"):
         repeat_days = [Weekdays(i) for i in range(0, 7)]
     elif message.data.get("weekends"):
@@ -154,8 +137,29 @@ def parse_repeat_from_message(message: Message,
         repeat_days = [Weekdays(i) for i in range(0, 5)]
     elif message.data.get("repeat"):
         tokens = tokens or tokenize_utterance(message)
-        repeat_clause = tokens.pop(tokens.index(message.data["repeat"]) + 1)
-        # TODO: Iterate over vocab files? LF.extract_datetimes
+        repeat_index = tokens.index(message.data["repeat"]) + 1
+        repeat_clause = tokens.pop(repeat_index)
+        repeat_days = list()
+        remainder = ""
+        default_time = dt.time()
+        for word in repeat_clause.split():  # Iterate over possible weekdays
+            extracted_content = extract_datetime(word)
+            if not extracted_content:
+                remainder += f' {word}'
+                continue
+            extracted_dt = extracted_content[0]
+            if extracted_dt.time() == default_time:
+                repeat_days.append(Weekdays(extracted_dt.weekday()))
+                remainder += '\n'
+            else:
+                remainder += f' {word}'
+
+        if remainder:
+            new_tokens = remainder.split('\n')
+            for token in new_tokens:
+                if token.strip():
+                    tokens.insert(repeat_index, token.strip())
+                    repeat_index += 1
     return repeat_days
 
 
@@ -190,7 +194,7 @@ def parse_audio_file_from_message(message: Message,
     :returns: extracted audio file path, else None
     """
     if message.data.get("playable"):
-        # TODO: Parse an audio filename here
+        # TODO: Parse an audio filename here and remove matched token
         pass
     return None
 
@@ -202,6 +206,7 @@ def parse_script_file_from_message(message: Message, bus: MessageBusClient,
     Parses a requested script file from the utterance. If tokens are provided,
     handled tokens are removed.
     :param message: Message associated with intent match
+    :param bus: Connected MessageBusClient to query available scripts
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
     :returns: validated script filename, else None
     """
@@ -212,5 +217,27 @@ def parse_script_file_from_message(message: Message, bus: MessageBusClient,
                                              data=message.data,
                                              context=message.context))
         is_valid = resp.data.get("script_exists", False)
+        consumed = resp.data.get("consumed_utt", "")
+        if tokens and consumed:
+            for token in tokens:
+                if consumed in token:
+                    # TODO: Split on consumed words and insert unmatched tokens
+                    pass
         return resp.data.get("script_name", None) if is_valid else None
     return None
+
+
+def parse_alert_priority_from_message(message: Message,
+                                      tokens: Optional[list] = None) -> AlertPriority:
+    """
+    Extract the requested alert priority from intent message.
+    If tokens are provided, handled tokens are removed.
+    :param message: Message associated with request
+    :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    """
+    # TODO: Parse requested priority from utterance
+    if message.data.get("script"):
+        priority = _SCRIPT_PRIORITY
+    else:
+        priority = AlertPriority.AVERAGE
+    return priority

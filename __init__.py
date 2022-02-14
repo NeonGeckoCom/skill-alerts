@@ -43,14 +43,13 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file, resolve_resource_file
-from mycroft.util.parse import extract_number, extract_datetime,\
-    extract_duration
-from mycroft.util.format import nice_duration, nice_time, nice_date
+from mycroft.util.parse import extract_datetime, extract_duration
+from mycroft.util.format import nice_time
 
 from .util.alert_manager import AlertManager
-from .util.alert import Alert, AlertType, Weekdays
+from .util.alert import Alert, AlertType
 from .util.parse_utils import tokenize_utterance, get_unmatched_tokens, \
-    extract_message_priority, parse_repeat_from_message, \
+    parse_alert_priority_from_message, parse_repeat_from_message, \
     parse_end_condition_from_message, parse_audio_file_from_message, parse_script_file_from_message
 
 try:
@@ -590,7 +589,7 @@ class AlertSkill(NeonSkill):
         else:
             repeat_days = repeat
             repeat_interval = None
-        priority = extract_message_priority(message, tokens)
+        priority = parse_alert_priority_from_message(message, tokens)
         end_condition = parse_end_condition_from_message(message, tokens)
         audio_file = parse_audio_file_from_message(message, tokens)
         script_file = parse_script_file_from_message(message, self.bus, tokens)

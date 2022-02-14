@@ -77,11 +77,7 @@ class TestSkill(unittest.TestCase):
         self.assertIsInstance(self.skill, NeonSkill)
 
 
-class TestSkillUtils(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.manager_path = join(dirname(__file__), "test_cache")
-
+class TestAlert(unittest.TestCase):
     def test_alert_create(self):
         now_time_valid = dt.datetime.now(dt.timezone.utc)
         now_time_invalid = dt.datetime.now()
@@ -243,6 +239,12 @@ class TestSkillUtils(unittest.TestCase):
         alert.add_context({"ident": "new_ident"})
         self.assertEqual(alert.context, {"ident": "new_ident",
                                          "testing": True})
+
+
+class TestAlertManager(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.manager_path = join(dirname(__file__), "test_cache")
 
     def test_alert_manager_init(self):
         called = Event()
@@ -492,6 +494,8 @@ class TestSkillUtils(unittest.TestCase):
             self.assertIsInstance(alert, Alert)
             self.assertEqual(alert.alert_type, AlertType.REMINDER)
 
+
+class TestParseUtils(unittest.TestCase):
     def test_round_nearest_minute(self):
         from util.parse_utils import round_nearest_minute
         now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
@@ -538,7 +542,7 @@ class TestSkillUtils(unittest.TestCase):
                              if word in to_speak.split()]))
         self.assertEqual(to_speak, "eight days")
 
-    def test_chunk_utterance_alarm(self):
+    def test_tokenize_utterance_alarm(self):
         from util.parse_utils import tokenize_utterance
 
         examples_dir = join(dirname(__file__), "example_messages")
@@ -562,6 +566,11 @@ class TestSkillUtils(unittest.TestCase):
         self.assertEqual(tokens, ['set', 'an', 'alarm', 'for 8 am on',
                                   'weekdays'])
 
+        weekends = _get_message_from_file("wake_me_up_weekends.json")
+        tokens = tokenize_utterance(weekends)
+        self.assertEqual(tokens, ['wake me up', 'at 9 30 AM on',
+                                  'weekends'])
+
         wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
         tokens = tokenize_utterance(wakeup_at)
         self.assertEqual(tokens, ['neon', 'wake me up', 'at 7 am'])
@@ -576,7 +585,7 @@ class TestSkillUtils(unittest.TestCase):
         self.assertEqual(tokens, ['wake me up', 'every',
                                   'monday and thursday at 9 am'])
 
-    def test_get_unmatched_chunks_alarm(self):
+    def test_get_unmatched_tokens_alarm(self):
         from util.parse_utils import get_unmatched_tokens
         examples_dir = join(dirname(__file__), "example_messages")
 
@@ -599,6 +608,10 @@ class TestSkillUtils(unittest.TestCase):
         tokens = get_unmatched_tokens(weekdays)
         self.assertIsInstance(tokens, list)
         self.assertEqual(tokens, ['an', 'for 8 am on'])
+
+        weekends = _get_message_from_file("wake_me_up_weekends.json")
+        tokens = get_unmatched_tokens(weekends)
+        self.assertEqual(tokens, ['at 9 30 AM on'])
 
         wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
         tokens = get_unmatched_tokens(wakeup_at)
@@ -645,6 +658,10 @@ class TestSkillUtils(unittest.TestCase):
         self.assertEqual(repeat, [Weekdays.MON, Weekdays.TUE, Weekdays.WED,
                                   Weekdays.THU, Weekdays.FRI])
 
+        weekends = _get_message_from_file("wake_me_up_weekends.json")
+        repeat = parse_repeat_from_message(weekends)
+        self.assertEqual(repeat, [Weekdays.SAT, Weekdays.SUN])
+
         wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
         repeat = parse_repeat_from_message(wakeup_at)
         self.assertIsInstance(repeat, list)
@@ -655,17 +672,25 @@ class TestSkillUtils(unittest.TestCase):
         self.assertIsInstance(repeat, list)
         self.assertEqual(repeat, [])
 
-        # TODO
-        # multi_day_repeat = \
-        #     _get_message_from_file("alarm_every_monday_thursday.json")
-        # repeat = parse_repeat_from_message(multi_day_repeat)
-        # self.assertIsInstance(repeat, list)
-        # self.assertEqual(repeat, [Weekdays.MON, Weekdays.THU])
+        multi_day_repeat = \
+            _get_message_from_file("alarm_every_monday_thursday.json")
+        tokens = tokenize_utterance(multi_day_repeat)
+        repeat = parse_repeat_from_message(multi_day_repeat, tokens)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [Weekdays.MON, Weekdays.THU])
+        self.assertEqual(tokens, ["wake me up", "every", "and", "at 9 am"])
 
-        # TODO: Parse weekends
-        # TODO: Parse time interval
+    def test_parse_end_condition_from_message(self):
+        pass
 
-    # TODO: Test end_condition, audio_file, script_file
+    def test_parse_alert_priority_from_message(self):
+        pass
+
+    def test_parse_audio_file_from_message(self):
+        pass
+
+    def test_parse_script_file_from_message(self):
+        pass
 
 
 if __name__ == '__main__':
