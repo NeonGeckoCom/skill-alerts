@@ -2,7 +2,7 @@
   "type": "skill-alerts.neongeckocom:create_alarm",
   "data": {
     "utterances": [
-      "set an alarm for 9 a m every tuesday"
+      "set an alarm for 9 am every tuesday"
     ],
     "lang": "en-us",
     "intent_type": "skill-alerts.neongeckocom:create_alarm",
@@ -78,7 +78,7 @@
         "from_context": false
       }
     ],
-    "utterance": "set an alarm for 9 a m every tuesday",
+    "utterance": "set an alarm for 9 am every tuesday",
     "alarm": "alarm",
     "set": "set",
     "repeat": "every"

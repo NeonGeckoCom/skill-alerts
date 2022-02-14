@@ -542,6 +542,9 @@ class TestParseUtils(unittest.TestCase):
                              if word in to_speak.split()]))
         self.assertEqual(to_speak, "eight days")
 
+    def test_get_default_alert_name(self):
+        pass
+
     def test_tokenize_utterance_alarm(self):
         from util.parse_utils import tokenize_utterance
 
@@ -683,6 +686,58 @@ class TestParseUtils(unittest.TestCase):
     def test_parse_end_condition_from_message(self):
         pass
 
+    def test_parse_alert_time_from_message(self):
+        from util.parse_utils import parse_alert_time_from_message, \
+            tokenize_utterance
+        examples_dir = join(dirname(__file__), "example_messages")
+
+        def _get_message_from_file(filename: str):
+            with open(join(examples_dir, filename)) as f:
+                contents = f.read()
+            return Message.deserialize(contents)
+
+        daily = _get_message_from_file("create_alarm_daily.json")
+        alert_time = parse_alert_time_from_message(daily)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertIn(alert_time.time(), (dt.time(hour=10), dt.time(hour=22)))
+
+        weekly = _get_message_from_file("create_alarm_every_tuesday.json")
+        tokens = tokenize_utterance(weekly)
+        alert_time = parse_alert_time_from_message(weekly, tokens)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.time(), dt.time(hour=9))
+        self.assertNotIn("for 9 am", tokens)
+
+        weekdays = _get_message_from_file("create_alarm_weekdays.json")
+        alert_time = parse_alert_time_from_message(weekdays)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.time(), dt.time(hour=8))
+
+        weekends = _get_message_from_file("wake_me_up_weekends.json")
+        alert_time = parse_alert_time_from_message(weekends)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.time(), dt.time(hour=9, minute=30))
+
+        wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        alert_time = parse_alert_time_from_message(wakeup_at)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.time(), dt.time(hour=7))
+
+        wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+        alert_time = parse_alert_time_from_message(wakeup_in)
+        self.assertIsInstance(alert_time, dt.datetime)
+        valid_alert_time = \
+            dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=8)
+
+        self.assertAlmostEqual(alert_time.timestamp(),
+                               valid_alert_time.timestamp(), 0)
+
+        multi_day_repeat = \
+            _get_message_from_file("alarm_every_monday_thursday.json")
+        alert_time = parse_alert_time_from_message(multi_day_repeat)
+        self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.time(), dt.time(hour=9))
+
     def test_parse_alert_priority_from_message(self):
         pass
 
@@ -690,6 +745,56 @@ class TestParseUtils(unittest.TestCase):
         pass
 
     def test_parse_script_file_from_message(self):
+        pass
+
+    def test_parse_alert_name_from_message(self):
+        pass
+
+    def test_parse_alert_context_from_message(self):
+        from util.parse_utils import parse_alert_context_from_message, \
+            _DEFAULT_USER
+        test_message_no_context = Message("test", {}, {})
+        test_message_local_user = Message("test", {},
+                                          {"user": "local",
+                                           "timing": {
+                                               "handle_utterance":
+                                                   1644629287.028714,
+                                               "transcribed":
+                                                   1644629287.028714,
+                                               "save_transcript":
+                                                   8.821487426757812e-06,
+                                               "text_parsers":
+                                                   4.553794860839844e-05
+                                           },
+                                           "ident": "1644629287"
+                                           })
+        test_message_klat_data = Message("test", {}, {"user": "server_user",
+                                                      "klat_data": {
+                                                          "cid": "test_cid",
+                                                          "sid": "test_sid",
+                                                          "domain": "Private",
+                                                          "flac_filename": "ff"
+                                                      },
+                                                      })
+
+        no_context = parse_alert_context_from_message(test_message_no_context)
+        self.assertEqual(no_context["user"], _DEFAULT_USER)
+        self.assertIsInstance(no_context["ident"], str)
+        self.assertIsInstance(no_context["created"], float)
+
+        local_user = parse_alert_context_from_message(test_message_local_user)
+        self.assertEqual(local_user["user"], "local")
+        self.assertEqual(local_user["ident"], "1644629287")
+        self.assertEqual(local_user["created"], 1644629287.028714)
+        self.assertIsInstance(local_user["timing"], dict)
+
+        klat_user = parse_alert_context_from_message(test_message_klat_data)
+        self.assertEqual(klat_user["user"], "server_user")
+        self.assertIsInstance(klat_user["ident"], str)
+        self.assertIsInstance(klat_user["created"], float)
+        self.assertIsInstance(klat_user["klat_data"], dict)
+
+    def test_build_alert_from_intent(self):
         pass
 
 

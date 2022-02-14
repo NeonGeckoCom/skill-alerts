@@ -25,16 +25,21 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import datetime as dt
 
+from time import time
+from uuid import uuid4 as uuid
 from typing import Optional, List, Union
 from lingua_franca import load_language
 
 from mycroft_bus_client import Message, MessageBusClient
-from mycroft.util.format import TimeResolution, nice_duration
-from mycroft.util.parse import extract_datetime
+from mycroft.util.format import TimeResolution, nice_duration, nice_time
+from mycroft.util.parse import extract_datetime, extract_duration
 
-from . import AlertPriority, Weekdays
+from . import AlertPriority, Weekdays, AlertType
+from .alert import Alert
+from .alert_manager import _DEFAULT_USER
 
 _SCRIPT_PRIORITY = AlertPriority.HIGHEST
 
@@ -79,6 +84,67 @@ def spoken_time_remaining(alert_time: dt.datetime,
         resolution = TimeResolution.SECONDS
     return nice_duration(remaining_time.total_seconds(),
                          resolution=resolution, lang="en-us")
+
+
+def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
+                           now_time: Optional[dt.datetime] = None,
+                           lang: str = "en-US") -> str:
+    """
+    Build a default name for the specified alert
+    :param alert_time: datetime of next alert expiration
+    :param alert_type: AlertType of alert to name
+    :param now_time: datetime to anchor timers for duration
+    :param lang: Language to format response in
+    :return: name for alert
+    """
+    if alert_type == AlertType.TIMER:
+        time_str = spoken_time_remaining(alert_time, now_time, lang)
+        return f"{time_str} Timer"  # TODO: Resolve resource for lang support
+    load_language(lang)
+    time_str = nice_time(alert_time, lang)  # TODO: Handle user time prefs here
+    if alert_type == AlertType.ALARM:
+        return f"{time_str} Alarm"  # TODO: Resolve resource for lang support
+    if alert_type == AlertType.REMINDER:
+        return f"{time_str} Reminder"  # TODO: Resolve resource for lang support
+    return f"{time_str} Alert"  # TODO: Resolve resource for lang support
+
+
+def build_alert_from_intent(message: Message, alert_type: AlertType) -> \
+        Optional[Alert]:
+    """
+    Parse alert parameters from a matched intent into an Alert object
+    :param message: Message associated with request
+    :param alert_type: AlertType requested
+    :returns: Alert extracted from utterance or None if missing required params
+    """
+    tokens = tokenize_utterance(message)
+    repeat = parse_repeat_from_message(message, tokens)
+    if isinstance(repeat, dt.timedelta):
+        repeat_interval = repeat
+        repeat_days = None
+    else:
+        repeat_days = repeat
+        repeat_interval = None
+
+    # Parse data in a specific order since tokens are mutated in parse methods
+    priority = parse_alert_priority_from_message(message, tokens)
+    end_condition = parse_end_condition_from_message(message, tokens)
+    audio_file = parse_audio_file_from_message(message, tokens)
+    script_file = parse_script_file_from_message(message, tokens)
+    anchor_time = dt.datetime.now(dt.timezone.utc)
+    alert_time = parse_alert_time_from_message(message, tokens)
+
+    if not alert_time:
+        return
+
+    alert_context = parse_alert_context_from_message(message)
+    alert_name = parse_alert_name_from_message(message, tokens) or \
+        get_default_alert_name(alert_time, alert_type, anchor_time)
+
+    alert = Alert.create(alert_time, alert_name, alert_type, priority,
+                         repeat_interval, repeat_days, end_condition,
+                         audio_file, script_file, alert_context)
+    return alert
 
 
 def tokenize_utterance(message: Message) -> List[str]:
@@ -183,6 +249,34 @@ def parse_end_condition_from_message(message: Message,
     return None
 
 
+def parse_alert_time_from_message(message: Message,
+                                  tokens: Optional[list] = None) -> \
+        Optional[dt.datetime]:
+    """
+    Parse a requested alert time from the request utterance
+    :param message: Message associated with intent match
+    :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    :returns: Parsed datetime for the alert or None if no time is extracted
+    """
+    tokens = tokens or tokenize_utterance(message)
+    remainder_tokens = get_unmatched_tokens(message, tokens)
+    load_language(message.data.get("lang", "en-us"))
+    alert_time = None
+    for token in remainder_tokens:
+        start_time = dt.datetime.now(dt.timezone.utc)
+        duration, remainder = extract_duration(token)
+        if duration:
+            alert_time = start_time + duration
+            tokens[tokens.index(token)] = remainder
+            break
+        extracted = extract_datetime(token, anchorDate=start_time)
+        if extracted:
+            alert_time, remainder = extracted
+            tokens[tokens.index(token)] = remainder
+            break
+    return alert_time
+
+
 def parse_audio_file_from_message(message: Message,
                                   tokens: Optional[list] = None) -> \
         Optional[str]:
@@ -199,8 +293,9 @@ def parse_audio_file_from_message(message: Message,
     return None
 
 
-def parse_script_file_from_message(message: Message, bus: MessageBusClient,
-                                   tokens: Optional[list] = None) -> \
+def parse_script_file_from_message(message: Message,
+                                   tokens: Optional[list] = None,
+                                   bus: MessageBusClient = None) -> \
         Optional[str]:
     """
     Parses a requested script file from the utterance. If tokens are provided,
@@ -210,6 +305,9 @@ def parse_script_file_from_message(message: Message, bus: MessageBusClient,
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
     :returns: validated script filename, else None
     """
+    bus = bus or MessageBusClient()
+    if not bus.started_running:
+        bus.run_in_thread()
     if message.data.get("script"):
         # TODO: Validate/test this DM
         # check if CC can access the required script and get its valid name
@@ -228,7 +326,8 @@ def parse_script_file_from_message(message: Message, bus: MessageBusClient,
 
 
 def parse_alert_priority_from_message(message: Message,
-                                      tokens: Optional[list] = None) -> AlertPriority:
+                                      tokens: Optional[list] = None) -> \
+        AlertPriority:
     """
     Extract the requested alert priority from intent message.
     If tokens are provided, handled tokens are removed.
@@ -241,3 +340,37 @@ def parse_alert_priority_from_message(message: Message,
     else:
         priority = AlertPriority.AVERAGE
     return priority
+
+
+def parse_alert_name_from_message(message: Message,
+                                  tokens: Optional[list] = None) -> \
+        Optional[str]:
+    """
+    Try to parse an alert name from unparsed tokens
+    :param message: Message associated with the request
+    :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    :returns: Best guess at a name extracted from tokens
+    """
+    # TODO: Better parsing of unused tokens, fallback to full utterance
+    # First try to parse a name from the remainder tokens
+    tokens = get_unmatched_tokens(message, tokens)
+    for token in tokens:
+        if len(token.split()) > 1:
+            return token
+    # Next try to extract a name from the full tokenized utterance
+    # all_untagged_tokens = tokenize_utterance(message)
+
+
+def parse_alert_context_from_message(message: Message) -> dict:
+    """
+    Parse the request message context and ensure required parameters exist
+    :param message: Message associated with the request
+    :returns: dict context to include in Alert object
+    """
+    required_context = {
+        "user": message.context.get("user") or _DEFAULT_USER,
+        "ident": message.context.get("ident") or str(uuid()),
+        "created": message.context.get("timing",
+                                       {}).get("handle_utterance") or time()
+    }
+    return {**message.context, **required_context}

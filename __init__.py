@@ -43,14 +43,10 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file, resolve_resource_file
-from mycroft.util.parse import extract_datetime, extract_duration
 from mycroft.util.format import nice_time
 
 from .util.alert_manager import AlertManager
 from .util.alert import Alert, AlertType
-from .util.parse_utils import tokenize_utterance, get_unmatched_tokens, \
-    parse_alert_priority_from_message, parse_repeat_from_message, \
-    parse_end_condition_from_message, parse_audio_file_from_message, parse_script_file_from_message
 
 try:
     from neon_transcripts_controller.util import find_user_recording
@@ -572,139 +568,7 @@ class AlertSkill(NeonSkill):
             duration = duration - timedelta(seconds=1)
         self.gui.gui_set(Message("tick", {"text": ""}))
 
-    # Parse setting things
-    def _extract_alert_params(self, message: Message, alert_type: AlertType) -> Alert:
-        """
-        Utility to parse relevant alert parameters from an input utterance into a generic dict
-        :param message: Message associated with request
-        :return: dict of extracted data including either:
-                (duration (timedelda), name (str)) or
-                (end_repeat (datetime), repeat_days(list[Weekdays]), alert_time(datetime), name)
-        """
-        tokens = tokenize_utterance(message)
-        repeat = parse_repeat_from_message(message, tokens)
-        if isinstance(repeat, timedelta):
-            repeat_interval = repeat
-            repeat_days = None
-        else:
-            repeat_days = repeat
-            repeat_interval = None
-        priority = parse_alert_priority_from_message(message, tokens)
-        end_condition = parse_end_condition_from_message(message, tokens)
-        audio_file = parse_audio_file_from_message(message, tokens)
-        script_file = parse_script_file_from_message(message, self.bus, tokens)
-        alert_context = message.context  # TODO
-
-        alert_time = None
-        remainder_tokens = get_unmatched_tokens(message, tokens)
-        for token in remainder_tokens:
-            start_time = datetime.now(self._get_user_tz(message))
-            duration, remainder = extract_duration(token)
-            if duration:
-                alert_time = start_time + duration
-                tokens[tokens.index(token)] = remainder
-                break
-            alert_time, remainder = extract_datetime(token,
-                                                     anchorDate=start_time)
-            if alert_time:
-                tokens[tokens.index(token)] = remainder
-                break
-        if not alert_time:
-            return
-
-        name = None  # TODO
-
-        alert = Alert.create(alert_time, name, alert_type, priority,
-                             repeat_interval, repeat_days, end_condition,
-                             audio_file, script_file, alert_context)
-        return alert
-
-    @staticmethod
-    def _extract_content_str(message_data: dict) -> str:
-        """
-        Processes alert intent matches and return an utterance with only a time and name (optional)
-        :param message_data: message.data object
-        :return: string without any matched vocab
-        """
-        LOG.debug(message_data)
-        keywords = ("alarm", "alert", "all", "cancel", "event", "list", "next", "playable", "reminder", "set",
-                    "setReminder", "snooze", "timer")
-
-        utt = str(message_data.get('utterance'))
-        # LOG.debug(utt)
-        if message_data.get('Neon'):
-            neon = str(message_data.get('Neon'))
-            utt = "".join(utt.split(neon))
-        try:
-            for keyword in keywords:
-                if message_data.get(keyword):
-                    utt = utt.replace(keyword, "")
-
-            words = utt.split()
-            # Parse transcribed a m /p m  to am/pm
-            for i in range(0, len(words) - 1):
-                if words[i].lower() in ("a", "p") and words[i + 1].lower() == "m":
-                    words[i] = f"{words[i]}{words[i + 1]}"
-                    words[i + 1] = ""
-            utt = " ".join([word for word in words if word])
-            LOG.debug(utt)
-        except Exception as e:
-            LOG.error(e)
-        return utt
-
-    def _extract_specified_name(self, content: str, alert_type: AlertType = None) -> str:
-        """
-        Extracts a name for an alert if present in the utterance.
-        :param content: Utterance with 'until' condition removed
-        :param alert_type: AlertType of alert we are naming
-        :return: name of an alert (str)
-        """
-        def _word_is_vocab_match(word):
-            vocabs = ("dayOfWeek", "everyday", "until", "weekdays", "weekends", "timeKeywords")
-            return any([self.voc_match(word.lower(), voc) for voc in vocabs])
-
-        if alert_type == AlertType.ALARM:
-            # Don't parse a name for an alarm, just use default name
-            return ""
-
-        try:
-            content = content.replace(':', '')  # Remove colons from time delimiters
-            content = re.sub(r'\d+', '', content).split()  # Remove any numbers
-            content = [word for word in content if not _word_is_vocab_match(word)]
-            result = ' '.join(content)
-            LOG.debug(result)
-
-            try:
-                # TODO: Extract this to utils DM
-                parsed = self.nlp(result)
-                s_subj, s_obj = None, None
-                for chunk in parsed.noun_chunks:
-                    if "subj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Subject
-                        s_subj = chunk.text
-                    elif "obj" in chunk.root.dep_ and chunk.root.pos_ != "PRON" and len(chunk.root.text) > 2:  # Object
-                        s_obj = chunk.text
-                s_verbs = [token.lemma_ for token in parsed if token.pos_ == "VERB"]
-                s_adjs = [token.lemma_ for token in parsed if token.pos_ == "ADJ"]
-
-                LOG.debug(f"Extracted: {s_subj} | {s_obj} | {s_verbs}, | {s_adjs}")
-                if s_verbs and s_obj:
-                    verb = s_verbs[len(s_verbs) - 1]
-                    obj = s_obj
-                    result = " ".join([verb, obj])
-                elif alert_type == AlertType.REMINDER:
-                    result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
-                    result = f"Reminder {result.title()}"
-                elif alert_type == AlertType.TIMER:
-                    result = " ".join([word for word in result.split() if not self.voc_match(word, "articles")])
-                    result = f"{result.title()} Timer"
-            except Exception as c:
-                LOG.error(c)
-            return result
-        except Exception as e:
-            LOG.error(e)
-
     # Generic Utilities
-
     def _get_user_tz(self, message=None):
         """
         Gets a timezone object for the user associated with the given message
