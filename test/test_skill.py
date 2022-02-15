@@ -567,8 +567,34 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(to_speak, "eight days")
 
     def test_get_default_alert_name(self):
-        # TODO
-        pass
+        from util.parse_utils import get_default_alert_name
+        now_time = dt.datetime.now(dt.timezone.utc)
+        timer_time = now_time + dt.timedelta(minutes=10)
+        self.assertEqual(get_default_alert_name(timer_time,
+                                                AlertType.TIMER, now_time),
+                         "ten minutes timer")
+        timer_time = now_time + dt.timedelta(hours=6, seconds=1)
+        self.assertEqual(get_default_alert_name(timer_time,
+                                                AlertType.TIMER, now_time),
+                         "six hours timer")
+
+        alarm_time = (now_time + dt.timedelta(days=1)).replace(hour=8,
+                                                               minute=0,
+                                                               second=0)
+        self.assertEqual(get_default_alert_name(alarm_time, AlertType.ALARM),
+                         "8:00 AM alarm")
+        self.assertEqual(get_default_alert_name(alarm_time, AlertType.ALARM,
+                                                use_24hour=True),
+                         "08:00 alarm")
+
+        reminder_time = alarm_time + dt.timedelta(hours=12)
+        self.assertEqual(get_default_alert_name(reminder_time,
+                                                AlertType.REMINDER),
+                         "8:00 PM reminder")
+        self.assertEqual(get_default_alert_name(reminder_time,
+                                                AlertType.REMINDER,
+                                                use_24hour=True),
+                         "20:00 reminder")
 
     def test_tokenize_utterance_alarm(self):
         from util.parse_utils import tokenize_utterance
@@ -779,7 +805,6 @@ class TestParseUtils(unittest.TestCase):
         pass
 
     def test_parse_alert_name_from_message(self):
-        # TODO: Fix these failures DM
         from util.parse_utils import parse_alert_name_from_message
         monday_thursday_alarm = \
             _get_message_from_file("alarm_every_monday_thursday.json")
@@ -799,36 +824,53 @@ class TestParseUtils(unittest.TestCase):
         baking_timer = _get_message_from_file("start_named_timer.json")
         bread_timer = _get_message_from_file("start_timer_for_name.json")
 
+        with open(join(dirname(dirname(__file__)),
+                       "locale", "en-us", "articles.voc")) as f:
+            articles = f.read().split('\n')
+
         self.assertIsNone(parse_alert_name_from_message(monday_thursday_alarm,
-                                                        strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
         self.assertIsNone(parse_alert_name_from_message(daily_alarm,
-                                                        strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
         self.assertIsNone(parse_alert_name_from_message(tuesday_alarm,
-                                                        strip_datetimes=True))
-        # self.assertIsNone(parse_alert_name_from_message(weekday_alarm,
-        #                                                 strip_datetimes=True))
-        # self.assertIsNone(parse_alert_name_from_message(wakeup_at_time_alarm,
-        #                                                 strip_datetimes=True))
-        # self.assertIsNone(parse_alert_name_from_message(wakeup_in_time_alarm,
-        #                                                 strip_datetimes=True))
-        # self.assertIsNone(parse_alert_name_from_message(wakeup_weekends,
-        #                                                 strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
+        self.assertIsNone(parse_alert_name_from_message(weekday_alarm,
+                                                        strip_datetimes=True,
+                                                        articles=articles))
+        self.assertIsNone(parse_alert_name_from_message(wakeup_at_time_alarm,
+                                                        strip_datetimes=True,
+                                                        articles=articles))
+        self.assertIsNone(parse_alert_name_from_message(wakeup_in_time_alarm,
+                                                        strip_datetimes=True,
+                                                        articles=articles))
+        self.assertIsNone(parse_alert_name_from_message(wakeup_weekends,
+                                                        strip_datetimes=True,
+                                                        articles=articles))
 
         self.assertIsNone(parse_alert_name_from_message(set_unnamed_timer,
-                                                        strip_datetimes=True))
-        # self.assertIsNone(parse_alert_name_from_message(start_unnamed_timer,
-        #                                                 strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
+        self.assertIsNone(parse_alert_name_from_message(start_unnamed_timer,
+                                                        strip_datetimes=True,
+                                                        articles=articles))
         self.assertIsNone(parse_alert_name_from_message(monday_thursday_alarm,
-                                                        strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
         self.assertIsNone(parse_alert_name_from_message(monday_thursday_alarm,
-                                                        strip_datetimes=True))
+                                                        strip_datetimes=True,
+                                                        articles=articles))
 
         self.assertEqual(parse_alert_name_from_message(baking_timer,
-                                                       strip_datetimes=True),
+                                                       strip_datetimes=True,
+                                                       articles=articles),
                          "baking")
         self.assertEqual(parse_alert_name_from_message(bread_timer,
-                                                       strip_datetimes=True),
-                         "for bread")
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "bread")
 
     def test_parse_alert_context_from_message(self):
         from util.parse_utils import parse_alert_context_from_message, \
@@ -933,6 +975,10 @@ class TestParseUtils(unittest.TestCase):
 
         _validate_wakeup_at(wakeup_at_alert_seattle)
         _validate_wakeup_at(wakeup_at_alert_utc)
+        self.assertEqual(wakeup_at_alert_seattle.alert_name,
+                         wakeup_at_alert_utc.alert_name)
+        self.assertEqual(wakeup_at_alert_utc.alert_name,
+                         "7:00 AM alarm")
         self.assertNotEqual(wakeup_at_alert_seattle.time_to_expiration,
                             wakeup_at_alert_utc.time_to_expiration)
 
@@ -1002,13 +1048,13 @@ class TestParseUtils(unittest.TestCase):
                                                    AlertType.TIMER,
                                                    sea_tz)
         _validate_alert_default_params(baking_timer_sea)
-        # TODO: Validate timer name
+        self.assertEqual(baking_timer_sea.alert_name, "baking")
 
         bread_timer_sea = build_alert_from_intent(bread_20_minutes,
                                                   AlertType.TIMER,
                                                   sea_tz)
         _validate_alert_default_params(bread_timer_sea)
-        # TODO: Validate timer name
+        self.assertEqual(bread_timer_sea.alert_name, "bread")
 
 
 if __name__ == '__main__':

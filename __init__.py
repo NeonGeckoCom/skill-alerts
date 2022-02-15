@@ -80,8 +80,10 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
+        use_24hour = self.preference_unit(message)["time"] == 24
         alert = build_alert_from_intent(message, AlertType.ALARM,
-                                        self._get_user_tz(message))
+                                        self._get_user_tz(message), use_24hour,
+                                        self.find_resource)
         if not alert:
             self.speak_dialog("ErrorNoTime",
                               {"kind": self.translate("word_alarm")},
@@ -100,7 +102,9 @@ class AlertSkill(NeonSkill):
             return
         tz = self._get_user_tz(message)
         anchor_time = datetime.now(tz)
-        alert = build_alert_from_intent(message, AlertType.TIMER, tz)
+        use_24hour = self.preference_unit(message)["time"] == 24
+        alert = build_alert_from_intent(message, AlertType.TIMER, tz,
+                                        use_24hour, self.find_resource)
         if not alert:
             self.speak_dialog('error_no_duration', private=True)
             return  # TODO: Converse to get time
@@ -119,8 +123,10 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
+        use_24hour = self.preference_unit(message)["time"] == 24
         alert = build_alert_from_intent(message, AlertType.REMINDER,
-                                        self._get_user_tz(message))
+                                        self._get_user_tz(message), use_24hour,
+                                        self.find_resource)
         if not alert:
             self.speak_dialog("error_no_time",
                               {"kind": self.translate("word_reminder")},
@@ -640,6 +646,7 @@ class AlertSkill(NeonSkill):
         self._notify_expired(message)
 
     def _notify_expired(self, message):
+        self.find_resource()
         alert_kind = message.data.get('kind')
         alert_file = message.data.get('file')
         alert_script = message.data.get('script')

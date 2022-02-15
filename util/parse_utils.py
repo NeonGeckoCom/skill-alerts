@@ -26,6 +26,7 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import datetime as dt
+import os.path
 
 from time import time
 from uuid import uuid4 as uuid
@@ -42,6 +43,27 @@ from .alert import Alert
 from .alert_manager import _DEFAULT_USER
 
 _SCRIPT_PRIORITY = AlertPriority.HIGHEST
+
+
+def _default_find_resource(res_name, res_dirname=None, lang=None):
+    LOG.warning("find_resource method not defined, using fallback")
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    lang = lang or "en-us"
+    file = os.path.join(base_dir, "locale", lang, res_name)
+    if os.path.isfile(file):
+        return file
+    return None
+
+
+def _default_spoken(alert_type: AlertType):
+    LOG.warning("get_spoken_alert_type method not defined, using fallback")
+    if alert_type == AlertType.ALARM:
+        return "alarm"
+    if alert_type == AlertType.TIMER:
+        return "timer"
+    if alert_type == AlertType.REMINDER:
+        return "reminder"
+    return "alert"
 
 
 def round_nearest_minute(alert_time: dt.datetime,
@@ -88,8 +110,9 @@ def spoken_time_remaining(alert_time: dt.datetime,
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
                            now_time: Optional[dt.datetime] = None,
-                           lang: str = "en-US",
-                           use_24hour: bool = False) -> str:
+                           lang: str = "en-US", use_24hour: bool = False,
+                           spoken_alert_type: callable = _default_spoken) -> \
+        str:
     """
     Build a default name for the specified alert
     :param alert_time: datetime of next alert expiration
@@ -97,27 +120,30 @@ def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
     :param now_time: datetime to anchor timers for duration
     :param lang: Language to format response in
     :param use_24hour: If true, use 24 hour timescale
+    :param spoken_alert_type: method to translate AlertType to speakable string
     :return: name for alert
     """
     if alert_type == AlertType.TIMER:
         time_str = spoken_time_remaining(alert_time, now_time, lang)
-        return f"{time_str} Timer"  # TODO: Resolve resource for lang support
-    load_language(lang)
-    time_str = nice_time(alert_time, lang, False, use_24hour, True)
-    if alert_type == AlertType.ALARM:
-        return f"{time_str} Alarm"  # TODO: Resolve resource for lang support
-    if alert_type == AlertType.REMINDER:
-        return f"{time_str} Reminder"  # TODO: Resolve resource for lang support
-    return f"{time_str} Alert"  # TODO: Resolve resource for lang support
+    else:
+        load_language(lang)
+        time_str = nice_time(alert_time, lang, False, use_24hour, True)
+    return f"{time_str} {spoken_alert_type(alert_type)}"
 
 
 def build_alert_from_intent(message: Message, alert_type: AlertType,
-                            timezone: dt.tzinfo) -> Optional[Alert]:
+                            timezone: dt.tzinfo, use_24hour: bool = False,
+                            get_spoken_alert_type: callable = _default_spoken,
+                            find_resource: callable = _default_find_resource) \
+        -> Optional[Alert]:
     """
     Parse alert parameters from a matched intent into an Alert object
     :param message: Message associated with request
     :param alert_type: AlertType requested
     :param timezone: Timezone for user associated with request
+    :param use_24hour: Use 24 hour time format if True, else 12 hour
+    :param get_spoken_alert_type: optional method to get translated alert types
+    :param find_resource: skill.find_resource method to resolve resource files
     :returns: Alert extracted from utterance or None if missing required params
     """
     tokens = tokenize_utterance(message)
@@ -140,9 +166,18 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     if not alert_time:
         return
 
+    lang = message.data.get("lang")
+    article_file = find_resource("articles.voc", lang=lang)
+    if article_file:
+        with open(article_file) as f:
+            articles = f.read().split('\n')
+    else:
+        articles = list()
     alert_context = parse_alert_context_from_message(message)
-    alert_name = parse_alert_name_from_message(message, tokens) or \
-        get_default_alert_name(alert_time, alert_type, anchor_time)
+    alert_name = parse_alert_name_from_message(message, tokens, True,
+                                               articles) or \
+        get_default_alert_name(alert_time, alert_type, anchor_time, lang,
+                               use_24hour, get_spoken_alert_type)
 
     alert = Alert.create(alert_time, alert_name, alert_type, priority,
                          repeat_interval, repeat_days, end_condition,
@@ -354,13 +389,15 @@ def parse_alert_priority_from_message(message: Message,
 
 def parse_alert_name_from_message(message: Message,
                                   tokens: Optional[list] = None,
-                                  strip_datetimes: bool = False) -> \
+                                  strip_datetimes: bool = False,
+                                  articles: List[str] = None) -> \
         Optional[str]:
     """
     Try to parse an alert name from unparsed tokens
     :param message: Message associated with the request
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
     :param strip_datetimes: if True, ignore any passed tokens containing times
+    :param articles: list of words to strip from a candidate alert name
     :returns: Best guess at a name extracted from tokens
     """
     def _strip_datetime_from_token(t):
@@ -376,6 +413,8 @@ def parse_alert_name_from_message(message: Message,
 
     specified_tokens = tokens
     lang = message.data.get("lang") or "en-us"
+    articles = articles or list()
+
     load_language(lang)
     candidate_names = list()
     # First try to parse a name from the remainder tokens
@@ -383,7 +422,8 @@ def parse_alert_name_from_message(message: Message,
     for token in tokens:
         if strip_datetimes:
             token = _strip_datetime_from_token(token)
-        normalized = normalize(token, lang)
+        normalized = " ".join([word for word in normalize(token, lang).split()
+                               if word not in articles])
         if normalized:
             candidate_names.append(normalized)
     # Next try to extract a name from the full tokenized utterance
@@ -392,7 +432,9 @@ def parse_alert_name_from_message(message: Message,
         all_untagged_tokens = get_unmatched_tokens(message)
         for token in all_untagged_tokens:
             token = _strip_datetime_from_token(token)
-            normalized = normalize(token, lang)
+            normalized = " ".join([word for word in
+                                   normalize(token, lang).split()
+                                   if word not in articles])
             if normalized:
                 candidate_names.append(normalized)
     if not candidate_names:
