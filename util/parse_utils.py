@@ -31,10 +31,11 @@ from time import time
 from uuid import uuid4 as uuid
 from typing import Optional, List, Union
 from lingua_franca import load_language
-
+from neon_utils.logger import LOG
 from mycroft_bus_client import Message, MessageBusClient
+
 from mycroft.util.format import TimeResolution, nice_duration, nice_time
-from mycroft.util.parse import extract_datetime, extract_duration
+from mycroft.util.parse import extract_datetime, extract_duration, normalize
 
 from . import AlertPriority, Weekdays, AlertType
 from .alert import Alert
@@ -82,7 +83,7 @@ def spoken_time_remaining(alert_time: dt.datetime,
     else:
         resolution = TimeResolution.SECONDS
     return nice_duration(remaining_time.total_seconds(),
-                         resolution=resolution, lang="en-us")
+                         resolution=resolution, lang=lang)
 
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
@@ -352,22 +353,52 @@ def parse_alert_priority_from_message(message: Message,
 
 
 def parse_alert_name_from_message(message: Message,
-                                  tokens: Optional[list] = None) -> \
+                                  tokens: Optional[list] = None,
+                                  strip_datetimes: bool = False) -> \
         Optional[str]:
     """
     Try to parse an alert name from unparsed tokens
     :param message: Message associated with the request
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    :param strip_datetimes: if True, ignore any passed tokens containing times
     :returns: Best guess at a name extracted from tokens
     """
-    # TODO: Better parsing of unused tokens, fallback to full utterance
+    def _strip_datetime_from_token(t):
+        try:
+            _, t = extract_duration(t, lang)
+        except TypeError:
+            pass
+        try:
+            _, t = extract_datetime(t, lang=lang)
+        except TypeError:
+            pass
+        return t
+
+    specified_tokens = tokens
+    lang = message.data.get("lang") or "en-us"
+    load_language(lang)
+    candidate_names = list()
     # First try to parse a name from the remainder tokens
     tokens = get_unmatched_tokens(message, tokens)
     for token in tokens:
-        if len(token.split()) > 1:
-            return token
+        if strip_datetimes:
+            token = _strip_datetime_from_token(token)
+        normalized = normalize(token, lang)
+        if normalized:
+            candidate_names.append(normalized)
     # Next try to extract a name from the full tokenized utterance
-    # all_untagged_tokens = tokenize_utterance(message)
+    if not candidate_names and specified_tokens:
+        LOG.info("No possible names parsed, checking all tokens")
+        all_untagged_tokens = get_unmatched_tokens(message)
+        for token in all_untagged_tokens:
+            token = _strip_datetime_from_token(token)
+            normalized = normalize(token, lang)
+            if normalized:
+                candidate_names.append(normalized)
+    if not candidate_names:
+        return None
+    LOG.info(f"Parsed possible names: {candidate_names}")
+    return candidate_names[0]
 
 
 def parse_alert_context_from_message(message: Message) -> dict:
