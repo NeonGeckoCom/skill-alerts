@@ -158,6 +158,24 @@ class AlertManager:
             "pending": sort_alerts_list(pending)
         }
 
+    def get_all_alerts(self) -> dict:
+        """
+        Get a sorted list of all managed alerts.
+        :returns: dict of disposition to sorted alerts for all users
+        """
+        with self._read_lock:
+            missed = sort_alerts_list([alert for alert in
+                                       self._missed_alerts.values()])
+            active = sort_alerts_list([alert for alert in
+                                       self._active_alerts.values()])
+            pending = sort_alerts_list([alert for alert in
+                                        self._pending_alerts.values()])
+        return {
+            "missed": missed,
+            "active": active,
+            "pending": pending
+        }
+
     # Alert Management
     def mark_alert_missed(self, alert_id: str):
         """

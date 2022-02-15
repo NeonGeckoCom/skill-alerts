@@ -25,7 +25,6 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 import datetime as dt
 
 from time import time
@@ -88,20 +87,22 @@ def spoken_time_remaining(alert_time: dt.datetime,
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
                            now_time: Optional[dt.datetime] = None,
-                           lang: str = "en-US") -> str:
+                           lang: str = "en-US",
+                           use_24hour: bool = False) -> str:
     """
     Build a default name for the specified alert
     :param alert_time: datetime of next alert expiration
     :param alert_type: AlertType of alert to name
     :param now_time: datetime to anchor timers for duration
     :param lang: Language to format response in
+    :param use_24hour: If true, use 24 hour timescale
     :return: name for alert
     """
     if alert_type == AlertType.TIMER:
         time_str = spoken_time_remaining(alert_time, now_time, lang)
         return f"{time_str} Timer"  # TODO: Resolve resource for lang support
     load_language(lang)
-    time_str = nice_time(alert_time, lang)  # TODO: Handle user time prefs here
+    time_str = nice_time(alert_time, lang, False, use_24hour, True)
     if alert_type == AlertType.ALARM:
         return f"{time_str} Alarm"  # TODO: Resolve resource for lang support
     if alert_type == AlertType.REMINDER:
@@ -109,12 +110,13 @@ def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
     return f"{time_str} Alert"  # TODO: Resolve resource for lang support
 
 
-def build_alert_from_intent(message: Message, alert_type: AlertType) -> \
-        Optional[Alert]:
+def build_alert_from_intent(message: Message, alert_type: AlertType,
+                            timezone: dt.tzinfo) -> Optional[Alert]:
     """
     Parse alert parameters from a matched intent into an Alert object
     :param message: Message associated with request
     :param alert_type: AlertType requested
+    :param timezone: Timezone for user associated with request
     :returns: Alert extracted from utterance or None if missing required params
     """
     tokens = tokenize_utterance(message)
@@ -128,11 +130,11 @@ def build_alert_from_intent(message: Message, alert_type: AlertType) -> \
 
     # Parse data in a specific order since tokens are mutated in parse methods
     priority = parse_alert_priority_from_message(message, tokens)
-    end_condition = parse_end_condition_from_message(message, tokens)
+    end_condition = parse_end_condition_from_message(message, tokens, timezone)
     audio_file = parse_audio_file_from_message(message, tokens)
     script_file = parse_script_file_from_message(message, tokens)
-    anchor_time = dt.datetime.now(dt.timezone.utc)
-    alert_time = parse_alert_time_from_message(message, tokens)
+    anchor_time = dt.datetime.now(timezone)
+    alert_time = parse_alert_time_from_message(message, tokens, timezone)
 
     if not alert_time:
         return
@@ -230,32 +232,39 @@ def parse_repeat_from_message(message: Message,
 
 
 def parse_end_condition_from_message(message: Message,
-                                     tokens: Optional[list] = None) -> \
-        Optional[dt.datetime]:
+                                     tokens: Optional[list] = None,
+                                     timezone: dt.tzinfo = dt.timezone.utc) \
+        -> Optional[dt.datetime]:
     """
     Parses an end condition from the utterance. If tokens are provided, handled
     tokens are removed.
     :param message: Message associated with intent match
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    :param timezone: timezone of request, defaults to utc
     :returns: extracted datetime of end condition, else None
     """
     tokens = tokens or tokenize_utterance(message)
+    anchor_date = dt.datetime.now(timezone)
+
     if message.data.get("until"):
         load_language(message.data.get("lang"))
         end_clause = tokens.pop(tokens.index(message.data["until"]) + 1)
-        end_time, _ = extract_datetime(end_clause, message.data.get("lang"))
+        end_time, _ = extract_datetime(end_clause, anchor_date,
+                                       message.data.get("lang"))
         return end_time
     # TODO: parse 'for n days/weeks/occurrences' here
     return None
 
 
 def parse_alert_time_from_message(message: Message,
-                                  tokens: Optional[list] = None) -> \
+                                  tokens: Optional[list] = None,
+                                  timezone: dt.tzinfo = dt.timezone.utc) -> \
         Optional[dt.datetime]:
     """
     Parse a requested alert time from the request utterance
     :param message: Message associated with intent match
     :param tokens: optional tokens parsed from message by `tokenize_utterances`
+    :param timezone: timezone of request, defaults to utc
     :returns: Parsed datetime for the alert or None if no time is extracted
     """
     tokens = tokens or tokenize_utterance(message)
@@ -263,7 +272,7 @@ def parse_alert_time_from_message(message: Message,
     load_language(message.data.get("lang", "en-us"))
     alert_time = None
     for token in remainder_tokens:
-        start_time = dt.datetime.now(dt.timezone.utc)
+        start_time = dt.datetime.now(timezone)
         duration, remainder = extract_duration(token)
         if duration:
             alert_time = start_time + duration

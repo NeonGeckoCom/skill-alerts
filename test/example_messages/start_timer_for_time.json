@@ -1,0 +1,73 @@
+{
+  "type": "skill-alerts.neongeckocom:create_timer",
+  "data": {
+    "utterances": [
+      "start a timer for 5 minutes"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_timer",
+    "target": null,
+    "confidence": 0.3111111111111111,
+    "__tags__": [
+      {
+        "match": "start",
+        "key": "start",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "start",
+            "match": "start",
+            "data": [
+              [
+                "start",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "timer",
+        "key": "timer",
+        "start_token": 2,
+        "entities": [
+          {
+            "key": "timer",
+            "match": "timer",
+            "data": [
+              [
+                "timer",
+                "skill_alerts_neongeckocomtimer"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 2,
+        "from_context": false
+      }
+    ],
+    "utterance": "start a timer for 5 minutes",
+    "set": "start",
+    "timer": "timer"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644892024.36015,
+      "transcribed": 1644892024.36015,
+      "save_transcript": 4.0531158447265625e-06,
+      "text_parsers": 1.3828277587890625e-05
+    },
+    "skill_id": "skill-alerts.neongeckocom"
+  }
+}

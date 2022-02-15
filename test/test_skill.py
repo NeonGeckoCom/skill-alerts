@@ -16,18 +16,18 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
-import datetime
-import datetime as dt
+
+import pytest
 import random
 import sys
 import shutil
 import unittest
+import datetime as dt
+
 from threading import Event
-
-import pytest
-
 from os import mkdir, remove
 from os.path import dirname, join, exists
+from dateutil.tz import gettz
 from mock import Mock
 from mycroft_bus_client import Message
 from ovos_utils.events import EventSchedulerInterface
@@ -37,6 +37,14 @@ sys.path.append(dirname(dirname(__file__)))
 from util import AlertType, AlertState, AlertPriority, Weekdays
 from util.alert import Alert
 from util.alert_manager import AlertManager
+
+examples_dir = join(dirname(__file__), "example_messages")
+
+
+def _get_message_from_file(filename: str):
+    with open(join(examples_dir, filename)) as f:
+        contents = f.read()
+    return Message.deserialize(contents)
 
 
 class TestSkill(unittest.TestCase):
@@ -56,8 +64,6 @@ class TestSkill(unittest.TestCase):
         cls.skill.settings_write_path = cls.test_fs
         cls.skill.file_system.path = cls.test_fs
 
-        # cls.skill._init_settings()
-        # cls.skill.initialize()
         # Override speak and speak_dialog to test passed arguments
         cls.skill.speak = Mock()
         cls.skill.speak_dialog = Mock()
@@ -246,6 +252,15 @@ class TestAlertManager(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.manager_path = join(dirname(__file__), "test_cache")
 
+    def _init_alert_manager(self):
+        alert_expired = Mock()
+
+        # Load empty cache
+        test_file = join(self.manager_path, "alerts.json")
+        scheduler = EventSchedulerInterface("test")
+        alert_manager = AlertManager(test_file, scheduler, alert_expired)
+        return alert_manager
+
     def test_alert_manager_init(self):
         called = Event()
         test_alert: Alert = None
@@ -255,12 +270,11 @@ class TestAlertManager(unittest.TestCase):
             self.assertEqual(alert.data, test_alert.data)
             called.set()
 
-        now_time = datetime.datetime.now(datetime.timezone.utc)
-        past_alert = Alert.create(now_time + datetime.timedelta(minutes=-1))
-        future_alert = Alert.create(now_time + datetime.timedelta(minutes=5))
+        now_time = dt.datetime.now(dt.timezone.utc)
+        past_alert = Alert.create(now_time + dt.timedelta(minutes=-1))
+        future_alert = Alert.create(now_time + dt.timedelta(minutes=5))
         repeat_alert = Alert.create(now_time,
-                                    repeat_frequency=datetime.timedelta(
-                                        seconds=1))
+                                    repeat_frequency=dt.timedelta(seconds=1))
 
         # Load empty cache
         test_file = join(self.manager_path, "alerts.json")
@@ -353,11 +367,10 @@ class TestAlertManager(unittest.TestCase):
         scheduler = EventSchedulerInterface("test")
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
 
-        now_time = datetime.datetime.now(datetime.timezone.utc)
-        future_alert = Alert.create(now_time + datetime.timedelta(minutes=5))
+        now_time = dt.datetime.now(dt.timezone.utc)
+        future_alert = Alert.create(now_time + dt.timedelta(minutes=5))
         repeat_alert = Alert.create(now_time,
-                                    repeat_frequency=datetime.timedelta(
-                                        seconds=1))
+                                    repeat_frequency=dt.timedelta(seconds=1))
 
         # Add alerts to manager
         alert_manager.add_alert(future_alert)
@@ -391,15 +404,8 @@ class TestAlertManager(unittest.TestCase):
 
     def test_get_user_alerts(self):
         from util.alert_manager import get_alert_user
-
-        alert_expired = Mock()
-
-        # Load empty cache
-        test_file = join(self.manager_path, "alerts.json")
-        scheduler = EventSchedulerInterface("test")
-        alert_manager = AlertManager(test_file, scheduler, alert_expired)
-
-        now_time = datetime.datetime.now(datetime.timezone.utc)
+        alert_manager = self._init_alert_manager()
+        now_time = dt.datetime.now(dt.timezone.utc)
         for i in range(10):
             if i in range(5):
                 user = "test_user"
@@ -421,6 +427,24 @@ class TestAlertManager(unittest.TestCase):
                              [*other_user_alerts["pending"],
                               *other_user_alerts["active"],
                               *other_user_alerts["missed"]]]))
+
+    def test_get_all_alerts(self):
+        alert_manager = self._init_alert_manager()
+        now_time = dt.datetime.now(dt.timezone.utc)
+        for i in range(15):
+            if i in range(10):
+                user = "test_user"
+            else:
+                user = "other_user"
+            alert_time = now_time + dt.timedelta(minutes=random.randint(1, 60))
+            alert = Alert.create(alert_time, context={"user": user})
+            alert_manager.add_alert(alert)
+
+        all_alerts = alert_manager.get_all_alerts()
+        self.assertEqual(len(all_alerts["pending"]), 15)
+        for i in range(1, len(all_alerts)):
+            self.assertLessEqual(all_alerts["pending"][i-1].next_expiration,
+                                 all_alerts["pending"][i].next_expiration)
 
     def test_get_alert_user(self):
         from util.alert_manager import get_alert_user, _DEFAULT_USER
@@ -543,17 +567,11 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(to_speak, "eight days")
 
     def test_get_default_alert_name(self):
+        # TODO
         pass
 
     def test_tokenize_utterance_alarm(self):
         from util.parse_utils import tokenize_utterance
-
-        examples_dir = join(dirname(__file__), "example_messages")
-
-        def _get_message_from_file(filename: str):
-            with open(join(examples_dir, filename)) as f:
-                contents = f.read()
-            return Message.deserialize(contents)
 
         daily = _get_message_from_file("create_alarm_daily.json")
         tokens = tokenize_utterance(daily)
@@ -590,12 +608,6 @@ class TestParseUtils(unittest.TestCase):
 
     def test_get_unmatched_tokens_alarm(self):
         from util.parse_utils import get_unmatched_tokens
-        examples_dir = join(dirname(__file__), "example_messages")
-
-        def _get_message_from_file(filename: str):
-            with open(join(examples_dir, filename)) as f:
-                contents = f.read()
-            return Message.deserialize(contents)
 
         daily = _get_message_from_file("create_alarm_daily.json")
         tokens = get_unmatched_tokens(daily)
@@ -634,12 +646,6 @@ class TestParseUtils(unittest.TestCase):
     def test_parse_repeat_from_message(self):
         from util.parse_utils import parse_repeat_from_message,\
             tokenize_utterance
-        examples_dir = join(dirname(__file__), "example_messages")
-
-        def _get_message_from_file(filename: str):
-            with open(join(examples_dir, filename)) as f:
-                contents = f.read()
-            return Message.deserialize(contents)
 
         daily = _get_message_from_file("create_alarm_daily.json")
         repeat = parse_repeat_from_message(daily)
@@ -684,17 +690,12 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(tokens, ["wake me up", "every", "and", "at 9 am"])
 
     def test_parse_end_condition_from_message(self):
+        # TODO
         pass
 
-    def test_parse_alert_time_from_message(self):
+    def test_parse_alert_time_from_message_alarm(self):
         from util.parse_utils import parse_alert_time_from_message, \
             tokenize_utterance
-        examples_dir = join(dirname(__file__), "example_messages")
-
-        def _get_message_from_file(filename: str):
-            with open(join(examples_dir, filename)) as f:
-                contents = f.read()
-            return Message.deserialize(contents)
 
         daily = _get_message_from_file("create_alarm_daily.json")
         alert_time = parse_alert_time_from_message(daily)
@@ -723,12 +724,16 @@ class TestParseUtils(unittest.TestCase):
         self.assertIsInstance(alert_time, dt.datetime)
         self.assertEqual(alert_time.time(), dt.time(hour=7))
 
+        tz = gettz("America/Los_Angeles")
         wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
-        alert_time = parse_alert_time_from_message(wakeup_in)
+        alert_time = parse_alert_time_from_message(wakeup_in, timezone=tz)
         self.assertIsInstance(alert_time, dt.datetime)
-        valid_alert_time = \
-            dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=8)
+        self.assertEqual(alert_time.tzinfo, tz)
 
+        valid_alert_time = \
+            dt.datetime.now(tz) + dt.timedelta(hours=8)
+
+        self.assertEqual(valid_alert_time.tzinfo, tz)
         self.assertAlmostEqual(alert_time.timestamp(),
                                valid_alert_time.timestamp(), 0)
 
@@ -736,18 +741,45 @@ class TestParseUtils(unittest.TestCase):
             _get_message_from_file("alarm_every_monday_thursday.json")
         alert_time = parse_alert_time_from_message(multi_day_repeat)
         self.assertIsInstance(alert_time, dt.datetime)
+        self.assertEqual(alert_time.tzinfo, dt.timezone.utc)
         self.assertEqual(alert_time.time(), dt.time(hour=9))
 
+    def test_parse_alert_time_from_message_timer(self):
+        from util.parse_utils import parse_alert_time_from_message
+        sea_tz = gettz("America/Los_Angeles")
+        no_name_10_minutes = _get_message_from_file("set_time_timer.json")
+        baking_12_minutes = _get_message_from_file("start_named_timer.json")
+        bread_20_minutes = _get_message_from_file("start_timer_for_name.json")
+        no_name_utc = parse_alert_time_from_message(no_name_10_minutes)
+        no_name_local = parse_alert_time_from_message(no_name_10_minutes,
+                                                      timezone=sea_tz)
+        baking_utc = parse_alert_time_from_message(baking_12_minutes)
+        baking_local = parse_alert_time_from_message(baking_12_minutes,
+                                                     timezone=sea_tz)
+        bread_utc = parse_alert_time_from_message(bread_20_minutes)
+        bread_local = parse_alert_time_from_message(bread_20_minutes,
+                                                    timezone=sea_tz)
+        self.assertAlmostEqual(no_name_utc.timestamp(),
+                               no_name_local.timestamp(), 0)
+        self.assertAlmostEqual(baking_utc.timestamp(),
+                               baking_local.timestamp(), 0)
+        self.assertAlmostEqual(bread_utc.timestamp(),
+                               bread_local.timestamp(), 0)
+
     def test_parse_alert_priority_from_message(self):
+        # TODO
         pass
 
     def test_parse_audio_file_from_message(self):
+        # TODO
         pass
 
     def test_parse_script_file_from_message(self):
+        # TODO
         pass
 
     def test_parse_alert_name_from_message(self):
+        # TODO
         pass
 
     def test_parse_alert_context_from_message(self):
@@ -794,8 +826,141 @@ class TestParseUtils(unittest.TestCase):
         self.assertIsInstance(klat_user["created"], float)
         self.assertIsInstance(klat_user["klat_data"], dict)
 
-    def test_build_alert_from_intent(self):
-        pass
+    def test_build_alert_from_intent_alarm(self):
+        from util.parse_utils import build_alert_from_intent
+        seattle_tz = gettz("America/Los_Angeles")
+        utc_tz = dt.timezone.utc
+
+        daily = _get_message_from_file("create_alarm_daily.json")
+        wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        wakeup_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+
+        daily_alert_seattle = build_alert_from_intent(daily, AlertType.ALARM,
+                                                      seattle_tz)
+        daily_alert_utc = build_alert_from_intent(daily, AlertType.ALARM,
+                                                  utc_tz)
+
+        def _validate_daily(alert: Alert):
+            self.assertEqual(alert.alert_type, AlertType.ALARM)
+            self.assertIsInstance(alert.priority, int)
+            self.assertIsNone(alert.end_repeat)
+            self.assertEqual(len(alert.repeat_days), 7)
+            self.assertIsNone(alert.repeat_frequency)
+            self.assertIsInstance(alert.context, dict)
+            self.assertIsInstance(alert.alert_name, str)
+            self.assertIsNone(alert.audio_file)
+            self.assertIsNone(alert.script_filename)
+            self.assertFalse(alert.is_expired)
+            self.assertGreaterEqual(alert.time_to_expiration,
+                                    dt.timedelta(seconds=1))
+            self.assertIn(alert.next_expiration.time(),
+                          (dt.time(hour=10), dt.time(hour=22)))
+        _validate_daily(daily_alert_seattle)
+        _validate_daily(daily_alert_utc)
+        self.assertNotEqual(
+            daily_alert_seattle.time_to_expiration.total_seconds(),
+            daily_alert_utc.time_to_expiration.total_seconds())
+
+        wakeup_at_alert_seattle = build_alert_from_intent(wakeup_at,
+                                                          AlertType.ALARM,
+                                                          seattle_tz)
+        wakeup_at_alert_utc = build_alert_from_intent(wakeup_at,
+                                                      AlertType.ALARM,
+                                                      utc_tz)
+
+        def _validate_wakeup_at(alert: Alert):
+            self.assertEqual(alert.alert_type, AlertType.ALARM)
+            self.assertIsInstance(alert.priority, int)
+            self.assertIsNone(alert.end_repeat)
+            self.assertIsNone(alert.repeat_days)
+            self.assertIsNone(alert.repeat_frequency)
+            self.assertIsInstance(alert.context, dict)
+            self.assertIsInstance(alert.alert_name, str)
+            self.assertIsNone(alert.audio_file)
+            self.assertIsNone(alert.script_filename)
+            self.assertFalse(alert.is_expired)
+            self.assertGreaterEqual(alert.time_to_expiration,
+                                    dt.timedelta(seconds=1))
+            self.assertEqual(alert.next_expiration.time(), dt.time(hour=7))
+
+        _validate_wakeup_at(wakeup_at_alert_seattle)
+        _validate_wakeup_at(wakeup_at_alert_utc)
+        self.assertNotEqual(wakeup_at_alert_seattle.time_to_expiration,
+                            wakeup_at_alert_utc.time_to_expiration)
+
+        wakeup_in_alert_seattle = build_alert_from_intent(wakeup_in,
+                                                          AlertType.ALARM,
+                                                          seattle_tz)
+        wakeup_in_alert_utc = build_alert_from_intent(wakeup_in,
+                                                      AlertType.ALARM,
+                                                      utc_tz)
+
+        def _validate_wakeup_in(alert: Alert):
+            self.assertEqual(alert.alert_type, AlertType.ALARM)
+            self.assertIsInstance(alert.priority, int)
+            self.assertIsNone(alert.end_repeat)
+            self.assertIsNone(alert.repeat_days)
+            self.assertIsNone(alert.repeat_frequency)
+            self.assertIsInstance(alert.context, dict)
+            self.assertIsInstance(alert.alert_name, str)
+            self.assertIsNone(alert.audio_file)
+            self.assertIsNone(alert.script_filename)
+            self.assertFalse(alert.is_expired)
+            self.assertAlmostEqual(alert.time_to_expiration.total_seconds(),
+                                   dt.timedelta(hours=8).total_seconds(),
+                                   delta=2)
+
+        _validate_wakeup_in(wakeup_in_alert_seattle)
+        _validate_wakeup_in(wakeup_in_alert_utc)
+        self.assertAlmostEqual(wakeup_in_alert_seattle.time_to_expiration
+                               .total_seconds(),
+                               wakeup_in_alert_utc.time_to_expiration
+                               .total_seconds(), 0)
+
+    def test_build_alert_from_intent_timer(self):
+        from util.parse_utils import build_alert_from_intent
+        sea_tz = gettz("America/Los_Angeles")
+        no_name_10_minutes = _get_message_from_file("set_time_timer.json")
+        baking_12_minutes = _get_message_from_file("start_named_timer.json")
+        bread_20_minutes = _get_message_from_file("start_timer_for_name.json")
+
+        def _validate_alert_default_params(timer: Alert):
+            self.assertEqual(timer.alert_type, AlertType.TIMER)
+            self.assertIsInstance(timer.priority, int)
+            self.assertIsNone(timer.end_repeat)
+            self.assertIsNone(timer.repeat_days)
+            self.assertIsNone(timer.repeat_frequency)
+            self.assertIsInstance(timer.context, dict)
+            self.assertIsInstance(timer.alert_name, str)
+            self.assertIsNone(timer.audio_file)
+            self.assertIsNone(timer.script_filename)
+            self.assertFalse(timer.is_expired)
+            self.assertIsInstance(timer.time_to_expiration, dt.timedelta)
+            self.assertIsInstance(timer.next_expiration, dt.datetime)
+
+        no_name_timer_utc = build_alert_from_intent(no_name_10_minutes,
+                                                    AlertType.TIMER,
+                                                    dt.timezone.utc)
+        no_name_timer_sea = build_alert_from_intent(no_name_10_minutes,
+                                                    AlertType.TIMER,
+                                                    sea_tz)
+        _validate_alert_default_params(no_name_timer_utc)
+        _validate_alert_default_params(no_name_timer_sea)
+        self.assertAlmostEqual(
+            no_name_timer_sea.time_to_expiration.total_seconds(),
+            no_name_timer_utc.time_to_expiration.total_seconds(), 0)
+
+        baking_timer_sea = build_alert_from_intent(baking_12_minutes,
+                                                   AlertType.TIMER,
+                                                   sea_tz)
+        _validate_alert_default_params(baking_timer_sea)
+        # TODO: Validate timer name
+
+        bread_timer_sea = build_alert_from_intent(bread_20_minutes,
+                                                  AlertType.TIMER,
+                                                  sea_tz)
+        _validate_alert_default_params(bread_timer_sea)
+        # TODO: Validate timer name
 
 
 if __name__ == '__main__':
