@@ -28,6 +28,7 @@
 
 import time
 import os
+from typing import Tuple
 
 from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
@@ -41,32 +42,16 @@ from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file, resolve_resource_file
 from mycroft.util.format import nice_time
 
+from .util import Weekdays, AlertState
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
 from .util.parse_utils import build_alert_from_intent, spoken_time_remaining
-
-try:
-    from neon_transcripts_controller.util import find_user_recording
-except ImportError:
-    # TODO: Extension goes here
-    find_user_recording = None
-    LOG.warning("transcripts not enabled on this system")
-
-try:
-    import spacy
-except ImportError:
-    spacy = None
 
 
 class AlertSkill(NeonSkill):
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self._alert_manager = None
-        try:
-            # TODO: This should be an external util with language support DM
-            self.nlp = spacy.load("en_core_web_sm")
-        except Exception as e:
-            LOG.error(e)
 
     @property
     def alert_manager(self) -> AlertManager:
@@ -93,33 +78,33 @@ class AlertSkill(NeonSkill):
         Intent handler for creating an alarm
         :param message: Message associated with request
         """
-        LOG.info(message.serialize())
-        if self.neon_in_request(message):
-            alert = build_alert_from_intent(message, AlertType.ALARM,
-                                            self._get_user_tz(message))
-            if not alert:
-                # TODO: Parse "alarm" from resource files
-                self.speak_dialog("ErrorNoTime", {"kind": "alarm"},
-                                  private=True)
-                return  # TODO: Converse to get time
-            self.confirm_alert(alert, message)
+        if not self.neon_in_request(message):
+            return
+        alert = build_alert_from_intent(message, AlertType.ALARM,
+                                        self._get_user_tz(message))
+        if not alert:
+            self.speak_dialog("ErrorNoTime",
+                              {"kind": self.translate("word_alarm")},
+                              private=True)
+            return  # TODO: Converse to get time
+        self.confirm_alert(alert, message)
 
     @intent_handler(IntentBuilder("create_timer").require("set")
-                    .require("timer").optionally("Neon"))
+                    .require("timer"))
     def handle_create_timer(self, message):
         """
         Intent handler for creating a timer
         :param message: Message associated with request
         """
-        LOG.info(message.serialize())
-        if self.neon_in_request(message):
-            tz = self._get_user_tz(message)
-            anchor_time = datetime.now(tz)
-            alert = build_alert_from_intent(message, AlertType.TIMER, tz)
-            if not alert:
-                self.speak_dialog('ErrorHowLong', private=True)
-                return  # TODO: Converse to get time
-            self.confirm_alert(alert, message, anchor_time)
+        if not self.neon_in_request(message):
+            return
+        tz = self._get_user_tz(message)
+        anchor_time = datetime.now(tz)
+        alert = build_alert_from_intent(message, AlertType.TIMER, tz)
+        if not alert:
+            self.speak_dialog('error_no_duration', private=True)
+            return  # TODO: Converse to get time
+        self.confirm_alert(alert, message, anchor_time)
 
     @intent_handler(IntentBuilder("create_reminder").require("set")
                     .require("reminder").optionally("playable")
@@ -132,116 +117,202 @@ class AlertSkill(NeonSkill):
         Intent handler for creating a reminder
         :param message: Message associated with request
         """
-        LOG.info(message.serialize())
-        if self.neon_in_request(message):
-            alert = build_alert_from_intent(message, AlertType.ALARM,
-                                            self._get_user_tz(message))
-            if not alert:
-                # TODO: Parse "reminder" from resource files
-                self.speak_dialog("ErrorNoTime", {"kind": "reminder"},
-                                  private=True)
-                return  # TODO: Converse to get time
-            self.confirm_alert(alert, message)
+        if not self.neon_in_request(message):
+            return
+        alert = build_alert_from_intent(message, AlertType.REMINDER,
+                                        self._get_user_tz(message))
+        if not alert:
+            self.speak_dialog("error_no_time",
+                              {"kind": self.translate("word_reminder")},
+                              private=True)
+            return  # TODO: Converse to get time
+        self.confirm_alert(alert, message)
 
-    @intent_handler(IntentBuilder("alternate_reminder").require("setReminder")
+    @intent_handler(IntentBuilder("alternate_reminder").require("remind_me")
                     .optionally("playable").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
                     .optionally("until"))
     def handle_create_reminder_alt(self, message):
+        """
+        Alternate intent handler for creating a reminder
+        :param message: Message associated with request
+        """
         self.handle_create_reminder(message)
 
     @intent_handler(IntentBuilder("create_event").optionally("set")
-                    .require("event").optionally("playable").optionally("Neon")
+                    .require("event").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday")
                     .optionally("repeat").optionally("until")
                     .optionally("script").optionally("priority"))
     def handle_create_event(self, message):
         """
-        Intent handler for creating an event. Wraps create_reminder
+        Intent handler for creating an event. Wraps handle_create_reminder
         :param message: Message associated with request
         """
         LOG.debug("Create Event calling Reminder")
+        # TODO: Alternate implementation
         self.handle_create_reminder(message)
-    #
-    # # Query Alerts
-    # @intent_handler(IntentBuilder("next_alert").require("next")
-    #                 .one_of("alarm", "timer", "reminder", "event", "alert"))
-    # def handle_next_alert(self, message):
-    #     """
-    #     Intent handler to handle request for the next alert (kind optionally specified)
-    #     :param message: Message associated with request
-    #     """
-    #     if self.neon_in_request(message):
-    #         user = self.get_utterance_user(message)
-    #         user_alerts = self._get_alerts_for_user(user)
-    #         if message.data.get("alarm"):
-    #             kind = 'alarm'
-    #         elif message.data.get('timer'):
-    #             kind = 'timer'
-    #         elif message.data.get('reminder') or message.data.get('event'):
-    #             kind = 'reminder'
-    #         else:
-    #             kind = 'alert'
-    #             combined = user_alerts.get("alarm", list())
-    #             combined.extend(user_alerts.get("timer"))
-    #             combined.extend(user_alerts.get("reminder"))
-    #             combined.sort()
-    #             user_alerts[kind] = combined
-    #         alerts_list = user_alerts.get(kind)
-    #
-    #         if not alerts_list:
-    #             self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
-    #         else:
-    #             # day, alert_time, name, file, repeat = self.get_speak_time(alerts_list, single=True)
-    #             alert = alerts_list[0]  # These are all sorted time ascending
-    #             data = self._get_speak_data_from_alert(alert)
-    #             if kind == 'reminder':
-    #                 # This is for events with a useful name
-    #                 self.speak_dialog("NextEvent", data, private=True)
-    #             else:
-    #                 self.speak_dialog("NextAlert", data, private=True)
-    #
-    # @intent_handler(IntentBuilder("list_alerts").require("list")
-    #                 .one_of("alarm", "timer", "reminder", "event", "alert"))
-    # def handle_list_alerts(self, message):
-    #     """
-    #     Intent handler to handle request for all alerts (kind optionally specified)
-    #     :param message: Message associated with request
-    #     """
-    #     if self.neon_in_request(message):
-    #         user = self.get_utterance_user(message)
-    #         user_alerts = self._get_alerts_for_user(user)
-    #         if message.data.get("alarm"):
-    #             kind = 'alarm'
-    #         elif message.data.get('timer'):
-    #             kind = 'timer'
-    #         elif message.data.get('reminder') or message.data.get('event'):
-    #             kind = 'reminder'
-    #         else:
-    #             kind = 'alert'
-    #             combined = user_alerts.get("alarm", list())
-    #             combined.extend(user_alerts.get("timer"))
-    #             combined.extend(user_alerts.get("reminder"))
-    #             combined.sort()
-    #             user_alerts[kind] = combined
-    #         alerts_list = user_alerts.get(kind)
-    #
-    #         LOG.info(f"alerts_list: {alerts_list}")
-    #         if not alerts_list:
-    #             self.speak_dialog("NoUpcoming", {"kind": kind}, private=True)
-    #
-    #         else:
-    #             # days, times, names, files, repeats = self.get_speak_time(alerts_list, single=False)
-    #             self.speak_dialog("UpcomingType", {'kind': kind}, private=True)
-    #             for alert in alerts_list:
-    #                 data = self._get_speak_data_from_alert(alert)
-    #                 if data["repeat"]:
-    #                     self.speak_dialog("ListRepeatingAlerts", data, private=True)
-    #                 else:
-    #                     self.speak_dialog("ListAlerts", data, private=True)
-    #
+
+    # Query Alerts
+    @intent_handler(IntentBuilder("next_alert").require("next")
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
+    def handle_next_alert(self, message):
+        """
+        Intent handler to handle request for the next alert (kind optionally specified)
+        :param message: Message associated with request
+        """
+        if not self.neon_in_request(message):
+            return
+
+        user = self.get_utterance_user(message)
+        alert_type = self._get_alert_type_from_intent(message)
+        alerts_list, spoken_type = \
+            self._get_requested_alerts_list(user, alert_type,
+                                            AlertState.PENDING)
+
+        if not alerts_list:
+            self.speak_dialog("list_alert_none_upcoming",
+                              {"kind": spoken_type}, private=True)
+        else:
+            alert = alerts_list[0]  # These are all sorted time ascending
+            use_24hour = self.preference_unit(message)["time"] == 24
+            data = {
+                "kind": spoken_type,
+                "name": alert.alert_name,
+                "time": nice_time(alert.next_expiration,
+                                  message.data.get("lang"),
+                                  use_24hour=use_24hour,
+                                  use_ampm=True)
+            }
+            if alert.alert_type == alert_type.REMINDER:
+                # This is for events with a useful name
+                self.speak_dialog("next_alert_named", data, private=True)
+            else:
+                self.speak_dialog("next_alert_unnamed", data, private=True)
+
+    @intent_handler(IntentBuilder("list_alerts").require("list")
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
+    def handle_list_alerts(self, message):
+        """
+        Intent handler to handle request for all alerts (kind optionally specified)
+        :param message: Message associated with request
+        """
+        if not self.neon_in_request(message):
+            return
+
+        user = self.get_utterance_user(message)
+        alert_type = self._get_alert_type_from_intent(message)
+        alerts_list, spoken_type = \
+            self._get_requested_alerts_list(user, alert_type,
+                                            AlertState.PENDING)
+        if not alerts_list:
+            self.speak_dialog("list_alert_none_upcoming",
+                              {"kind": spoken_type}, private=True)
+        else:
+            self.speak_dialog("list_alert_intro",
+                              {'kind': spoken_type}, private=True)
+            use_24hour = self.preference_unit(message)["time"] == 24
+            for alert in alerts_list:
+                data = self._get_alert_dialog_data(alert,
+                                                   message.data.get("lang"),
+                                                   use_24hour)
+                if alert.repeat_days or alert.repeat_frequency:
+                    self.speak_dialog("list_alert_repeating",
+                                      data, private=True)
+                else:
+                    self.speak_dialog("list_alert", data, private=True)
+
+    @intent_handler(IntentBuilder("timer_status")
+                    .require('timer_time_remaining'))
+    def handle_timer_status(self, message):
+        """
+        Intent handler to handle request for timer status (name optional)
+        :param message: Message associated with request
+        """
+        if request_from_mobile(message):
+            self.mobile_skill_intent("alert_status",
+                                     {"kind": "current_timer"}, message)
+            return
+
+        user = self.get_utterance_user(message)
+        user_timers, _ = self._get_requested_alerts_list(user, AlertType.TIMER,
+                                                         AlertState.PENDING)
+        if not user_timers:
+            if self.neon_in_request(message):
+                self.speak_dialog("timer_status_none_active", private=True)
+            return
+
+        matched_timers_by_name = [timer for timer in user_timers
+                                  if timer.alert_name in
+                                  message.data.get("utterance")]
+        if len(matched_timers_by_name) == 1:
+            # We matched a specific timer here
+            matched_timer: Alert = matched_timers_by_name[0]
+            name = matched_timer.alert_name
+            expiration = matched_timer.next_expiration
+            remaining_time = \
+                spoken_time_remaining(matched_timer.next_expiration,
+                                      lang=message.data.get("lang"))
+            self._display_timer_status(name, expiration)
+            self.speak_dialog('timer_status',
+                              {'timer': name,
+                               'duration': remaining_time}, private=True)
+        else:
+            for timer in user_timers:
+                remaining_time = \
+                    spoken_time_remaining(timer.next_expiration,
+                                          lang=message.data.get("lang"))
+                self.speak_dialog('timer_status',
+                                  {'timer': timer.alert_name,
+                                   'duration': remaining_time}, private=True)
+
+    @intent_handler(IntentBuilder("start_quiet_hours")
+                    .require("quiet_hours_start"))
+    def handle_start_quiet_hours(self, message):
+        """
+        Handles starting quiet hours.
+        No alerts will be spoken until quiet hours are ended
+        :param message: Message associated with request
+        """
+        # TODO: for duration? Add event to schedule? DM
+        if not self.neon_in_request(message):
+            return
+        self.speak_dialog("quiet_hours_start", private=True)
+        self.update_skill_settings({"quiet_hours": True}, message)
+
+    @intent_handler(IntentBuilder("end_quiet_hours")
+                    .require("quiet_hours_end"))
+    def handle_end_quiet_hours(self, message):
+        """
+        Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
+        """
+        if not self.neon_in_request(message):
+            return
+        if self.preference_skill(message)["quiet_hours"]:
+            self.speak_dialog("quiet_hours_end", private=True)
+        self.update_skill_settings({"quiet_hours": False}, message)
+        user = self.get_utterance_user(message)
+        missed_alerts, _ = self._get_requested_alerts_list(user,
+                                                           AlertType.ALL,
+                                                           AlertState.MISSED)
+        if missed_alerts:
+            self.speak_dialog("list_alert_missed_intro", private=True)
+            use_24hour = self.preference_unit(message)["time"] == 24
+            for alert in missed_alerts:
+                data = self._get_alert_dialog_data(alert,
+                                                   message.data.get("lang"),
+                                                   use_24hour)
+                if alert.repeat_days or alert.repeat_frequency:
+                    self.speak_dialog("list_alert_repeating",
+                                      data, private=True)
+                else:
+                    self.speak_dialog("list_alert", data, private=True)
+                self.alert_manager.dismiss_missed_alert(get_alert_id(alert))
+        else:
+            self.speak_dialog("list_alert_none_missed", private=True)
+
     # @intent_handler(IntentBuilder("cancel_alert").require("cancel")
     #                 .optionally("all")
     #                 .one_of("alarm", "timer", "reminder", "event", "alert"))
@@ -298,7 +369,7 @@ class AlertSkill(NeonSkill):
     #             if kind in (AlertType.REMINDER, AlertType.ALL):
     #                 for alert in user_alerts.get("timer"):
     #                     self._cancel_alert(alert)
-    #             self.speak_dialog("CancelAll", {"kind": spoken_kind}, private=True)
+    #             self.speak_dialog("confirm_cancel_all", {"kind": spoken_kind}, private=True)
     #             return
     #
     #         # Match an alert by name or time
@@ -316,93 +387,105 @@ class AlertSkill(NeonSkill):
     #                     break
     #         if not matched:
     #             # Notify nothing to cancel
-    #             self.speak_dialog("NoneToCancel", private=True)
+    #             self.speak_dialog("error_nothing_to_cancel", private=True)
     #         else:
     #             name = self.pending[matched]["name"]
     #             self._cancel_alert(matched)
-    #             self.speak_dialog('CancelAlert', {'kind': kind,
+    #             self.speak_dialog('confirm_cancel_alert', {'kind': kind,
     #                                               'name': name}, private=True)
     #             return
     #
     #         # Nothing matched, Assume user meant an active alert
     #         self._cancel_active_alerts(user_alerts["active"])
     #
-    # @intent_handler(IntentBuilder("timer_status").require('howMuchTime'))
-    # def handle_timer_status(self, message):
-    #     """
-    #     Intent handler to handle request for timer status (name optionally specified)
-    #     :param message: Message associated with request
-    #     """
-    #     if request_from_mobile(message):
-    #         self.mobile_skill_intent("alert_status", {"kind": "current_timer"}, message)
-    #         return
-    #
-    #     user = self.get_utterance_user(message)
-    #     user_timers = self._get_alerts_for_user(user)["timer"]
-    #     if user_timers:
-    #         matched_timers_by_name = [timer for timer in user_timers
-    #                                   if self.pending[timer]["name"] in message.data.get("utterance")]
-    #         if len(matched_timers_by_name) == 1:
-    #             # We matched a specific timer here
-    #             name = self.pending[matched_timers_by_name[0]]["name"]
-    #             expiration = parse(self.pending[matched_timers_by_name[0]]["time"]).replace(microsecond=0)
-    #             remaining_time = self._get_spoken_time_remaining(expiration, message)
-    #             self._display_timer_status(name, expiration)
-    #             self.speak_dialog('TimerStatus', {'timer': name,
-    #                                               'duration': remaining_time}, private=True)
-    #         else:
-    #             for timer in user_timers:
-    #                 timer_data = self.pending[timer]
-    #                 tz = self._get_user_tz(message)
-    #                 delta = parse(timer_data["time"]).replace(microsecond=0) - datetime.now(tz).replace(microsecond=0)
-    #                 # LOG.debug(delta)
-    #                 duration = nice_duration(delta.total_seconds())
-    #                 self.speak_dialog('TimerStatus', {'timer': timer_data['name'],
-    #                                                   'duration': duration}, private=True)
-    #     else:
-    #         self.speak_dialog("NoActive", {"kind": "timers"}, private=True)
 
-    # @intent_handler(IntentBuilder("start_quiet_hours")
-    #                 .require("startQuietHours"))
-    # def handle_start_quiet_hours(self, message):
-    #     """
-    #     Handles starting quiet hours. No alerts will be spoken until quiet hours are ended
-    #     """
-    #     # TODO: for duration? Add event to schedule? DM
-    #     if self.neon_in_request(message):
-    #         if self.voc_match(message.data.get("utterance"), "endKeyword"):
-    #             self.handle_end_quiet_hours(message)
-    #         else:
-    #             self.speak_dialog("QuietHoursStart", private=True)
-    #             self.update_skill_settings({"quiet_hours": True}, message)
-    #
-    # @intent_handler(IntentBuilder("end_quiet_hours")
-    #                 .require("endQuietHours"))
-    # def handle_end_quiet_hours(self, message):
-    #     """
-    #     Handles ending quiet hours. Any missed alerts will be spoken and upcoming alerts will be notified normally.
-    #     """
-    #     if self.neon_in_request(message):
-    #         if self.preference_skill(message)["quiet_hours"]:
-    #             self.speak_dialog("QuietHoursEnd", private=True)
-    #         self.update_skill_settings({"quiet_hours": False}, message)
-    #         user = self.get_utterance_user(message)
-    #         missed = self._get_alerts_for_user(user)["missed"]
-    #         if missed:
-    #             self.speak_dialog("MissedAlertIntro", private=True)
-    #             for alert in missed:
-    #                 data = self._get_speak_data_from_alert(alert)
-    #                 if data["repeat"]:
-    #                     self.speak_dialog("ListRepeatingAlerts", data, private=True)
-    #                 else:
-    #                     self.speak_dialog("ListAlerts", data, private=True)
-    #                 self.missed.pop(alert)
-    #         else:
-    #             self.speak_dialog("NoMissedAlerts", private=True)
-    #         # Remove handled missed alerts from the list
-    #         self.alerts_cache["missed"] = self.missed
-    #         self.alerts_cache.store()
-    #         # self.alerts_cache.update_yaml_file('missed', value=self.missed)
+    def confirm_alert(self, alert: Alert, message: Message,
+                      anchor_time: datetime = None):
+        """
+        Confirm alert details; get time and name for alerts if not specified and schedule
+        :param alert: Alert object built from user request
+        :param message: Message associated with request
+        :param anchor_time:
+        """
+        # Get spoken time parameters
+        # TODO: Duration short 1s? DM
+        anchor_time = anchor_time or datetime.now(self._get_user_tz(message))
+        spoken_duration = spoken_time_remaining(alert.next_expiration,
+                                                anchor_time)
+        # TODO: This is patching LF type annotation bug
+        # noinspection PyTypeChecker
+        spoken_alert_time = \
+            nice_time(alert.next_expiration, message.data.get("lang", "en-us"),
+                      use_24hour=self.preference_unit(message)['time'] == 24)
+
+        # Schedule alert expirations
+        self.alert_manager.add_alert(alert)
+        if request_from_mobile(message):
+            self._create_mobile_alert(alert, message)
+            return
+
+        # Start Timer UI
+        if alert.alert_type == AlertType.TIMER:
+            self.speak_dialog('confirm_timer_started',
+                              {'duration': spoken_duration}, private=True)
+            self._display_timer_status(alert.alert_name,
+                                       alert.next_expiration)
+            return
+
+        # Notify one-time Alert
+        if not alert.repeat_days and not alert.repeat_frequency:
+            if alert.audio_file:
+                self.speak_dialog("confirm_alert_playback",
+                                  {'name': alert.alert_name,
+                                   'time': spoken_alert_time,
+                                   'duration': spoken_duration},
+                                  private=True)
+            elif alert.script_filename:
+                self.speak_dialog("confirm_alert_script",
+                                  {'name': alert.alert_name,
+                                   'time': spoken_alert_time,
+                                   'duration': spoken_duration},
+                                  private=True)
+            else:
+                spoken_kind = self._get_spoken_alert_type(alert.alert_type)
+                self.speak_dialog('confirm_alert_set',
+                                  {'kind': spoken_kind,
+                                   'time': spoken_alert_time,
+                                   'duration': spoken_duration}, private=True)
+            return
+
+        # Get spoken repeat interval
+        if alert.repeat_frequency:
+            repeat_interval = spoken_time_remaining(
+                datetime.now(timezone.utc) + alert.repeat_frequency,
+                datetime.now(timezone.utc),
+                message.data.get("lang", "en-US"))
+        elif len(alert.repeat_days) == 7:
+            repeat_interval = 'day'  # TODO: Resolve resource file
+        else:
+            repeat_interval = ", ".join([self._get_spoken_weekday(day)
+                                         for day in alert.repeat_days])
+
+        # Notify repeating alert
+        if alert.audio_file:
+            self.speak_dialog('confirm_alert_recurring_playback',
+                              {'name': alert.alert_name,
+                               'time': spoken_alert_time,
+                               'repeat': repeat_interval},
+                              private=True)
+        elif alert.script_filename:
+            self.speak_dialog('confirm_alert_recurring_pscript',
+                              {'name': alert.alert_name,
+                               'time': spoken_alert_time,
+                               'repeat': repeat_interval},
+                              private=True)
+        else:
+            spoken_kind = self._get_spoken_alert_type(alert.alert_type)
+            self.speak_dialog('confirm_alert_recurring',
+                              {'kind': spoken_kind,
+                               'time': spoken_alert_time,
+                               'days': repeat_interval},
+                              private=True)
 
     def converse(self, message=None):
         """
@@ -413,7 +496,7 @@ class AlertSkill(NeonSkill):
         if user_alerts["active"]:  # User has an active alert
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
-                    self.handle_snooze_alert(message)  # TODO: Implement this
+                    # TODO: Implement this
                     return True
                 elif self.voc_match(utterance, "dismiss"):
                     for alert in user_alerts["active"]:
@@ -455,82 +538,8 @@ class AlertSkill(NeonSkill):
     #         data['repeat'] = False
     #         data['active'] = False
     #         self._write_event_to_schedule(data)
-    #         self.speak_dialog("SnoozeAlert", {'name': old_name,
+    #         self.speak_dialog("confirm_snooze_alert", {'name': old_name,
     #                                           'duration': duration}, private=True)
-
-    def confirm_alert(self, alert: Alert, message: Message,
-                      anchor_time: datetime = None):
-        """
-        Confirm alert details; get time and name for alerts if not specified and schedule
-        :param alert: Alert object built from user request
-        :param message: Message associated with request
-        :param anchor_time:
-        """
-        anchor_time = anchor_time or datetime.now(self._get_user_tz(message))
-        spoken_duration = spoken_time_remaining(alert.next_expiration,
-                                                anchor_time)
-        # TODO: Duration short 1s? DM
-        spoken_alert_time = nice_time(alert.next_expiration,
-                                      message.data.get("lang", "en-us"),
-                                      use_24hour=self.preference_unit(message)
-                                                 ['time'] == 24),
-
-        self.alert_manager.add_alert(alert)
-        if request_from_mobile(message):
-            self._create_mobile_alert(alert, message)
-            return
-        if alert.alert_type == AlertType.TIMER:
-            self.speak_dialog('ConfirmTimer', {'duration': spoken_duration}, private=True)
-            if self.gui_enabled:
-                self._display_timer_status(alert.alert_name,
-                                           alert.next_expiration)
-            return
-        if not alert.repeat_days and not alert.repeat_frequency:
-            if alert.audio_file:
-                self.speak_dialog("ConfirmPlayback",
-                                  {'name': alert.alert_name,
-                                   'time': spoken_alert_time,
-                                   'duration': spoken_duration},
-                                  private=True)
-            elif alert.script_filename:
-                self.speak_dialog("ConfirmScript",
-                                  {'name': alert.alert_name,
-                                   'time': spoken_alert_time,
-                                   'duration': spoken_duration},
-                                  private=True)
-            else:
-                pass
-                self.speak_dialog('ConfirmSet',
-                                  {'kind': kind,
-                                   'time': spoken_alert_time,
-                                   'duration': spoken_duration}, private=True)
-            return
-
-        if alert.repeat_frequency:
-            repeat_interval = spoken_time_remaining(
-                datetime.now(timezone.utc) + alert.repeat_frequency,
-                datetime.now(timezone.utc),
-                message.data.get("lang", "en-US"))
-        elif len(alert.repeat_days) == 7:
-            repeat_interval = 'every day'  # TODO: Resolve resource file
-        else:
-            # TODO: Resolve weekday names from resources
-            repeat_interval = "every " + ", ".join([WEEKDAY_NAMES[day] for day in alert.repeat_days])
-        if alert.audio_file:
-            self.speak_dialog('RecurringPlayback', {'name': alert.alert_name,
-                                                    'time': spoken_alert_time,
-                                                    'days': repeat_interval},
-                              private=True)
-        elif alert.script_filename:
-            self.speak_dialog('RecurringPlayback', {'name': alert.alert_name,
-                                                    'time': spoken_alert_time,
-                                                    'days': repeat_interval},
-                              private=True)
-        else:
-            self.speak_dialog('ConfirmRecurring', {'kind': kind,
-                                                   'time': spoken_alert_time,
-                                                   'days': repeat_interval},
-                              private=True)
 
     def _display_timer_status(self, name, alert_time: datetime):
         """
@@ -573,7 +582,7 @@ class AlertSkill(NeonSkill):
             kind = "alarm"
         elif delta.total_seconds() > 24 * 3600 and kind == "reminder" and file:
             # Notify user if audio reminder was requested but not currently possible
-            self.speak_dialog("AudioReminderTooFar", private=True)
+            self.speak_dialog("error_audio_reminder_too_far", private=True)
             # self.speak("I can only set audio reminders up to 24 hours in advance, "
             #            "I will create a calendar event instead.", private=True)
         elif delta.total_seconds() > 24 * 3600 and kind == "alarm" and not repeat:
@@ -672,7 +681,7 @@ class AlertSkill(NeonSkill):
 
         if alert_file:
             LOG.debug(alert_file)
-            self.speak_dialog("AudioReminderIntro", private=True)
+            self.speak_dialog("expired_audio_alert_intro", private=True)
             to_play = alert_file
         elif alert_kind == 'alarm':
             # if self.snd_dir:
@@ -692,9 +701,9 @@ class AlertSkill(NeonSkill):
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
         while alert_time in self.active.keys() and time.time() < timeout:
             if self.server:
-                self.send_with_audio(self.dialog_renderer.render("AlertExpired", {'name': alert_name}), alert_file,
-                                     message,
-                                     private=True)
+                self.send_with_audio(self.dialog_renderer.render(
+                    "expired_alert", {'name': alert_name}),
+                    alert_file, message, private=True)
             else:
                 # TODO: Interrupt this if alert is dismissed DM
                 play_audio_file(to_play).wait(60)
@@ -712,9 +721,10 @@ class AlertSkill(NeonSkill):
         timeout = time.time() + self.preference_skill(message)["timeout_min"] * 60
         while alert_time in self.active.keys() and time.time() < timeout:
             if kind == 'reminder':
-                self.speak_dialog('ReminderExpired', {'name': name}, private=True, wait=True)
+                self.speak_dialog('expired_reminder', {'name': name}, private=True, wait=True)
             else:
-                self.speak_dialog('AlertExpired', {'name': name}, private=True, wait=True)
+                self.speak_dialog('expired_alert', {'name': name},
+                                  private=True, wait=True)
             self.make_active()
             time.sleep(10)
         if alert_time in self.active.keys():
@@ -768,6 +778,122 @@ class AlertSkill(NeonSkill):
     def stop(self):
         if self.gui_enabled:
             self.gui.clear()
+
+    @staticmethod
+    def _get_alert_type_from_intent(message: Message) -> AlertType:
+        """
+        Parse the requested alert type based on intent vocab
+        :param message: Message associated with intent match
+        :returns: AlertType requested in intent
+        """
+        if message.data.get("alarm"):
+            return AlertType.ALARM
+        elif message.data.get('timer'):
+            return AlertType.TIMER
+        elif message.data.get('reminder'):
+            return AlertType.REMINDER
+        elif message.data.get('event'):
+            # TODO: Consider handling event separately DM
+            return AlertType.REMINDER
+        return AlertType.UNKNOWN
+
+    def _get_alert_dialog_data(self, alert: Alert, lang: str,
+                               use_24hour: bool) -> dict:
+        spoken_time = nice_time(alert.next_expiration,
+                                lang,
+                                use_24hour=use_24hour,
+                                use_ampm=True)
+        data = {
+            "name": alert.alert_name,
+            "time": spoken_time
+        }
+        if alert.repeat_days:
+            data["repeat"] = ", ".join([self._get_spoken_weekday(day)
+                                        for day in alert.repeat_days])
+            self.speak_dialog("list_alert_repeating",
+                              data, private=True)
+        elif alert.repeat_frequency:
+            now_time = datetime.now(timezone.utc)
+            data["repeat"] = spoken_time_remaining(
+                now_time + alert.repeat_frequency, now_time, lang)
+
+    def _get_requested_alerts_list(self, user: str,
+                                   alert_type: AlertType,
+                                   disposition: AlertState) -> Tuple[list, str]:
+        """
+        Get all alerts matching the requested criteria and a spoken type
+        :param user: user requesting alerts or None to get all alerts
+        :param alert_type: AlertType to return (AlertType.ALL for all)
+        :param disposition: AlertState to filter by
+        :returns: list of matched alerts, str speakable alert type
+        """
+        if user:
+            alerts_list = self.alert_manager.get_user_alerts(user)
+        else:
+            alerts_list = self.alert_manager.get_all_alerts()
+        # Determine alerts list based on disposition
+        if disposition == AlertState.PENDING:
+            matched_alerts = alerts_list["pending"]
+        elif disposition == AlertState.ACTIVE:
+            matched_alerts = alerts_list["active"]
+        elif disposition == AlertState.MISSED:
+            matched_alerts = alerts_list["missed"]
+        else:
+            LOG.error(f"Invalid alert disposition requested: {disposition}")
+            matched_alerts = alerts_list["pending"]
+
+        # Get speakable alert type
+        if alert_type == AlertType.ALARM:
+            spoken_type = self.translate("word_alarm")
+        elif alert_type == AlertType.TIMER:
+            spoken_type = self.translate("word_timer")
+        elif alert_type == AlertType.REMINDER:
+            spoken_type = self.translate("word_reminder")
+        else:
+            spoken_type = self.translate("word_alert")
+
+        # Filter user alerts by requested type
+        if alert_type == AlertType.ALL:
+            alerts_list = matched_alerts
+        else:
+            alerts_list = [alert for alert in matched_alerts
+                           if alert.alert_type == alert_type]
+        return alerts_list, spoken_type
+
+    def _get_spoken_alert_type(self, alert_type: AlertType) -> str:
+        """
+        Get a translated string for the specified alert_type
+        :param alert_type: AlertType to be spoken
+        :returns: translated string representation of alert_type
+        """
+        if alert_type == AlertType.ALARM:
+            return self.translate("word_alarm")
+        if alert_type == AlertType.TIMER:
+            return self.translate("word_timer")
+        if alert_type == AlertType.REMINDER:
+            return self.translate("word_reminder")
+        return self.translate("word_alert")
+
+    def _get_spoken_weekday(self, weekday: Weekdays) -> str:
+        """
+        Get a translated string for the specified weekday
+        :param weekday: Weekday to be spoken
+        :returns: translated string representation of weekday
+        """
+        if weekday == Weekdays.MON:
+            return self.translate("word_weekday_monday")
+        if weekday == Weekdays.TUE:
+            return self.translate("word_weekday_tuesday")
+        if weekday == Weekdays.WED:
+            return self.translate("word_weekday_wednesday")
+        if weekday == Weekdays.THU:
+            return self.translate("word_weekday_thursday")
+        if weekday == Weekdays.FRI:
+            return self.translate("word_weekday_friday")
+        if weekday == Weekdays.SAT:
+            return self.translate("word_weekday_saturday")
+        if weekday == Weekdays.SUN:
+            return self.translate("word_weekday_sunday")
 
 
 def create_skill():
