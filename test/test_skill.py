@@ -79,8 +79,104 @@ class TestSkill(unittest.TestCase):
     def test_00_skill_init(self):
         # Test any parameters expected to be set in init or initialize methods
         from neon_utils.skills import NeonSkill
-
         self.assertIsInstance(self.skill, NeonSkill)
+        self.assertIsInstance(self.skill.alert_manager, AlertManager)
+
+    def test_handle_create_alarm(self):
+        real_confirm = self.skill.confirm_alert
+        confirm_alert = Mock()
+        self.skill.confirm_alert = confirm_alert
+        valid_message = _get_message_from_file("create_alarm_daily.json")
+        invalid_message = _get_message_from_file("invalid_messages/create_alarm_no_time.json")
+
+        self.skill.handle_create_alarm(invalid_message)
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("error_no_time",
+                                                   {"kind": "alarm"},
+                                                   private=True)
+        self.skill.confirm_alert.assert_not_called()
+
+        self.skill.handle_create_alarm(valid_message)
+        self.skill.confirm_alert.assert_called_once()
+        self.assertEqual(self.skill.confirm_alert.call_args[0][0].alert_type,
+                         AlertType.ALARM)
+        self.assertEqual(self.skill.confirm_alert.call_args[0][1],
+                         valid_message)
+
+        self.skill.confirm_alert = real_confirm
+
+    def test_handle_create_timer(self):
+        real_confirm = self.skill.confirm_alert
+        confirm_alert = Mock()
+        self.skill.confirm_alert = confirm_alert
+        valid_message = _get_message_from_file("set_time_timer.json")
+        invalid_message = _get_message_from_file(
+            "invalid_messages/create_timer_no_duration.json")
+
+        self.skill.handle_create_timer(invalid_message)
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("error_no_duration",
+                                                   private=True)
+        self.skill.confirm_alert.assert_not_called()
+
+        self.skill.handle_create_timer(valid_message)
+        self.skill.confirm_alert.assert_called_once()
+        self.assertEqual(self.skill.confirm_alert.call_args[0][0].alert_type,
+                         AlertType.TIMER)
+        self.assertEqual(self.skill.confirm_alert.call_args[0][1],
+                         valid_message)
+        self.assertAlmostEqual(
+            self.skill.confirm_alert.call_args[0][2].timestamp(),
+            dt.datetime.now().timestamp(), delta=2)
+
+        self.skill.confirm_alert = real_confirm
+
+    def test_handle_create_reminder(self):
+        real_confirm = self.skill.confirm_alert
+        confirm_alert = Mock()
+        self.skill.confirm_alert = confirm_alert
+        valid_message = _get_message_from_file(
+            "reminder_at_time_to_action.json")
+        invalid_message = _get_message_from_file(
+            "invalid_messages/remind_me_no_time.json")
+
+        self.skill.handle_create_reminder(invalid_message)
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("error_no_time",
+                                                   {"kind": "reminder"},
+                                                   private=True)
+        self.skill.confirm_alert.assert_not_called()
+
+        self.skill.handle_create_reminder(valid_message)
+        self.skill.confirm_alert.assert_called_once()
+        self.assertEqual(self.skill.confirm_alert.call_args[0][0].alert_type,
+                         AlertType.REMINDER)
+        self.assertEqual(self.skill.confirm_alert.call_args[0][1],
+                         valid_message)
+
+        self.skill.confirm_alert = real_confirm
+
+    def test_handle_create_reminder_alt(self):
+        real_method = self.skill.handle_create_reminder
+        create_reminder = Mock()
+        self.skill.handle_create_reminder = create_reminder
+        test_message = Message("test", {"data": True}, {"context": "test"})
+        self.skill.handle_create_reminder_alt(test_message)
+        create_reminder.assert_called_once()
+        create_reminder.assert_called_with(test_message)
+
+        self.skill.handle_create_reminder = real_method
+
+    def test_handle_create_event(self):
+        real_method = self.skill.handle_create_reminder
+        create_reminder = Mock()
+        self.skill.handle_create_reminder = create_reminder
+        test_message = Message("test", {"data": True}, {"context": "test"})
+        self.skill.handle_create_event(test_message)
+        create_reminder.assert_called_once()
+        create_reminder.assert_called_with(test_message)
+
+        self.skill.handle_create_reminder = real_method
 
 
 class TestAlert(unittest.TestCase):

@@ -246,6 +246,12 @@ class AlertManager:
             self._scheduler.cancel_scheduled_event(alert)
         self._dump_cache()
 
+    def write_cache_now(self):
+        """
+        Write the current state of the AlertManager to file cache
+        """
+        self._dump_cache()
+
     # Alert Event Handlers
     def _schedule_alert_expiration(self, alrt: Alert, ident: str):
         """

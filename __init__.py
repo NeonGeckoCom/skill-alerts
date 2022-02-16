@@ -85,7 +85,7 @@ class AlertSkill(NeonSkill):
                                         self._get_user_tz(message), use_24hour,
                                         self.find_resource)
         if not alert:
-            self.speak_dialog("ErrorNoTime",
+            self.speak_dialog("error_no_time",
                               {"kind": self.translate("word_alarm")},
                               private=True)
             return  # TODO: Converse to get time
