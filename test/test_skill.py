@@ -1158,6 +1158,123 @@ class TestParseUtils(unittest.TestCase):
         _validate_alert_default_params(bread_timer_sea)
         self.assertEqual(bread_timer_sea.alert_name, "bread")
 
+    def test_build_alert_from_intent_reminder(self):
+        from util.parse_utils import build_alert_from_intent
+        sea_tz = gettz("America/Los_Angeles")
+        now_local = dt.datetime.now(sea_tz).replace(microsecond=0)
+
+        def _validate_alert_default_params(reminder: Alert):
+            self.assertEqual(reminder.alert_type, AlertType.REMINDER)
+            self.assertIsInstance(reminder.priority, int)
+            self.assertIsInstance(reminder.context, dict)
+            self.assertIsInstance(reminder.alert_name, str)
+            self.assertIsNone(reminder.audio_file)
+            self.assertIsNone(reminder.script_filename)
+            self.assertFalse(reminder.is_expired)
+            self.assertIsInstance(reminder.time_to_expiration, dt.timedelta)
+            self.assertIsInstance(reminder.next_expiration, dt.datetime)
+
+        exercise_reminder = _get_message_from_file(
+            "remind_me_for_duration_to_action_every_repeat.json")
+        dinner_reminder = _get_message_from_file(
+            "reminder_at_time_to_action.json")
+        antibiotics_reminder = _get_message_from_file(
+            "reminder_every_interval_to_action_for_duration.json")
+        break_reminder = _get_message_from_file(
+            "reminder_in_duration_to_action.json")
+        meeting_reminder = _get_message_from_file(
+            "reminder_to_action_at_time.json")
+        alt_dinner_reminder = _get_message_from_file(
+            "reminder_to_action_in_duration.json")
+        medication_reminder = _get_message_from_file(
+            "set_action_reminder_for_time.json")
+        rotate_logs_reminder = _get_message_from_file(
+            "set_reminder_to_action_every_interval_until_end.json")
+
+        exercise_reminder = build_alert_from_intent(exercise_reminder,
+                                                    AlertType.REMINDER, sea_tz)
+        _validate_alert_default_params(exercise_reminder)
+        self.assertEqual(exercise_reminder.next_expiration.time(),
+                         dt.time(hour=10))
+        self.assertEqual(exercise_reminder.alert_name, "exercise")
+        self.assertEqual(len(exercise_reminder.repeat_days), 7)
+        self.assertIsNone(exercise_reminder.repeat_frequency)
+        self.assertEqual(exercise_reminder.end_repeat.date(),
+                         (now_local + dt.timedelta(weeks=4)).date())
+
+        dinner_reminder = build_alert_from_intent(dinner_reminder,
+                                                  AlertType.REMINDER, sea_tz)
+        _validate_alert_default_params(dinner_reminder)
+        self.assertEqual(dinner_reminder.next_expiration.time(),
+                         dt.time(hour=19))
+        self.assertEqual(dinner_reminder.alert_name, "start making dinner")
+        self.assertIsNone(dinner_reminder.repeat_days)
+        self.assertIsNone(dinner_reminder.repeat_frequency)
+        self.assertIsNone(dinner_reminder.end_repeat)
+
+        antibiotics_reminder = build_alert_from_intent(antibiotics_reminder,
+                                                       AlertType.REMINDER,
+                                                       sea_tz)
+        self.assertEqual(antibiotics_reminder.next_expiration,
+                         now_local + dt.timedelta(hours=12))
+        self.assertEqual(antibiotics_reminder.alert_name, "take my antibiotics")
+        self.assertIsNone(antibiotics_reminder.repeat_days)
+        self.assertEqual(antibiotics_reminder.repeat_frequency,
+                         dt.timedelta(hours=12))
+        self.assertEqual(antibiotics_reminder.end_repeat.date(),
+                         (now_local + dt.timedelta(weeks=1)).date())
+
+        break_reminder = build_alert_from_intent(break_reminder,
+                                                 AlertType.REMINDER, sea_tz)
+        self.assertAlmostEqual(break_reminder.next_expiration.timestamp(),
+                               (now_local + dt.timedelta(hours=1)).timestamp(),
+                               delta=2)
+        self.assertEqual(break_reminder.alert_name, "take break")
+        self.assertIsNone(break_reminder.repeat_days)
+        self.assertIsNone(break_reminder.repeat_frequency)
+        self.assertIsNone(break_reminder.end_repeat)
+
+        meeting_reminder = build_alert_from_intent(meeting_reminder,
+                                                   AlertType.REMINDER, sea_tz)
+        self.assertEqual(meeting_reminder.next_expiration.time(),
+                         dt.time(hour=10))
+        self.assertEqual(meeting_reminder.alert_name, "start meeting")
+        self.assertIsNone(meeting_reminder.repeat_days)
+        self.assertIsNone(meeting_reminder.repeat_frequency)
+        self.assertIsNone(meeting_reminder.end_repeat)
+
+        alt_dinner_reminder = build_alert_from_intent(alt_dinner_reminder,
+                                                      AlertType.REMINDER,
+                                                      sea_tz)
+        self.assertAlmostEqual(alt_dinner_reminder.next_expiration.timestamp(),
+                               (now_local + dt.timedelta(hours=3)).timestamp(),
+                               delta=2)
+        self.assertEqual(alt_dinner_reminder.alert_name, "start dinner")
+        self.assertIsNone(alt_dinner_reminder.repeat_days)
+        self.assertIsNone(alt_dinner_reminder.repeat_frequency)
+        self.assertIsNone(alt_dinner_reminder.end_repeat)
+
+        medication_reminder = build_alert_from_intent(medication_reminder,
+                                                      AlertType.REMINDER,
+                                                      sea_tz)
+        self.assertEqual(medication_reminder.next_expiration.time(),
+                         dt.time(hour=21))
+        self.assertEqual(medication_reminder.alert_name, "medication")
+        self.assertIsNone(medication_reminder.repeat_days)
+        self.assertIsNone(medication_reminder.repeat_frequency)
+        self.assertIsNone(medication_reminder.end_repeat)
+
+        rotate_logs_reminder = build_alert_from_intent(rotate_logs_reminder,
+                                                       AlertType.REMINDER,
+                                                       sea_tz)
+        self.assertAlmostEqual(rotate_logs_reminder.next_expiration.timestamp(),
+                               (now_local + dt.timedelta(hours=8)).timestamp(),
+                               delta=2)
+        self.assertEqual(rotate_logs_reminder.alert_name, "rotate logs")
+        self.assertIsNone(rotate_logs_reminder.repeat_days)
+        self.assertEqual(rotate_logs_reminder.repeat_frequency,
+                         dt.timedelta(hours=8))
+
 
 if __name__ == '__main__':
     pytest.main()

@@ -164,7 +164,10 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     alert_time = parse_alert_time_from_message(message, tokens, timezone)
 
     if not alert_time:
-        return
+        if repeat_interval:
+            alert_time = anchor_time + repeat_interval
+        else:
+            return
 
     lang = message.data.get("lang")
     article_file = find_resource("articles.voc", lang=lang)
@@ -344,13 +347,14 @@ def parse_alert_time_from_message(message: Message,
     alert_time = None
     for token in remainder_tokens:
         start_time = dt.datetime.now(timezone)
-        duration, remainder = extract_duration(token)
-        if duration:
+        extracted = extract_duration(token)
+        if extracted and extracted[0]:
+            duration, remainder = extracted
             alert_time = start_time + duration
             tokens[tokens.index(token)] = remainder
             break
         extracted = extract_datetime(token, anchorDate=start_time)
-        if extracted:
+        if extracted and extracted[0]:
             alert_time, remainder = extracted
             tokens[tokens.index(token)] = remainder
             break
