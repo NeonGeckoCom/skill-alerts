@@ -1,0 +1,76 @@
+{
+  "type": "skill-alerts.neongeckocom:create_reminder",
+  "data": {
+    "utterances": [
+      "set a medication reminder for 9 PM"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_reminder",
+    "set": "set",
+    "reminder": "reminder",
+    "target": null,
+    "confidence": 0.27450980392156865,
+    "__tags__": [
+      {
+        "match": "set",
+        "key": "set",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "set",
+            "match": "set",
+            "data": [
+              [
+                "set",
+                "skill_alerts_neongeckocomset"
+              ],
+              [
+                "set",
+                "skill_volume_neongeckocomSet"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "reminder",
+        "key": "reminder",
+        "start_token": 3,
+        "entities": [
+          {
+            "key": "reminder",
+            "match": "reminder",
+            "data": [
+              [
+                "reminder",
+                "skill_alerts_neongeckocomreminder"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 3,
+        "from_context": false
+      }
+    ],
+    "utterance": "set a medication reminder for 9 PM"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644971331.5506964,
+      "transcribed": 1644971331.5506964,
+      "save_transcript": 7.867813110351562e-06,
+      "text_parsers": 3.3855438232421875e-05
+    }
+  }
+}

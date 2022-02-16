@@ -45,7 +45,7 @@ from .alert_manager import _DEFAULT_USER
 _SCRIPT_PRIORITY = AlertPriority.HIGHEST
 
 
-def _default_find_resource(res_name, res_dirname=None, lang=None):
+def _default_find_resource(res_name, _=None, lang=None):
     LOG.warning("find_resource method not defined, using fallback")
     base_dir = os.path.dirname(os.path.dirname(__file__))
     lang = lang or "en-us"
@@ -232,7 +232,8 @@ def parse_repeat_from_message(message: Message,
     :returns: list of parsed repeat Weekdays or timedelta between occurrences
     """
     repeat_days = list()
-    load_language(message.data.get("lang", "en-us"))
+    lang = message.data.get("lang", "en-us")
+    load_language(lang)
     if message.data.get("everyday"):
         repeat_days = [Weekdays(i) for i in range(0, 7)]
     elif message.data.get("weekends"):
@@ -246,7 +247,12 @@ def parse_repeat_from_message(message: Message,
         repeat_days = list()
         remainder = ""
         default_time = dt.time()
+        # Parse repeat days
         for word in repeat_clause.split():  # Iterate over possible weekdays
+            if word.isnumeric():
+                # Don't try to parse time intervals
+                remainder += f' {word}'
+                continue
             extracted_content = extract_datetime(word)
             if not extracted_content:
                 remainder += f' {word}'
@@ -257,6 +263,19 @@ def parse_repeat_from_message(message: Message,
                 remainder += '\n'
             else:
                 remainder += f' {word}'
+
+        # Parse repeat interval
+        if not repeat_days:
+            extracted_duration = extract_duration(repeat_clause, lang)
+            if extracted_duration and not extracted_duration[0]:
+                # Replace "the next week" with "1 week", etc.
+                extracted_duration = extract_duration(
+                    f"1 {extracted_duration[1]}", lang)
+            if extracted_duration and extracted_duration[0]:
+                duration, remainder = extracted_duration
+                if remainder and remainder.strip():
+                    tokens.insert(repeat_index, remainder.strip())
+                return duration
 
         if remainder:
             new_tokens = remainder.split('\n')
@@ -283,12 +302,28 @@ def parse_end_condition_from_message(message: Message,
     anchor_date = dt.datetime.now(timezone)
 
     if message.data.get("until"):
-        load_language(message.data.get("lang"))
-        end_clause = tokens.pop(tokens.index(message.data["until"]) + 1)
-        end_time, _ = extract_datetime(end_clause, anchor_date,
-                                       message.data.get("lang"))
+        lang = message.data.get("lang") or "en-us"
+        load_language(lang)
+        idx = tokens.index(message.data["until"]) + 1
+        end_clause = tokens.pop(idx)
+
+        end_time = None
+        extracted_dt = extract_datetime(end_clause, anchor_date, lang)
+        if extracted_dt:
+            end_time, remainder = extracted_dt
+            tokens.insert(idx, remainder)
+        else:
+            extracted_duration = extract_duration(end_clause, lang)
+            if extracted_duration and not extracted_duration[0]:
+                # Replace "the next week" with "1 week", etc.
+                extracted_duration = extract_duration(
+                    f"1 {extracted_duration[1]}", lang)
+            if extracted_duration and extracted_duration[0]:
+                duration, remainder = extracted_duration
+                tokens.insert(idx, remainder)
+                end_time = anchor_date + duration
         return end_time
-    # TODO: parse 'for n days/weeks/occurrences' here
+
     return None
 
 

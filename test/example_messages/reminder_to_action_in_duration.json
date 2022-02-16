@@ -1,0 +1,51 @@
+{
+  "type": "skill-alerts.neongeckocom:alternate_reminder",
+  "data": {
+    "utterances": [
+      "remind me to start dinner in 3 hours"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:alternate_reminder",
+    "remind_me": "remind me",
+    "target": null,
+    "confidence": 0.125,
+    "__tags__": [
+      {
+        "match": "remind me",
+        "key": "remind me",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "remind me",
+            "match": "remind me",
+            "data": [
+              [
+                "remind me",
+                "skill_alerts_neongeckocomremind_me"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      }
+    ],
+    "utterance": "remind me to start dinner in 3 hours"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644971215.2367735,
+      "transcribed": 1644971215.2367735,
+      "save_transcript": 1.0967254638671875e-05,
+      "text_parsers": 3.504753112792969e-05
+    }
+  }
+}

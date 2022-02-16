@@ -715,9 +715,57 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(repeat, [Weekdays.MON, Weekdays.THU])
         self.assertEqual(tokens, ["wake me up", "every", "and", "at 9 am"])
 
+        daily_reminder = _get_message_from_file(
+            "remind_me_for_duration_to_action_every_repeat.json")
+        repeat = parse_repeat_from_message(daily_reminder)
+        self.assertIsInstance(repeat, list)
+        self.assertEqual(repeat, [Weekdays.MON, Weekdays.TUE, Weekdays.WED,
+                                  Weekdays.THU, Weekdays.FRI, Weekdays.SAT,
+                                  Weekdays.SUN])
+
+        every_12_hours_reminder = _get_message_from_file(
+            "reminder_every_interval_to_action_for_duration.json")
+        tokens = tokenize_utterance(every_12_hours_reminder)
+        repeat = parse_repeat_from_message(every_12_hours_reminder, tokens)
+        self.assertEqual(repeat, dt.timedelta(hours=12))
+        self.assertEqual(tokens, ["remind me", "every",
+                                  "to take my antibiotics",
+                                  "for the next", "week"])
+
+        every_8_hours_reminder = _get_message_from_file(
+            "set_reminder_to_action_every_interval_until_end.json"
+        )
+        tokens = tokenize_utterance(every_8_hours_reminder)
+        repeat = parse_repeat_from_message(every_8_hours_reminder, tokens)
+        self.assertEqual(repeat, dt.timedelta(hours=8))
+        self.assertEqual(tokens, ["set", "a", "reminder",
+                                  "to rotate logs", "every",
+                                  "until", "next sunday"])
+
     def test_parse_end_condition_from_message(self):
-        # TODO
-        pass
+        from util.parse_utils import parse_end_condition_from_message
+        now_time = dt.datetime.now(dt.timezone.utc)
+
+        for_the_next_four_weeks = _get_message_from_file(
+            "remind_me_for_duration_to_action_every_repeat.json")
+        for_the_next_week = _get_message_from_file(
+            "reminder_every_interval_to_action_for_duration.json"
+        )
+        until_next_sunday = _get_message_from_file(
+            "set_reminder_to_action_every_interval_until_end.json"
+        )
+
+        next_month = parse_end_condition_from_message(for_the_next_four_weeks)
+        self.assertEqual(next_month.date(),
+                         (now_time + dt.timedelta(weeks=4)).date())
+
+        next_week = parse_end_condition_from_message(for_the_next_week)
+        self.assertEqual(next_week.date(),
+                         (now_time + dt.timedelta(days=7)).date())
+
+        next_sunday = parse_end_condition_from_message(until_next_sunday)
+        self.assertEqual(next_sunday.weekday(), Weekdays.SUN)
+        self.assertGreaterEqual(next_sunday, now_time)
 
     def test_parse_alert_time_from_message_alarm(self):
         from util.parse_utils import parse_alert_time_from_message, \
@@ -792,6 +840,10 @@ class TestParseUtils(unittest.TestCase):
         self.assertAlmostEqual(bread_utc.timestamp(),
                                bread_local.timestamp(), 0)
 
+    def test_parse_alert_time_from_message_reminder(self):
+        # TODO
+        pass
+
     def test_parse_alert_priority_from_message(self):
         # TODO
         pass
@@ -806,23 +858,40 @@ class TestParseUtils(unittest.TestCase):
 
     def test_parse_alert_name_from_message(self):
         from util.parse_utils import parse_alert_name_from_message
-        monday_thursday_alarm = \
-            _get_message_from_file("alarm_every_monday_thursday.json")
+        monday_thursday_alarm = _get_message_from_file(
+            "alarm_every_monday_thursday.json")
         daily_alarm = _get_message_from_file("create_alarm_daily.json")
-        tuesday_alarm = \
-            _get_message_from_file("create_alarm_every_tuesday.json")
+        tuesday_alarm = _get_message_from_file(
+            "create_alarm_every_tuesday.json")
         weekday_alarm = _get_message_from_file("create_alarm_weekdays.json")
-        wakeup_at_time_alarm = \
-            _get_message_from_file("wake_me_up_at_time_alarm.json")
-        wakeup_in_time_alarm = \
-            _get_message_from_file("wake_me_up_in_time_alarm.json")
+        wakeup_at_time_alarm = _get_message_from_file(
+            "wake_me_up_at_time_alarm.json")
+        wakeup_in_time_alarm = _get_message_from_file(
+            "wake_me_up_in_time_alarm.json")
         wakeup_weekends = _get_message_from_file("wake_me_up_weekends.json")
 
         set_unnamed_timer = _get_message_from_file("set_time_timer.json")
-        start_unnamed_timer = \
-            _get_message_from_file("start_timer_for_time.json")
+        start_unnamed_timer = _get_message_from_file(
+            "start_timer_for_time.json")
         baking_timer = _get_message_from_file("start_named_timer.json")
         bread_timer = _get_message_from_file("start_timer_for_name.json")
+
+        exercise_reminder = _get_message_from_file(
+            "remind_me_for_duration_to_action_every_repeat.json")
+        dinner_reminder = _get_message_from_file(
+            "reminder_at_time_to_action.json")
+        antibiotics_reminder = _get_message_from_file(
+            "reminder_every_interval_to_action_for_duration.json")
+        break_reminder = _get_message_from_file(
+            "reminder_in_duration_to_action.json")
+        meeting_reminder = _get_message_from_file(
+            "reminder_to_action_at_time.json")
+        alt_dinner_reminder = _get_message_from_file(
+            "reminder_to_action_in_duration.json")
+        medication_reminder = _get_message_from_file(
+            "set_action_reminder_for_time.json")
+        rotate_logs_reminder = _get_message_from_file(
+            "set_reminder_to_action_every_interval_until_end.json")
 
         with open(join(dirname(dirname(__file__)),
                        "locale", "en-us", "articles.voc")) as f:
@@ -871,6 +940,39 @@ class TestParseUtils(unittest.TestCase):
                                                        strip_datetimes=True,
                                                        articles=articles),
                          "bread")
+
+        self.assertEqual(parse_alert_name_from_message(exercise_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "exercise")
+        self.assertEqual(parse_alert_name_from_message(dinner_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "start making dinner")
+        self.assertEqual(parse_alert_name_from_message(antibiotics_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "take my antibiotics")
+        self.assertEqual(parse_alert_name_from_message(break_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "take break")
+        self.assertEqual(parse_alert_name_from_message(meeting_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "start meeting")
+        self.assertEqual(parse_alert_name_from_message(alt_dinner_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "start dinner")
+        self.assertEqual(parse_alert_name_from_message(medication_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "medication")
+        self.assertEqual(parse_alert_name_from_message(rotate_logs_reminder,
+                                                       strip_datetimes=True,
+                                                       articles=articles),
+                         "rotate logs")
 
     def test_parse_alert_context_from_message(self):
         from util.parse_utils import parse_alert_context_from_message, \
