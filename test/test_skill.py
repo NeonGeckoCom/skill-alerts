@@ -605,7 +605,7 @@ class TestParseUtils(unittest.TestCase):
 
         weekly = _get_message_from_file("create_alarm_every_tuesday.json")
         tokens = tokenize_utterance(weekly)
-        self.assertEqual(tokens, ['set', 'an', 'alarm', 'for 9 a m', 'every',
+        self.assertEqual(tokens, ['set', 'an', 'alarm', 'for 9 am', 'every',
                                   'tuesday'])
 
         weekdays = _get_message_from_file("create_alarm_weekdays.json")
@@ -643,7 +643,7 @@ class TestParseUtils(unittest.TestCase):
         weekly = _get_message_from_file("create_alarm_every_tuesday.json")
         tokens = get_unmatched_tokens(weekly)
         self.assertIsInstance(tokens, list)
-        self.assertEqual(tokens, ['an', 'for 9 a m', 'tuesday'])
+        self.assertEqual(tokens, ['an', 'for 9 am', 'tuesday'])
 
         weekdays = _get_message_from_file("create_alarm_weekdays.json")
         tokens = get_unmatched_tokens(weekdays)
