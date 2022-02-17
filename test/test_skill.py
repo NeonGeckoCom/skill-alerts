@@ -1730,7 +1730,7 @@ class TestParseUtils(unittest.TestCase):
                                                        sea_tz)
         self.assertEqual(antibiotics_reminder.next_expiration,
                          now_local + dt.timedelta(hours=12))
-        self.assertEqual(antibiotics_reminder.alert_name, "take my antibiotics")
+        self.assertEqual(antibiotics_reminder.alert_name, "take antibiotics")
         self.assertIsNone(antibiotics_reminder.repeat_days)
         self.assertEqual(antibiotics_reminder.repeat_frequency,
                          dt.timedelta(hours=12))
