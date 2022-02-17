@@ -668,7 +668,8 @@ class AlertSkill(NeonSkill):
         self.alert_manager.shutdown()
 
     def stop(self):
-        self.gui.clear()
+        # TODO: handle dismissal if we can dig for a message
+        pass
 
     # Search methods
     def _resolve_requested_alert(self, message: Message,
@@ -843,10 +844,10 @@ class AlertSkill(NeonSkill):
         :param use_24hour: User preference to use 24-hour time scale
         :returns: dict dialog_data to pass to `speak_dialog`
         """
-        spoken_time = nice_time(alert.data["next_expiration_time"],
-                                lang,
-                                use_24hour=use_24hour,
-                                use_ampm=True)
+        # noinspection PyTypeChecker
+        spoken_time = nice_time(
+            datetime.fromisoformat(alert.data["next_expiration_time"]),
+            lang, use_24hour=use_24hour, use_ampm=True)
         data = {
             "name": alert.alert_name,
             "time": spoken_time
