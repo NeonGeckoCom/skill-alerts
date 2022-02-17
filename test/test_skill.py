@@ -1624,7 +1624,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertAlmostEqual(wakeup_in_alert_seattle.time_to_expiration
                                .total_seconds(),
                                wakeup_in_alert_utc.time_to_expiration
-                               .total_seconds(), 0)
+                               .total_seconds(), delta=2)
 
     def test_build_alert_from_intent_timer(self):
         from util.parse_utils import build_alert_from_intent

@@ -798,6 +798,10 @@ class AlertSkill(NeonSkill):
             article_voc = self.find_resource("articles.voc", lang=self.lang)
             with open(article_voc) as f:
                 articles = f.read().split('\n')
+        except TypeError:
+            article_voc = self.find_resource("articles.voc")
+            with open(article_voc) as f:
+                articles = f.read().split('\n')
         except Exception as e:
             LOG.error(e)
             articles = list()
