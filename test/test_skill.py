@@ -1465,7 +1465,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(parse_alert_name_from_message(antibiotics_reminder,
                                                        strip_datetimes=True,
                                                        articles=articles),
-                         "take my antibiotics")
+                         "take antibiotics")
         self.assertEqual(parse_alert_name_from_message(break_reminder,
                                                        strip_datetimes=True,
                                                        articles=articles),
