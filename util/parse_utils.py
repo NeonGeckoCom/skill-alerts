@@ -43,6 +43,7 @@ from .alert import Alert
 from .alert_manager import _DEFAULT_USER
 
 _SCRIPT_PRIORITY = AlertPriority.HIGHEST
+_default_lang = "en-US"
 
 
 def _default_find_resource(res_name, _=None, lang=None):
@@ -84,7 +85,7 @@ def round_nearest_minute(alert_time: dt.datetime,
 
 def spoken_time_remaining(alert_time: dt.datetime,
                           now_time: Optional[dt.datetime] = None,
-                          lang="en-US") -> str:
+                          lang=_default_lang) -> str:
     """
     Gets a speakable string representing time until alert_time
     :param alert_time: Datetime to get duration until
@@ -92,7 +93,7 @@ def spoken_time_remaining(alert_time: dt.datetime,
     :param lang: Language to format response in
     :return: speakable duration string
     """
-    load_language(lang)
+    load_language(lang or _default_lang)
     now_time = now_time or dt.datetime.now(dt.timezone.utc)
     remaining_time: dt.timedelta = alert_time - now_time
 
@@ -110,7 +111,7 @@ def spoken_time_remaining(alert_time: dt.datetime,
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
                            now_time: Optional[dt.datetime] = None,
-                           lang: str = "en-US", use_24hour: bool = False,
+                           lang: str = None, use_24hour: bool = False,
                            spoken_alert_type: callable = _default_spoken) -> \
         str:
     """
@@ -123,6 +124,7 @@ def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
     :param spoken_alert_type: method to translate AlertType to speakable string
     :return: name for alert
     """
+    lang = lang or _default_lang
     if alert_type == AlertType.TIMER:
         time_str = spoken_time_remaining(alert_time, now_time, lang)
     else:
@@ -343,7 +345,7 @@ def parse_alert_time_from_message(message: Message,
     """
     tokens = tokens or tokenize_utterance(message)
     remainder_tokens = get_unmatched_tokens(message, tokens)
-    load_language(message.data.get("lang", "en-us"))
+    load_language(message.data.get("lang") or _default_lang)
     alert_time = None
     for token in remainder_tokens:
         start_time = dt.datetime.now(timezone)

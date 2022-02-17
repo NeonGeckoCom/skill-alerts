@@ -49,6 +49,12 @@ class AlertPriority(IntEnum):
     LOWEST = 1
 
 
+class MatchLevel(IntEnum):
+    NAME_EXACT = 10
+    TIME_EXACT = 8
+    NAME_PARTIAL = 6
+
+
 class Weekdays(IntEnum):
     MON = 0
     TUE = 1

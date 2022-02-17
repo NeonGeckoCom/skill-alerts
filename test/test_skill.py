@@ -29,14 +29,18 @@ from os import mkdir, remove
 from os.path import dirname, join, exists
 from dateutil.tz import gettz
 from mock import Mock
+from mock.mock import call
 from mycroft_bus_client import Message
 from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
+from lingua_franca import load_language
+
+from mycroft.util.format import nice_time
 
 sys.path.append(dirname(dirname(__file__)))
 from util import AlertType, AlertState, AlertPriority, Weekdays
 from util.alert import Alert
-from util.alert_manager import AlertManager
+from util.alert_manager import AlertManager, get_alert_id
 
 examples_dir = join(dirname(__file__), "example_messages")
 
@@ -67,6 +71,44 @@ class TestSkill(unittest.TestCase):
         # Override speak and speak_dialog to test passed arguments
         cls.skill.speak = Mock()
         cls.skill.speak_dialog = Mock()
+
+        # Setup alerts
+        load_language("en-us")
+
+        cls.valid_user = "test_user"
+        cls.invalid_user = "other_user"
+        valid_context = {"username": cls.valid_user}
+        invalid_context = {"username": cls.invalid_user}
+        sea_tz = gettz("America/Los_Angeles")
+        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+        next_alarm_1_time = now_time + dt.timedelta(days=1)
+        next_alarm_2_time = next_alarm_1_time + dt.timedelta(hours=1)
+        next_alarm_3_time = next_alarm_2_time + dt.timedelta(minutes=1)
+        next_reminder_time = now_time + dt.timedelta(days=2)
+        invalid_reminder_time = now_time + dt.timedelta(hours=1)
+        invalid_timer_time = now_time + dt.timedelta(minutes=1)
+
+        cls.valid_alarm_1 = Alert.create(next_alarm_1_time, "Alarm 1",
+                                         AlertType.ALARM,
+                                         context=valid_context)
+        cls.valid_alarm_2 = Alert.create(next_alarm_2_time, "Alarm 2",
+                                         AlertType.ALARM,
+                                         context=valid_context)
+        cls.valid_alarm_3 = Alert.create(next_alarm_3_time, "Alarm 3",
+                                         AlertType.ALARM,
+                                         context=valid_context)
+        cls.valid_reminder = Alert.create(next_reminder_time, "Valid Reminder",
+                                          AlertType.REMINDER,
+                                          context=valid_context)
+        cls.other_reminder = Alert.create(invalid_reminder_time,
+                                          "Other Reminder",
+                                          AlertType.REMINDER,
+                                          context=invalid_context)
+        cls.other_timer = Alert.create(invalid_timer_time, "Other Timer",
+                                   AlertType.TIMER, context=invalid_context)
+        for a in {cls.other_timer, cls.other_reminder, cls.valid_reminder,
+                  cls.valid_alarm_3, cls.valid_alarm_1, cls.valid_alarm_2}:
+            cls.skill.alert_manager.add_alert(a)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -179,6 +221,379 @@ class TestSkill(unittest.TestCase):
         create_reminder.assert_called_with(test_message)
 
         self.skill.handle_create_reminder = real_method
+
+    def test_handle_next_alert(self):
+        valid_message_alarm = Message("test", {"alarm": "alarm"},
+                                      {"username": self.valid_user})
+        valid_message_timer = Message("test", {"timer": "timer"},
+                                      {"username": self.valid_user})
+        valid_message_reminder = Message("test", {"reminder": "reminder"},
+                                         {"username": self.valid_user})
+        valid_message_all = Message("test", {"alert": "alert"},
+                                    {"username": self.valid_user})
+
+        self.skill.handle_next_alert(valid_message_alarm)
+        self.skill.speak_dialog.assert_called_with(
+            "next_alert_unnamed",
+            {"kind": "alarm",
+             "name": self.valid_alarm_1.alert_name,
+             "time": nice_time(self.valid_alarm_1.next_expiration,
+                               use_ampm=True)},
+            private=True)
+
+        self.skill.handle_next_alert(valid_message_timer)
+        self.skill.speak_dialog.assert_called_with(
+            "list_alert_none_upcoming",
+            {"kind": "timer"},
+            private=True)
+
+        self.skill.handle_next_alert(valid_message_reminder)
+        self.skill.speak_dialog.assert_called_with(
+            "next_alert_named",
+            {"kind": "reminder",
+             "name": self.valid_reminder.alert_name,
+             "time": nice_time(self.valid_reminder.next_expiration,
+                               use_ampm=True)},
+            private=True)
+
+        self.skill.handle_next_alert(valid_message_all)
+        self.skill.speak_dialog.assert_called_with(
+            "next_alert_unnamed",
+            {"kind": "alert",
+             "name": self.valid_alarm_1.alert_name,
+             "time": nice_time(self.valid_alarm_1.next_expiration,
+                               use_ampm=True)},
+            private=True)
+
+    def test_handle_list_alerts(self):
+        valid_message_alarm = Message("test", {"alarm": "alarm"},
+                                      {"username": self.valid_user})
+        valid_message_timer = Message("test", {"timer": "timer"},
+                                      {"username": self.valid_user})
+        valid_message_reminder = Message("test", {"reminder": "reminder"},
+                                         {"username": self.valid_user})
+        valid_message_all = Message("test", {"alert": "alert"},
+                                    {"username": self.valid_user})
+
+        self.skill.handle_list_alerts(valid_message_alarm)
+        self.skill.speak.assert_called()
+        alarms_string = self.skill.speak.call_args[0][0]
+        self.assertEqual(len(alarms_string.split('\n')), 4)
+        for alarm in {self.valid_alarm_1, self.valid_alarm_2,
+                      self.valid_alarm_3}:
+            self.assertIn(f"\n{alarm.alert_name} - ", alarms_string)
+
+        self.skill.handle_list_alerts(valid_message_timer)
+        self.skill.speak_dialog.assert_called_with("list_alert_none_upcoming",
+                                                   {"kind": "timer"},
+                                                   private=True)
+
+        self.skill.handle_list_alerts(valid_message_reminder)
+        reminder_string = self.skill.speak.call_args[0][0]
+        self.assertEqual(len(reminder_string.split('\n')), 2)
+        self.assertIn(f"\n{self.valid_reminder.alert_name} - ",
+                      reminder_string)
+
+        self.skill.handle_list_alerts(valid_message_all)
+        all_string = self.skill.speak.call_args[0][0]
+        self.assertEqual(len(all_string.split('\n')), 5)
+        for alert in {self.valid_alarm_1, self.valid_alarm_2,
+                      self.valid_alarm_3, self.valid_reminder}:
+            self.assertIn(f"\n{alert.alert_name} - ", all_string)
+
+    def test_handle_timer_status(self):
+
+        real_timer_status = self.skill._display_timer_status
+        self.skill._display_timer_status = Mock()
+
+        timer_test_user = "timer_user"
+        valid_message = Message("test", {"timer_time_remaining": ""},
+                                {"username": timer_test_user})
+        sea_tz = gettz("America/Los_Angeles")
+        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+        test_timer = Alert.create(now_time + dt.timedelta(minutes=5),
+                                  "5 Minute Timer", AlertType.TIMER,
+                                  context={"username": timer_test_user})
+        long_timer = Alert.create(now_time + dt.timedelta(minutes=30),
+                                  "Oven Timer", AlertType.TIMER,
+                                  context={"username": timer_test_user})
+
+        # No active timers
+        self.skill.handle_timer_status(valid_message)
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("timer_status_none_active",
+                                                   private=True)
+
+        # Single active timer not specifically requested
+        self.skill.alert_manager.add_alert(long_timer)
+        self.skill.handle_timer_status(valid_message)
+        call_args = self.skill.speak_dialog.call_args
+        self.assertEqual(call_args[0][0], "timer_status")
+        self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
+        self.assertIsNotNone(call_args[0][1]["duration"])
+        self.assertTrue(call_args[1]["private"])
+        self.skill._display_timer_status.assert_called_with(
+            long_timer.alert_name, long_timer.next_expiration)
+
+        # Multiple active timers not specifically requested
+        self.skill.alert_manager.add_alert(test_timer)
+        self.skill.handle_timer_status(valid_message)
+        self.skill.speak.assert_called_once()
+        spoken_string = self.skill.speak.call_args[0][0]
+        self.assertEqual(len(spoken_string.split('\n')), 2)
+        self.assertTrue(spoken_string.split('\n')[0].startswith(
+            "The 5 Minute Timer has"))
+        self.assertTrue(spoken_string.split('\n')[1].startswith(
+            "The Oven Timer has"))
+
+        # Multiple active timers, one specifically requested
+        valid_message.data["utterance"] = \
+            f"how much time is left on {long_timer.alert_name}"
+        self.skill.handle_timer_status(valid_message)
+        call_args = self.skill.speak_dialog.call_args
+        self.assertEqual(call_args[0][0], "timer_status")
+        self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
+        self.assertIsNotNone(call_args[0][1]["duration"])
+        self.assertTrue(call_args[1]["private"])
+        self.skill._display_timer_status.assert_called_with(
+            long_timer.alert_name, long_timer.next_expiration)
+
+        self.skill.alert_manager.rm_alert(get_alert_id(long_timer))
+        self.skill.alert_manager.rm_alert(get_alert_id(test_timer))
+        self.skill._display_timer_status = real_timer_status
+
+    def test_handle_start_quiet_hours(self):
+        real_method = self.skill.update_skill_settings
+        self.skill.update_skill_settings = Mock()
+
+        message = Message("test", {"quiet_hours_start": "start"},
+                          {"username": "tester",
+                           "neon_should_respond": True})
+        self.skill.handle_start_quiet_hours(message)
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("quiet_hours_start",
+                                                   private=True)
+
+        self.skill.update_skill_settings.assert_called_once()
+        self.skill.update_skill_settings.assert_called_with(
+            {"quiet_hours": True}, message)
+
+        self.skill.update_skill_settings = real_method
+
+    def test_handle_end_quiet_hours(self):
+        quiet_hours = True
+
+        def preference_skill(_):
+            return {"quiet_hours": quiet_hours}
+
+        real_pref_skill = self.skill.preference_skill
+        self.skill.preference_skill = preference_skill
+        real_update_settings = self.skill.update_skill_settings
+        self.skill.update_skill_settings = Mock()
+
+        test_message = Message("test", {"quiet_hours_end": ""},
+                               {"username": self.valid_user,
+                                "neon_should_respond": True})
+
+        # Test end active quiet hours, nothing missed
+        self.skill.handle_end_quiet_hours(test_message)
+        first_call = self.skill.speak_dialog.call_args_list[0]
+        second_call = self.skill.speak_dialog.call_args_list[1]
+        self.assertEqual(first_call,
+                         call("quiet_hours_end", private=True))
+        self.assertEqual(second_call,
+                         call("list_alert_none_missed", private=True))
+        self.skill.update_skill_settings.assert_called_with(
+            {"quiet_hours": False}, test_message)
+
+        # Test end active quiet hours, already inactive
+        self.skill.speak_dialog.reset_mock()
+        self.skill.update_skill_settings.reset_mock()
+        quiet_hours = False
+        self.skill.handle_end_quiet_hours(test_message)
+        self.skill.update_skill_settings.assert_not_called()
+        self.skill.speak_dialog.assert_called_once()
+        self.skill.speak_dialog.assert_called_with("list_alert_none_missed",
+                                                   private=True)
+
+        # TODO: Test with missed alerts DM
+
+        self.skill.preference_skill = real_pref_skill
+        self.skill.update_skill_settings = real_update_settings
+
+    def test_handle_cancel_alert(self):
+        cancel_test_user = "test_user_cancellation"
+        valid_context = {"username": cancel_test_user}
+        sea_tz = gettz("America/Los_Angeles")
+        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+        alarm_1_time = now_time + dt.timedelta(days=1)
+        alarm_2_time = alarm_1_time + dt.timedelta(hours=1)
+        alarm_3_time = now_time.replace(hour=9, minute=30, second=0) + \
+            dt.timedelta(days=1)
+        reminder_time = now_time + dt.timedelta(days=2)
+        timer_1_time = now_time + dt.timedelta(minutes=5)
+        timer_2_time = now_time + dt.timedelta(minutes=10)
+
+        # Define alerts
+        tomorrow_alarm = Alert.create(alarm_1_time, alert_type=AlertType.ALARM,
+                                      context=valid_context)
+        later_alarm = Alert.create(alarm_2_time, alert_type=AlertType.ALARM,
+                                   context=valid_context)
+        morning_alarm = Alert.create(alarm_3_time, alert_type=AlertType.ALARM,
+                                     context=valid_context)
+        trash_reminder = Alert.create(reminder_time, "take out garbage",
+                                      AlertType.REMINDER,
+                                      context=valid_context)
+        pasta_timer = Alert.create(timer_1_time, "pasta", AlertType.TIMER,
+                                   context=valid_context)
+        unnamed_timer = Alert.create(timer_1_time, alert_type=AlertType.TIMER,
+                                     context=valid_context)
+        oven_timer = Alert.create(timer_2_time, "cherry pie", AlertType.TIMER,
+                                  context=valid_context)
+        for a in (tomorrow_alarm, later_alarm, morning_alarm, trash_reminder,
+                  pasta_timer, oven_timer, unnamed_timer):
+            self.skill.alert_manager.add_alert(a)
+            self.assertIn(get_alert_id(a),
+                          self.skill.alert_manager.pending_alerts.keys())
+
+        # Cancel only alert of type
+        message = Message("test", {"cancel": "cancel",
+                                   "reminder": "reminder"}, valid_context)
+        self.skill.handle_cancel_alert(message)
+        self.assertNotIn(get_alert_id(trash_reminder),
+                         self.skill.alert_manager.pending_alerts.keys())
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_cancel_alert", {"kind": "reminder",
+                                     "name": trash_reminder.alert_name},
+            private=True)
+        # Cancel no alerts of requested type
+        self.skill.handle_cancel_alert(message)
+        self.skill.speak_dialog.assert_called_with(
+            "error_no_scheduled_kind_to_cancel", {"kind": "reminder"},
+            private=True)
+
+        # Cancel no match
+        message = Message("test",
+                          {"cancel": "cancel",
+                           "timer": "timer",
+                           "utterance": "cancel my test timer",
+                           "__tags__": [{
+                               "match": "cancel",
+                               "key": "cancel",
+                               "start_token": 0,
+                               "end_token": 0},
+                               {
+                                "match": "timer",
+                                "key": "timer",
+                                "start_token": 3,
+                                "end_token": 3
+                               }
+                           ]}, valid_context)
+        pending = self.skill.alert_manager.pending_alerts.keys()
+        self.skill.handle_cancel_alert(message)
+        self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
+                                                   private=True)
+        self.assertEqual(pending,
+                         self.skill.alert_manager.pending_alerts.keys())
+
+        # Cancel match name  pasta timer
+        message = Message("test",
+                          {"cancel": "cancel",
+                           "timer": "timer",
+                           "utterance": "cancel my pasta timer",
+                           "__tags__": [{
+                               "match": "cancel",
+                               "key": "cancel",
+                               "start_token": 0,
+                               "end_token": 0},
+                               {
+                                "match": "timer",
+                                "key": "timer",
+                                "start_token": 3,
+                                "end_token": 3
+                               }
+                           ]}, valid_context)
+        self.assertIn(get_alert_id(pasta_timer),
+                      self.skill.alert_manager.pending_alerts.keys())
+        self.skill.handle_cancel_alert(message)
+        self.assertNotIn(get_alert_id(pasta_timer),
+                         self.skill.alert_manager.pending_alerts.keys())
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_cancel_alert", {"kind": "timer",
+                                     "name": pasta_timer.alert_name},
+            private=True)
+
+        # Cancel match time  9:30 AM alarm
+        message = Message("test",
+                          {"cancel": "cancel",
+                           "alarm": "alarm",
+                           "utterance": "cancel my 9:30 AM alarm",
+                           "__tags__": [{
+                               "match": "cancel",
+                               "key": "cancel",
+                               "start_token": 0,
+                               "end_token": 0},
+                               {
+                                "match": "alarm",
+                                "key": "alarm",
+                                "start_token": 4,
+                                "end_token": 4
+                               }
+                           ]}, valid_context)
+        self.assertIn(get_alert_id(morning_alarm),
+                      self.skill.alert_manager.pending_alerts.keys())
+        self.skill.handle_cancel_alert(message)
+        self.assertNotIn(get_alert_id(morning_alarm),
+                         self.skill.alert_manager.pending_alerts.keys())
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_cancel_alert", {"kind": "alarm",
+                                     "name": morning_alarm.alert_name},
+            private=True)
+
+        # Cancel partial name oven (cherry pie)
+        message = Message("test",
+                          {"cancel": "cancel",
+                           "timer": "timer",
+                           "utterance": "cancel my pie timer",
+                           "__tags__": [{
+                               "match": "cancel",
+                               "key": "cancel",
+                               "start_token": 0,
+                               "end_token": 0},
+                               {
+                                "match": "timer",
+                                "key": "timer",
+                                "start_token": 3,
+                                "end_token": 3
+                               }
+                           ]}, valid_context)
+        self.assertIn(get_alert_id(oven_timer),
+                      self.skill.alert_manager.pending_alerts.keys())
+        self.skill.handle_cancel_alert(message)
+        self.assertNotIn(get_alert_id(oven_timer),
+                         self.skill.alert_manager.pending_alerts.keys())
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_cancel_alert", {"kind": "timer",
+                                     "name": oven_timer.alert_name},
+            private=True)
+
+        # Cancel all valid
+        message = Message("test", {"cancel": "cancel",
+                                   "alert": "alert",
+                                   "all": "all"}, valid_context)
+        self.skill.handle_cancel_alert(message)
+        self.skill.speak_dialog.assert_called_with("confirm_cancel_all",
+                                                   {"kind": "alert"},
+                                                   private=True)
+        self.assertEqual(
+            self.skill.alert_manager.get_user_alerts(cancel_test_user),
+            {"missed": list(), "active": list(), "pending": list()}
+        )
+
+        # Cancel all nothing to cancel
+        self.skill.handle_cancel_alert(message)
+        self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
+                                                   private=True)
 
 
 class TestAlert(unittest.TestCase):

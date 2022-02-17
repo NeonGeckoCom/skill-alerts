@@ -50,7 +50,8 @@ def get_alert_user(alert: Alert):
     :param alert: Alert object to check
     :returns: username associated with the alert or _DEFAULT_USER
     """
-    return alert.context.get("user") or _DEFAULT_USER
+    return alert.context.get("username") or alert.context.get("user") \
+        or _DEFAULT_USER
 
 
 def get_alert_id(alert: Alert) -> Optional[str]:
@@ -232,6 +233,7 @@ class AlertManager:
                 self._pending_alerts.pop(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
+        LOG.debug(f"Removing alert: {alert_id}")
         self._scheduler.cancel_scheduled_event(alert_id)
 
     def shutdown(self):
