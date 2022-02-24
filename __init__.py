@@ -34,12 +34,12 @@ from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
 from mycroft_bus_client import Message
-from neon_utils.message_utils import request_from_mobile
+from neon_utils.message_utils import request_from_mobile, get_message_user
 from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
-from mycroft.util.format import nice_time
+from mycroft.util.format import nice_time, nice_date_time
 
 from .util import Weekdays, AlertState, MatchLevel
 from .util.alert_manager import AlertManager, get_alert_id
@@ -176,7 +176,7 @@ class AlertSkill(NeonSkill):
         if not self.neon_in_request(message):
             return
 
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         alert_type = self._get_alert_type_from_intent(message)
         alerts_list, spoken_type = \
             self._get_requested_alerts_list(user, alert_type,
@@ -214,7 +214,7 @@ class AlertSkill(NeonSkill):
         if not self.neon_in_request(message):
             return
 
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         alert_type = self._get_alert_type_from_intent(message)
         alerts_list, spoken_type = \
             self._get_requested_alerts_list(user, alert_type,
@@ -252,7 +252,7 @@ class AlertSkill(NeonSkill):
                                      {"kind": "current_timer"}, message)
             return
 
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         user_timers, _ = self._get_requested_alerts_list(user, AlertType.TIMER,
                                                          AlertState.PENDING)
         if not user_timers:
@@ -316,7 +316,7 @@ class AlertSkill(NeonSkill):
         if self.preference_skill(message)["quiet_hours"]:
             self.speak_dialog("quiet_hours_end", private=True)
             self.update_skill_settings({"quiet_hours": False}, message)
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         missed_alerts, _ = self._get_requested_alerts_list(user,
                                                            AlertType.ALL,
                                                            AlertState.MISSED)
@@ -346,7 +346,7 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         requested_alert_type = self._get_alert_type_from_intent(message)
         alerts, spoken_type = \
             self._get_requested_alerts_list(user, requested_alert_type,
@@ -403,10 +403,11 @@ class AlertSkill(NeonSkill):
         :param anchor_time:
         """
         # Get spoken time parameters
-        # TODO: Duration short 1s? DM
         anchor_time = anchor_time or datetime.now(self._get_user_tz(message))
+        # Execution time and rounding makes this short 1s consistently
         spoken_duration = spoken_time_remaining(alert.next_expiration,
-                                                anchor_time)
+                                                anchor_time -
+                                                timedelta(seconds=1))
         # This is patching LF type annotation bug
         # noinspection PyTypeChecker
         spoken_alert_time = \
@@ -486,8 +487,11 @@ class AlertSkill(NeonSkill):
         """
         If there is an active alert, see if the user is trying to dismiss it
         """
-        user = self.get_utterance_user(message)
+        user = get_message_user(message)
         user_alerts = self.alert_manager.get_user_alerts(user)
+        # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
+        #     LOG.info("Getting default user alerts")
+        #     user_alerts = self.alert_manager.get_user_alerts()
         if user_alerts["active"]:  # User has an active alert
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
@@ -497,6 +501,9 @@ class AlertSkill(NeonSkill):
                     for alert in user_alerts["active"]:
                         self.alert_manager.dismiss_active_alert(
                             get_alert_id(alert))
+                        self.speak_dialog("confirm_dismiss_alert",
+                                          {"kind": self._get_spoken_alert_type(
+                                              alert.alert_type)})
                     return True
         return False
 
@@ -506,7 +513,7 @@ class AlertSkill(NeonSkill):
     #     :param message: messagebus message
     #     """
     #     tz = self._get_user_tz(message)
-    #     user = self.get_utterance_user(message)
+    #     user = get_message_user(message)
     #     utt = message.data.get('utterance')
     #     snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
     #     new_time = datetime.now(tz) + snooze_duration
@@ -543,6 +550,8 @@ class AlertSkill(NeonSkill):
         :param name: Timer Name
         :param alert_time: Datetime of alert
         """
+        # TODO: Refactor to use OVOS GUI
+        #  https://github.com/OpenVoiceOS/skill-ovos-timer/pull/1
         duration = alert_time.replace(microsecond=0) - \
             datetime.now(alert_time.tzinfo).replace(microsecond=0)
         LOG.info(duration)
@@ -848,10 +857,18 @@ class AlertSkill(NeonSkill):
         :param use_24hour: User preference to use 24-hour time scale
         :returns: dict dialog_data to pass to `speak_dialog`
         """
-        # noinspection PyTypeChecker
-        spoken_time = nice_time(
-            datetime.fromisoformat(alert.data["next_expiration_time"]),
-            lang, use_24hour=use_24hour, use_ampm=True)
+        expired_time = \
+            datetime.fromisoformat(alert.data["next_expiration_time"])
+
+        # Check if expiration was some time today
+        if datetime.now(expired_time.tzinfo).date() == expired_time.date():
+            # noinspection PyTypeChecker
+            spoken_time = nice_time(expired_time, lang, use_24hour=use_24hour,
+                                    use_ampm=True)
+        else:
+            # noinspection PyTypeChecker
+            spoken_time = nice_date_time(expired_time, lang,
+                                         use_24hour=use_24hour, use_ampm=True)
         data = {
             "name": alert.alert_name,
             "time": spoken_time

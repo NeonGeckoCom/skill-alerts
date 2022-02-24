@@ -595,6 +595,66 @@ class TestSkill(unittest.TestCase):
         self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
                                                    private=True)
 
+    def test_confirm_alert(self):
+        # TODO
+        pass
+
+    def test_alert_expired(self):
+        # TODO
+        pass
+
+    def test_run_notify_expired(self):
+        # TODO
+        pass
+
+    def test_play_notify_expired(self):
+        # TODO
+        pass
+
+    def test_speak_notify_expired(self):
+        # TODO
+        pass
+
+    def test_gui_timer_status(self):
+        # TODO
+        pass
+
+    def test_gui_notify_expired(self):
+        # TODO
+        pass
+
+    def test_resolve_requested_alert(self):
+        # TODO
+        pass
+
+    def test_get_events(self):
+        # TODO
+        pass
+
+    def test_get_requested_alert_name_and_time(self):
+        # TODO
+        pass
+
+    def test_get_alert_type_from_intent(self):
+        # TODO
+        pass
+
+    def test_get_user_tz(self):
+        # TODO
+        pass
+
+    def test_get_alert_dialog_data(self):
+        # TODO
+        pass
+
+    def test_get_spoken_alert_type(self):
+        # TODO
+        pass
+
+    def test_get_spoken_weekday(self):
+        # TODO
+        pass
+
 
 class TestAlert(unittest.TestCase):
     def test_alert_create(self):
