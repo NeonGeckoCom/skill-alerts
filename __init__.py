@@ -492,6 +492,7 @@ class AlertSkill(NeonSkill):
         # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
         #     LOG.info("Getting default user alerts")
         #     user_alerts = self.alert_manager.get_user_alerts()
+        LOG.info(f"{user} has alerts: {user_alerts}")
         if user_alerts["active"]:  # User has an active alert
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):

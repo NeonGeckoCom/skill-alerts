@@ -152,6 +152,7 @@ class AlertManager:
         :param user: Username to retrieve alerts for
         :returns: dict of disposition to sorted alerts for the specified user
         """
+        user = user or _DEFAULT_USER
         missed, active, pending = self._get_user_alerts(user)
         return {
             "missed": sort_alerts_list(missed),
