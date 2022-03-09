@@ -1,0 +1,51 @@
+{
+  "type": "skill-alerts.neongeckocom:alternate_reminder",
+  "data": {
+    "utterances": [
+      "remind me to go home"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:alternate_reminder",
+    "skill_alerts_neongeckocomremind_me": "remind me",
+    "target": null,
+    "confidence": 0.275,
+    "__tags__": [
+      {
+        "match": "remind me",
+        "key": "remind me",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "remind me",
+            "match": "remind me",
+            "data": [
+              [
+                "remind me",
+                "skill_alerts_neongeckocomremind_me"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      }
+    ],
+    "utterance": "remind me to go home"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644982822.0187464,
+      "transcribed": 1644982822.0187464,
+      "save_transcript": 4.291534423828125e-06,
+      "text_parsers": 1.2874603271484375e-05
+    }
+  }
+}

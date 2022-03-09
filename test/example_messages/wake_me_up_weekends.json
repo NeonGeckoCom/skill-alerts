@@ -1,0 +1,74 @@
+{
+  "type": "skill-alerts.neongeckocom:create_alarm",
+  "data": {
+    "utterances": [
+      "wake me up at 9 30 AM on weekends"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "target": null,
+    "confidence": 0.33333333333333337,
+    "__tags__": [
+      {
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "wake me up",
+            "match": "wake me up",
+            "data": [
+              [
+                "wake me up",
+                "skill_alerts_neongeckocomalarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "confidence": 1.0,
+        "end_token": 2,
+        "match": "wake me up",
+        "key": "wake me up",
+        "from_context": false
+      },
+      {
+        "match": "weekends",
+        "key": "weekends",
+        "start_token": 8,
+        "entities": [
+          {
+            "key": "weekends",
+            "match": "weekends",
+            "data": [
+              [
+                "weekends",
+                "skill_alerts_neongeckocomweekends"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 8,
+        "from_context": false
+      }
+    ],
+    "utterance": "wake me up at 9 30 AM on weekends",
+    "alarm": "wake me up",
+    "weekends": "weekends"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644866364.547528,
+      "transcribed": 1644866364.547528,
+      "save_transcript": 7.867813110351562e-06,
+      "text_parsers": 2.86102294921875e-05
+    },
+    "skill_id": "skill-alerts.neongeckocom"
+  }
+}

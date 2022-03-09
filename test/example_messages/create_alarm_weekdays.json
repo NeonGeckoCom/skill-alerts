@@ -1,0 +1,98 @@
+{
+  "type": "skill-alerts.neongeckocom:create_alarm",
+  "data": {
+    "utterances": [
+      "set an alarm for 8 am on weekdays"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "target": null,
+    "confidence": 0.3484848484848485,
+    "__tags__": [
+      {
+        "match": "alarm",
+        "key": "alarm",
+        "start_token": 2,
+        "entities": [
+          {
+            "key": "alarm",
+            "match": "alarm",
+            "data": [
+              [
+                "alarm",
+                "skill_alerts_neongeckocomalarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 2,
+        "from_context": false
+      },
+      {
+        "match": "set",
+        "key": "set",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "set",
+            "match": "set",
+            "data": [
+              [
+                "set",
+                "skill_alerts_neongeckocomset"
+              ],
+              [
+                "set",
+                "skill_volume_neongeckocomSet"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "weekdays",
+        "key": "weekdays",
+        "start_token": 7,
+        "entities": [
+          {
+            "key": "weekdays",
+            "match": "weekdays",
+            "data": [
+              [
+                "weekdays",
+                "skill_alerts_neongeckocomweekdays"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 7,
+        "from_context": false
+      }
+    ],
+    "utterance": "set an alarm for 8 am on weekdays",
+    "alarm": "alarm",
+    "set": "set",
+    "weekdays": "weekdays"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644629346.8541145,
+      "transcribed": 1644629346.8541145,
+      "save_transcript": 5.4836273193359375e-06,
+      "text_parsers": 1.9550323486328125e-05
+    },
+    "skill_id": "skill-alerts.neongeckocom"
+  }
+}

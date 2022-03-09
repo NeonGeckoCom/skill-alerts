@@ -1,0 +1,72 @@
+{
+  "type": "skill-alerts.neongeckocom:create_timer",
+  "data": {
+    "utterances": [
+      "start a timer"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_timer",
+    "skill_alerts_neongeckocomset": "start",
+    "skill_alerts_neongeckocomtimer": "timer",
+    "target": null,
+    "confidence": 0.5641025641025641,
+    "__tags__": [
+      {
+        "match": "start",
+        "key": "start",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "start",
+            "match": "start",
+            "data": [
+              [
+                "start",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "timer",
+        "key": "timer",
+        "start_token": 2,
+        "entities": [
+          {
+            "key": "timer",
+            "match": "timer",
+            "data": [
+              [
+                "timer",
+                "skill_alerts_neongeckocomtimer"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 2,
+        "from_context": false
+      }
+    ],
+    "utterance": "start a timer"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644982692.480541,
+      "transcribed": 1644982692.480541,
+      "save_transcript": 9.059906005859375e-06,
+      "text_parsers": 2.5033950805664062e-05
+    }
+  }
+}
