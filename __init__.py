@@ -34,7 +34,8 @@ from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
 from mycroft_bus_client import Message
-from neon_utils.message_utils import request_from_mobile, get_message_user
+from neon_utils.message_utils import request_from_mobile, get_message_user, \
+    dig_for_message
 from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
@@ -678,8 +679,16 @@ class AlertSkill(NeonSkill):
         self.alert_manager.shutdown()
 
     def stop(self):
-        # TODO: handle dismissal if we can dig for a message
-        pass
+        message = dig_for_message()
+        if not message:
+            return
+        user = get_message_user(message)
+        user_alerts = self.alert_manager.get_user_alerts(user)
+        for alert in user_alerts["active"]:
+            self.alert_manager.dismiss_active_alert(get_alert_id(alert))
+            self.speak_dialog("confirm_dismiss_alert",
+                              {"kind": self._get_spoken_alert_type(
+                                  alert.alert_type)})
 
     # Search methods
     def _resolve_requested_alert(self, message: Message,
