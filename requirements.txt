@@ -1,3 +1,2 @@
 json_database~=0.5
-lingua-franca
 neon-utils~=0.6
