@@ -111,7 +111,8 @@ def get_skill_json():
     try:
         with open(skill_json) as f:
             current = json.load(f)
-    except:
+    except Exception as e:
+        print(e)
         current = None
     if current != combined:
         print("Skill Updated. Writing skill.json")
