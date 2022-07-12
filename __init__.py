@@ -34,8 +34,8 @@ from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
 from mycroft_bus_client import Message
-from neon_utils.message_utils import request_from_mobile, get_message_user, \
-    dig_for_message
+from neon_utils.message_utils import request_from_mobile, dig_for_message
+from neon_utils.user_utils import get_user_prefs, get_message_user
 from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
@@ -82,7 +82,7 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        use_24hour = self.preference_unit(message)["time"] == 24
+        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.ALARM,
                                         self._get_user_tz(message), use_24hour,
                                         self._get_spoken_alert_type,
@@ -105,7 +105,7 @@ class AlertSkill(NeonSkill):
             return
         tz = self._get_user_tz(message)
         anchor_time = datetime.now(tz)
-        use_24hour = self.preference_unit(message)["time"] == 24
+        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.TIMER, tz,
                                         use_24hour,
                                         self._get_spoken_alert_type,
@@ -128,7 +128,7 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        use_24hour = self.preference_unit(message)["time"] == 24
+        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.REMINDER,
                                         self._get_user_tz(message), use_24hour,
                                         self._get_spoken_alert_type,
@@ -188,7 +188,7 @@ class AlertSkill(NeonSkill):
                               {"kind": spoken_type}, private=True)
         else:
             alert = alerts_list[0]  # These are all sorted time ascending
-            use_24hour = self.preference_unit(message)["time"] == 24
+            use_24hour = get_user_prefs(message)["units"]["time"] == 24
             # This is patching LF type annotation bug
             # noinspection PyTypeChecker
             data = {
@@ -227,7 +227,7 @@ class AlertSkill(NeonSkill):
         # Build a single string to speak
         alerts_string = self.dialog_renderer.render("list_alert_intro",
                                                     {'kind': spoken_type})
-        use_24hour = self.preference_unit(message)["time"] == 24
+        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         for alert in alerts_list:
             data = self._get_alert_dialog_data(alert,
                                                message.data.get("lang"),
@@ -249,8 +249,9 @@ class AlertSkill(NeonSkill):
         :param message: Message associated with request
         """
         if request_from_mobile(message):
-            self.mobile_skill_intent("alert_status",
-                                     {"kind": "current_timer"}, message)
+            # TODO: Implement mobile intent handling
+            # self.mobile_skill_intent("alert_status",
+            #                          {"kind": "current_timer"}, message)
             return
 
         user = get_message_user(message)
@@ -323,7 +324,7 @@ class AlertSkill(NeonSkill):
                                                            AlertState.MISSED)
         if missed_alerts:  # TODO: Unit test this DM
             self.speak_dialog("list_alert_missed_intro", private=True)
-            use_24hour = self.preference_unit(message)["time"] == 24
+            use_24hour = get_user_prefs(message)["units"]["time"] == 24
             for alert in missed_alerts:
                 data = self._get_alert_dialog_data(alert,
                                                    message.data.get("lang"),
@@ -413,7 +414,7 @@ class AlertSkill(NeonSkill):
         # noinspection PyTypeChecker
         spoken_alert_time = \
             nice_time(alert.next_expiration, message.data.get("lang", "en-us"),
-                      use_24hour=self.preference_unit(message)['time'] == 24)
+                      use_24hour=get_user_prefs(message)["units"]['time'] == 24)
 
         # Schedule alert expirations
         self.alert_manager.add_alert(alert)
@@ -642,7 +643,7 @@ class AlertSkill(NeonSkill):
         alert_id = get_alert_id(alert)
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
-            if self.server:
+            if alert_message.context.get("klat_data"):
                 self.send_with_audio(self.dialog_renderer.render(
                     "expired_alert", {'name': alert.alert_name}),
                     to_play, alert_message, private=True)
@@ -856,7 +857,7 @@ class AlertSkill(NeonSkill):
         :param message: Message associated with request
         :return: timezone object
         """
-        return gettz(self.preference_location(message)['tz']) or self.sys_tz
+        return gettz(get_user_prefs(message)["location"]['tz']) or self.sys_tz
 
     def _get_alert_dialog_data(self, alert: Alert, lang: str,
                                use_24hour: bool) -> dict:
