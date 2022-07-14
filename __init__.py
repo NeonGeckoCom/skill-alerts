@@ -315,7 +315,7 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        if self.preference_skill(message)["quiet_hours"]:
+        if self.preference_skill(message).get("quiet_hours"):
             self.speak_dialog("quiet_hours_end", private=True)
             self.update_skill_settings({"quiet_hours": False}, message)
         user = get_message_user(message)
@@ -641,7 +641,7 @@ class AlertSkill(NeonSkill):
             return
 
         timeout = time.time() + \
-            self.preference_skill(alert_message)["timeout_min"] * 60
+            self.preference_skill(alert_message).get("timeout_min", 2) * 60
         alert_id = get_alert_id(alert)
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
@@ -661,7 +661,7 @@ class AlertSkill(NeonSkill):
 
         # Notify user until they dismiss the alert
         timeout = time.time() + \
-            self.preference_skill(alert_message)["timeout_min"] * 60
+            self.preference_skill(alert_message).get("timeout_min", 2) * 60
         alert_id = get_alert_id(alert)
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
