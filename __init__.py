@@ -593,10 +593,10 @@ class AlertSkill(NeonSkill):
         elif alert.audio_file:
             self._play_notify_expired(alert)
         elif alert.alert_type == AlertType.ALARM and \
-                not skill_prefs["speak_alarm"]:
+                not skill_prefs.get("speak_alarm"):
             self._play_notify_expired(alert)
         elif alert.alert_type == AlertType.TIMER and \
-                not skill_prefs["speak_timer"]:
+                not skill_prefs.get("speak_timer", True):
             self._play_notify_expired(alert)
         else:
             self._speak_notify_expired(alert)
@@ -626,9 +626,11 @@ class AlertSkill(NeonSkill):
             self.speak_dialog("expired_audio_alert_intro", private=True)
             to_play = alert.audio_file
         elif alert.alert_type == AlertType.ALARM:
-            to_play = self.preference_skill(alert_message)["sound_alarm"]
+            to_play = self.preference_skill(alert_message)\
+                .get("sound_alarm", "constant_beep.mp3")
         elif alert.alert_type == AlertType.TIMER:
-            to_play = self.preference_skill(alert_message)["sound_timer"]
+            to_play = self.preference_skill(alert_message)\
+                .get("sound_timer", "beep4.mp3")
         else:
             LOG.error(f"Audio File Not Specified")
             to_play = None
