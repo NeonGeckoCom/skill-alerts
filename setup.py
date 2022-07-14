@@ -94,7 +94,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     package_dir={SKILL_PKG: ""},
-    packages=[SKILL_PKG],
+    packages=[SKILL_PKG, f"{SKILL_PKG}.util"],
     package_data={SKILL_PKG: find_resource_files()},
     include_package_data=True,
     entry_points={"ovos.plugin.skill": PLUGIN_ENTRY_POINT}
