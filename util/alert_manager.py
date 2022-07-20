@@ -35,7 +35,7 @@ from uuid import uuid4 as uuid
 from mycroft_bus_client import Message
 from neon_utils.logger import LOG
 from neon_utils.location_utils import to_system_time
-from neon_utils.lock_utils import create_lock
+from combo_lock import NamedLock
 from ovos_utils.events import EventSchedulerInterface
 
 from . import AlertState, AlertType
@@ -101,7 +101,7 @@ class AlertManager:
         self._pending_alerts = dict()
         self._missed_alerts = dict()
         self._active_alerts = dict()
-        self._read_lock = create_lock("alert_manager")
+        self._read_lock = NamedLock("alert_manager")
 
         self._load_cache()
 
