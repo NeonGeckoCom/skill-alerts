@@ -555,22 +555,14 @@ class AlertSkill(NeonSkill):
         """
         # TODO: Refactor to use OVOS GUI
         #  https://github.com/OpenVoiceOS/skill-ovos-timer/pull/1
-        duration = alert_time.replace(microsecond=0) - \
-            datetime.now(alert_time.tzinfo).replace(microsecond=0)
-        LOG.info(duration)
-        self.gui.show_text(str(duration), name)
-        duration = duration - timedelta(seconds=1)
-        while duration.total_seconds() > 0:
-            time.sleep(1)
-            self.gui.gui_set(Message("tick", {"text": str(duration)}))
-            duration = duration - timedelta(seconds=1)
-        self.gui.gui_set(Message("tick", {"text": ""}))
+        pass
 
     def _gui_notify_expired(self, alert: Alert):
         """
         Handles gui display on alert expiration
         :param alert: expired alert
         """
+        # TODO: Refactor to use OVOS GUIs
         if alert.alert_type == AlertType.TIMER:
             self.gui.show_text("Time's Up!", alert.alert_name)
         else:
