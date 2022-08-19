@@ -482,7 +482,7 @@ class AlertSkill(NeonSkill):
             self.speak_dialog('confirm_alert_recurring',
                               {'kind': spoken_kind,
                                'time': spoken_alert_time,
-                               'days': repeat_interval},
+                               'repeat': repeat_interval},
                               private=True)
 
     def converse(self, message=None):
