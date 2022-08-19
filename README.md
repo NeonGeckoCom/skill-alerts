@@ -82,15 +82,15 @@ This skill has known intent collisions with the following skills:
 - [mycroft-timer.mycroftAI](https://github.com/mycroftai/mycroft-timer)
 
 ## Credits
-@NeonGeckoCom
-@NeonDaniel
+[NeonGeckoCom](https://github.com/NeonGeckoCom)
+[NeonDaniel](https://github.com/NeonDaniel)
 
 ## Category
 **Productivity**
 Daily
 
 ## Tags
-#NeonGecko
+#NeonGecko Original
 #NeonAI
 #alert
 #alarm

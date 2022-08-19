@@ -1,0 +1,72 @@
+{
+  "type": "skill-alerts.neongeckocom:create_alarm",
+  "data": {
+    "utterances": [
+      "neon create an alarm"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "skill_alerts_neongeckocomalarm": "alarm",
+    "skill_alerts_neongeckocomset": "create",
+    "target": null,
+    "confidence": 0.425,
+    "__tags__": [
+      {
+        "match": "alarm",
+        "key": "alarm",
+        "start_token": 3,
+        "entities": [
+          {
+            "key": "alarm",
+            "match": "alarm",
+            "data": [
+              [
+                "alarm",
+                "skill_alerts_neongeckocomalarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 3,
+        "from_context": false
+      },
+      {
+        "match": "create",
+        "key": "create",
+        "start_token": 1,
+        "entities": [
+          {
+            "key": "create",
+            "match": "create",
+            "data": [
+              [
+                "create",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      }
+    ],
+    "utterance": "neon create an alarm"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644981069.179295,
+      "transcribed": 1644981069.179295,
+      "save_transcript": 3.5762786865234375e-06,
+      "text_parsers": 1.2636184692382812e-05
+    }
+  }
+}

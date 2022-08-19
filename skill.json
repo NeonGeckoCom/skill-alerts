@@ -1,6 +1,6 @@
 {
     "title": "Alerts",
-    "url": "https://github.com/NeonGeckoCom/alerts.neon",
+    "url": "https://github.com/NeonGeckoCom/skill-alerts",
     "summary": "A skill to schedule alarms, timers, and reminders",
     "short_description": "A skill to schedule alarms, timers, and reminders",
     "description": "The skill provides functionality to create alarms, timers and reminders, remove them by name, time, or type, and ask for what is active. You may also silence all alerts and ask for a summary of what was missed if you were away, your device was off, or you had quiet hours enabled. Alarms and reminders may be set to recur daily or weekly. An active alert may be snoozed for a specified amount of time while it is active. Any alerts that are not acknowledged will be added to a list of missed alerts that may be read and cleared when requested.",
@@ -28,11 +28,9 @@
     "systemDeps": false,
     "requirements": {
         "python": [
-            "json_database~=0.5.5",
-            "lingua-franca",
-            "spacy~=2.3.1",
-            "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz",
-            "git+https://github.com/neongeckocom/neon-skill-utils"
+            "combo_lock~=0.2",
+            "json_database~=0.5",
+            "neon-utils>=0.6,<=2.0.0"
         ],
         "system": {},
         "skill": []
@@ -50,7 +48,7 @@
         "arm"
     ],
     "branch": "master",
-    "license": "NeonAI License v1.0",
+    "license": "BSD-3-Clause",
     "icon": "logo.svg",
     "category": "Productivity",
     "categories": [
@@ -58,7 +56,7 @@
         "Daily"
     ],
     "tags": [
-        "NeonGecko",
+        "NeonGecko Original",
         "NeonAI",
         "alert",
         "alarm",
@@ -66,7 +64,11 @@
         "reminder",
         "schedule"
     ],
-    "skillname": "Alerts",
-    "authorname": "Neon",
+    "credits": [
+        "NeonGeckoCom",
+        "NeonDaniel"
+    ],
+    "skillname": "skill-alerts",
+    "authorname": "NeonGeckoCom",
     "foldername": null
 }

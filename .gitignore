@@ -1,4 +1,3 @@
-*.yml
 !settingsmeta.yml
 *.lock
 .idea/

@@ -1,0 +1,95 @@
+{
+  "type": "skill-alerts.neongeckocom:alternate_reminder",
+  "data": {
+    "utterances": [
+      "remind me for the next four weeks to exercise every day at 10 AM"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:alternate_reminder",
+    "remind_me": "remind me",
+    "everyday": "every day",
+    "until": "for the next",
+    "target": null,
+    "confidence": 0.3457627118644068,
+    "__tags__": [
+      {
+        "match": "remind me",
+        "key": "remind me",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "remind me",
+            "match": "remind me",
+            "data": [
+              [
+                "remind me",
+                "skill_alerts_neongeckocomremind_me"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      },
+      {
+        "start_token": 8,
+        "entities": [
+          {
+            "key": "every day",
+            "match": "every day",
+            "data": [
+              [
+                "every day",
+                "skill_alerts_neongeckocomeveryday"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "confidence": 1.0,
+        "end_token": 9,
+        "match": "every day",
+        "key": "every day",
+        "from_context": false
+      },
+      {
+        "start_token": 2,
+        "entities": [
+          {
+            "key": "for the next",
+            "match": "for the next",
+            "data": [
+              [
+                "for the next",
+                "skill_alerts_neongeckocomuntil"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "confidence": 1.0,
+        "end_token": 4,
+        "match": "for the next",
+        "key": "for the next",
+        "from_context": false
+      }
+    ],
+    "utterance": "remind me for the next four weeks to exercise every day at 10 AM"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644972759.8370922,
+      "transcribed": 1644972759.8370922,
+      "save_transcript": 1.2159347534179688e-05,
+      "text_parsers": 3.838539123535156e-05
+    }
+  }
+}

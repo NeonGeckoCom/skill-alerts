@@ -1,0 +1,72 @@
+{
+  "type": "skill-alerts.neongeckocom:create_timer",
+  "data": {
+    "utterances": [
+      "start a 20 minute timer for the bread"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_timer",
+    "skill_alerts_neongeckocomset": "start",
+    "skill_alerts_neongeckocomtimer": "timer",
+    "target": null,
+    "confidence": 0.20720720720720723,
+    "__tags__": [
+      {
+        "match": "start",
+        "key": "start",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "start",
+            "match": "start",
+            "data": [
+              [
+                "start",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "timer",
+        "key": "timer",
+        "start_token": 4,
+        "entities": [
+          {
+            "key": "timer",
+            "match": "timer",
+            "data": [
+              [
+                "timer",
+                "skill_alerts_neongeckocomtimer"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 4,
+        "from_context": false
+      }
+    ],
+    "utterance": "start a 20 minute timer for the bread"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644892202.1883597,
+      "transcribed": 1644892202.1883597,
+      "save_transcript": 4.291534423828125e-06,
+      "text_parsers": 1.1682510375976562e-05
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "type": "skill-alerts.neongeckocom:create_alarm",
+  "data": {
+    "utterances": [
+      "create an alarm for 10 daily"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "target": null,
+    "confidence": 0.44999999999999996,
+    "__tags__": [
+      {
+        "match": "alarm",
+        "key": "alarm",
+        "start_token": 2,
+        "entities": [
+          {
+            "key": "alarm",
+            "match": "alarm",
+            "data": [
+              [
+                "alarm",
+                "skill_alerts_neongeckocomalarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 2,
+        "from_context": false
+      },
+      {
+        "match": "create",
+        "key": "create",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "create",
+            "match": "create",
+            "data": [
+              [
+                "create",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "daily",
+        "key": "daily",
+        "start_token": 5,
+        "entities": [
+          {
+            "key": "daily",
+            "match": "daily",
+            "data": [
+              [
+                "daily",
+                "skill_alerts_neongeckocomeveryday"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 5,
+        "from_context": false
+      }
+    ],
+    "utterance": "create an alarm for 10 daily",
+    "alarm": "alarm",
+    "set": "create",
+    "everyday": "daily"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644629256.6125884,
+      "transcribed": 1644629256.6125884,
+      "save_transcript": 6.198883056640625e-06,
+      "text_parsers": 1.71661376953125e-05
+    },
+    "skill_id": "skill-alerts.neongeckocom"
+  }
+}

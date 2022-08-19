@@ -1,0 +1,51 @@
+{
+  "type": "skill-alerts.neongeckocom:alternate_reminder",
+  "data": {
+    "utterances": [
+      "remind me to start the meeting tomorrow at 10 AM"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:alternate_reminder",
+    "remind_me": "remind me",
+    "target": null,
+    "confidence": 0.09375,
+    "__tags__": [
+      {
+        "match": "remind me",
+        "key": "remind me",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "remind me",
+            "match": "remind me",
+            "data": [
+              [
+                "remind me",
+                "skill_alerts_neongeckocomremind_me"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      }
+    ],
+    "utterance": "remind me to start the meeting tomorrow at 10 AM"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644971135.8396683,
+      "transcribed": 1644971135.8396683,
+      "save_transcript": 3.337860107421875e-06,
+      "text_parsers": 1.1205673217773438e-05
+    }
+  }
+}

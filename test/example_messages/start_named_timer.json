@@ -1,0 +1,72 @@
+{
+  "type": "skill-alerts.neongeckocom:create_timer",
+  "data": {
+    "utterances": [
+      "start a 12 minute baking timer"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:create_timer",
+    "skill_alerts_neongeckocomset": "start",
+    "skill_alerts_neongeckocomtimer": "timer",
+    "target": null,
+    "confidence": 0.2833333333333333,
+    "__tags__": [
+      {
+        "match": "start",
+        "key": "start",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "start",
+            "match": "start",
+            "data": [
+              [
+                "start",
+                "skill_alerts_neongeckocomset"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "match": "timer",
+        "key": "timer",
+        "start_token": 5,
+        "entities": [
+          {
+            "key": "timer",
+            "match": "timer",
+            "data": [
+              [
+                "timer",
+                "skill_alerts_neongeckocomtimer"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 5,
+        "from_context": false
+      }
+    ],
+    "utterance": "start a 12 minute baking timer"
+  },
+  "context": {
+    "client_name": "mycroft_cli",
+    "source": [
+      "skills"
+    ],
+    "destination": "debug_cli",
+    "client": "local",
+    "neon_should_respond": false,
+    "timing": {
+      "handle_utterance": 1644892109.5867872,
+      "transcribed": 1644892109.5867872,
+      "save_transcript": 9.775161743164062e-06,
+      "text_parsers": 4.458427429199219e-05
+    }
+  }
+}
