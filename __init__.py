@@ -683,7 +683,7 @@ class AlertSkill(NeonSkill):
             self.alert_manager.dismiss_active_alert(get_alert_id(alert))
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
-                                  alert.alert_type)})
+                                  alert.alert_type)}, private=True)
 
     # Search methods
     def _resolve_requested_alert(self, message: Message,
