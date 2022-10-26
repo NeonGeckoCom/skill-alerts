@@ -20,15 +20,15 @@ cleared when requested.
   
 If you are skipping wake words, say `Neon` followed by any of the following, otherwise say your `Wake Word`:
 
-- "Set an alarm for 8 am."
+- "Set an alarm for 8 AM."
 - "When is my next alarm?"
-- "Cancel my 8 am alarm."
+- "Cancel my 8 AM alarm."
 
 - "Set a 5 minute timer."
 - "How much time is left?"
 
 - "Remind me to go home at 6."
-- "Remind me to take out the trash every thursday at 7 pm."
+- "Remind me to take out the trash every thursday at 7 PM."
 - "What are my reminders?"
 
 - "Cancel all alarms."
