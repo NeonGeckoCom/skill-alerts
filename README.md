@@ -20,56 +20,36 @@ cleared when requested.
   
 If you are skipping wake words, say `Neon` followed by any of the following, otherwise say your `Wake Word`:
 
-- "set an alarm for 8 am"
-- "when is my next alarm"
-- "cancel my 8 am alarm"
+- "Set an alarm for 8 am."
+- "When is my next alarm?"
+- "Cancel my 8 am alarm."
 
-- "set a 5 minute timer"
-- "how much time is left"
+- "Set a 5 minute timer."
+- "How much time is left?"
 
-- "remind me to go home at 6"
-- "remind me to take out the trash every thursday at 7 pm"
-- "what are my reminders"
+- "Remind me to go home at 6."
+- "Remind me to take out the trash every thursday at 7 pm."
+- "What are my reminders?"
 
-- "cancel all (alarms/timers/reminders)"
+- "Cancel all alarms."
+- "Cancel all timers."
+- "Cancel all reminders."
 
-- "go to sleep"
-- "quiet hours"
+- "Go to sleep."
+- "Start quiet hours."
 
 If there is an active alert (expired and currently speaking or playing), you may snooze or dismiss it:
 
-- "stop"
+- "Stop."
 
-- "snooze"
-- "snooze for 1 minute"
+- "Snooze."
+- "Snooze for 1 minute."
   
 If you had quiet hours enabled, your device was off, or you were away and missed an alert, you may ask for a summary:
 
-- "wake up"
-- "what did i miss"
-- "did i miss anything"
-
-## Details
-
-### Text
-
-	    Neon what are my reminders?
-        >> You have the following reminders:
-        >> to go home, Today at six p.m.
-        
-        Neon remind me to take out the trash every thursday at 7 pm.                                                                                             
-        >> Your reminder is set for 7:00 pm, every thursday
-                
-        Neon enable quiet hours.                                                                                    
-        >> Enabling quiet hours. I will not notify you of any alerts until you disable quiet hours.
-        
-        Neon what did I miss?
-        >> You haven't missed any alerts.
-
-
-### Picture
-
-### Video
+- "Wake up."
+- "What did I miss?"
+- "Did I miss anything?"
 
 ## Contact Support
 Use [this link](https://neongecko.com/ContactUs) or
