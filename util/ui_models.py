@@ -44,12 +44,12 @@ def build_timer_data(alert: Alert) -> dict:
     delta_seconds = alert.time_to_expiration
     if delta_seconds.total_seconds() < 0:
         percent_remaining = 0
-        human_delta = '-' + nice_duration( -1 * delta_seconds.total_seconds(),
-                                           speech=False)
+        human_delta = '-' + nice_duration(-1 * delta_seconds.total_seconds(),
+                                          speech=False)
     else:
         total_time = datetime.now(alert.timezone).timestamp() - \
                      start_time.timestamp() + delta_seconds.total_seconds()
-        percent_remaining = ((total_time - delta_seconds.total_seconds())/
+        percent_remaining = ((total_time - delta_seconds.total_seconds()) /
                              total_time)
         human_delta = nice_duration(delta_seconds.total_seconds(), speech=False)
 

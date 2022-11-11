@@ -105,14 +105,14 @@ class Alert:
         return now >= expiration
 
     @property
-    def time_to_expiration(self) -> Optional[datetime.timedelta]:
+    def time_to_expiration(self) -> datetime.timedelta:
         """
-        Return the time until `next_expiration_time` or None if alert expired.
+        Return the time until `next_expiration_time` (negative) if alert expired.
         This does not account for any repeat behavior, call `next_expiration`
         to check for a repeating event.
         """
-        if self.is_expired:
-            return None
+        # if self.is_expired:
+        #     return None
         expiration = \
             datetime.datetime.fromisoformat(self._data["next_expiration_time"])
         now = datetime.datetime.now(expiration.tzinfo)

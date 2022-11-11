@@ -750,7 +750,7 @@ class TestAlert(unittest.TestCase):
                          "script_file")
         self.assertTrue(expired_alert_no_repeat.is_expired)
         self.assertIsNone(expired_alert_no_repeat.next_expiration)
-        self.assertIsNone(expired_alert_no_repeat.time_to_expiration)
+        self.assertLessEqual(expired_alert_no_repeat.time_to_expiration, 0)
 
         expired_alert_expired_repeat = Alert.create(
             now_time_valid - dt.timedelta(hours=6),
@@ -771,7 +771,7 @@ class TestAlert(unittest.TestCase):
                          "expired alert name")
         self.assertTrue(expired_alert_expired_repeat.is_expired)
         self.assertIsNone(expired_alert_expired_repeat.next_expiration)
-        self.assertIsNone(expired_alert_expired_repeat.time_to_expiration)
+        self.assertLessEqual(expired_alert_expired_repeat.time_to_expiration, 0)
 
         alert_time = now_time_valid.replace(microsecond=0) - \
             dt.timedelta(hours=1)
