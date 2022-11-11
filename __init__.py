@@ -43,8 +43,8 @@ from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
 from mycroft.util.format import nice_time, nice_date_time
 
-from util.ui_models import build_timer_data
 from .util import Weekdays, AlertState, MatchLevel
+from .util.ui_models import build_timer_data
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
 from .util.parse_utils import build_alert_from_intent, spoken_time_remaining,\
