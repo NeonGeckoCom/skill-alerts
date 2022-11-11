@@ -28,6 +28,7 @@
 
 import time
 import os
+from threading import RLock
 
 from typing import Tuple, List, Optional
 from dateutil.tz import gettz
@@ -42,6 +43,7 @@ from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
 from mycroft.util.format import nice_time, nice_date_time
 
+from util.ui_models import build_timer_data
 from .util import Weekdays, AlertState, MatchLevel
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
@@ -54,6 +56,8 @@ class AlertSkill(NeonSkill):
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self._alert_manager = None
+        self._active_gui_timers = list()
+        self._gui_timer_lock = RLock()
 
     @property
     def alert_manager(self) -> AlertManager:
@@ -274,7 +278,7 @@ class AlertSkill(NeonSkill):
             remaining_time = \
                 spoken_time_remaining(matched_timer.next_expiration,
                                       lang=message.data.get("lang"))
-            self._display_timer_status(name, expiration)
+            self._display_timer_status(matched_timer)
             self.speak_dialog('timer_status',
                               {'timer': name,
                                'duration': remaining_time}, private=True)
@@ -426,8 +430,8 @@ class AlertSkill(NeonSkill):
         if alert.alert_type == AlertType.TIMER:
             self.speak_dialog('confirm_timer_started',
                               {'duration': spoken_duration}, private=True)
-            self._display_timer_status(alert.alert_name,
-                                       alert.next_expiration)
+            # TODO: Filter to only local requests
+            self._display_timer_status(alert)
             return
 
         # Notify one-time Alert
@@ -547,15 +551,31 @@ class AlertSkill(NeonSkill):
     #                                           'duration': duration}, private=True)
 
 # GUI methods
-    def _display_timer_status(self, name, alert_time: datetime):
+    def _display_timer_status(self, alert: Alert):
         """
-        Sets the gui to this timers' status until it expires
-        :param name: Timer Name
-        :param alert_time: Datetime of alert
+        Updates the GUI timers display with the next expiring timer(s). Places
+        the new timer in the time-sorted list
+        :param alert: Timer Alert object to display
         """
-        # TODO: Refactor to use OVOS GUI
-        #  https://github.com/OpenVoiceOS/skill-ovos-timer/pull/1
-        pass
+        self._active_gui_timers.append(alert)
+        self._active_gui_timers.sort(key=lambda i: i.time_to_expiration.totalseconds())
+        self.gui.show_page("Timer.qml", override_idle=True)
+        self._start_timer_gui_thread()
+
+    def _start_timer_gui_thread(self):
+        """
+        Start updating the Timer UI while there are still active timers and
+        refresh them every second.
+        """
+        self._gui_timer_lock.acquire(True, 1)
+        while self._active_gui_timers:
+            timers_to_display = self._active_gui_timers[:10]
+            if timers_to_display:
+                display_data = [build_timer_data(timer)
+                                for timer in timers_to_display]
+                self.gui['activeTimers'] = {'timers': display_data}
+            time.sleep(1)
+        self._gui_timer_lock.release()
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -563,9 +583,7 @@ class AlertSkill(NeonSkill):
         :param alert: expired alert
         """
         # TODO: Refactor to use OVOS GUIs
-        if alert.alert_type == AlertType.TIMER:
-            self.gui.show_text("Time's Up!", alert.alert_name)
-        else:
+        if alert.alert_type != AlertType.TIMER:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
 

@@ -120,6 +120,13 @@ class Alert:
         return expiration - now
 
     @property
+    def timezone(self) -> datetime.tzinfo:
+        """
+        Return the tzinfo associated with this alert's expiration
+        """
+        return datetime.datetime.fromisoformat(self._data["next_expiration_time"]).tzinfo
+
+    @property
     def next_expiration(self) -> Optional[datetime.datetime]:
         """
         Return the next valid expiration time for this alert. Returns None if
