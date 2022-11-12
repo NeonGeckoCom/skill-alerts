@@ -218,7 +218,9 @@ class AlertManager:
         """
         try:
             with self._read_lock:
-                return self._missed_alerts.pop(alert_id)
+                alert = self._missed_alerts.pop(alert_id)
+                self.dismiss_timer_from_gui(alert)
+            return alert
         except KeyError:
             LOG.error(f"{alert_id} is not missed")
 

@@ -585,7 +585,12 @@ class AlertSkill(NeonSkill):
         Handle a GUI timer dismissal
         """
         alert_id = message.data['timer']['alertId']
-        self.alert_manager.rm_alert(alert_id)
+        if alert_id in self.alert_manager.active_alerts:
+            self.alert_manager.dismiss_active_alert(alert_id)
+        elif alert_id in self.alert_manager.pending_alerts:
+            self.alert_manager.rm_alert(alert_id)
+        elif alert_id in self.alert_manager.missed_alerts:
+            self.alert_manager.dismiss_missed_alert(alert_id)
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -735,6 +740,7 @@ class AlertSkill(NeonSkill):
         else:
             requested_name, requested_time = \
                 self._get_requested_alert_name_and_time(message)
+            requested_name = requested_name or ""  # TODO: Unit test this case
 
         # Iterate over all alerts to fine a matching alert
         candidates = list()
