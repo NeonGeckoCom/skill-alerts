@@ -600,6 +600,7 @@ class AlertSkill(NeonSkill):
                 if get_alert_id(alert) == alert_id:
                     self.alert_manager.dismiss_timer_from_gui(alert)
                     break
+            LOG.debug(self.alert_manager.active_gui_timers)
 
     def _gui_notify_expired(self, alert: Alert):
         """
