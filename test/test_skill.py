@@ -332,8 +332,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(
-            long_timer.alert_name, long_timer.next_expiration)
+        self.skill._display_timer_status.assert_called_with(long_timer)
 
         # Multiple active timers not specifically requested
         self.skill.alert_manager.add_alert(test_timer)
@@ -355,8 +354,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(
-            long_timer.alert_name, long_timer.next_expiration)
+        self.skill._display_timer_status.assert_called_with(long_timer)
 
         self.skill.alert_manager.rm_alert(get_alert_id(long_timer))
         self.skill.alert_manager.rm_alert(get_alert_id(test_timer))
@@ -750,7 +748,7 @@ class TestAlert(unittest.TestCase):
                          "script_file")
         self.assertTrue(expired_alert_no_repeat.is_expired)
         self.assertIsNone(expired_alert_no_repeat.next_expiration)
-        self.assertLessEqual(expired_alert_no_repeat.time_to_expiration, 0)
+        self.assertLessEqual(expired_alert_no_repeat.time_to_expiration.total_seconds(), 0)
 
         expired_alert_expired_repeat = Alert.create(
             now_time_valid - dt.timedelta(hours=6),
