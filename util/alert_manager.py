@@ -193,7 +193,7 @@ class AlertManager:
         try:
             with self._read_lock:
                 self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
-            self.dismiss_timer_from_gui(self._missed_alerts[alert_id])
+            self.dismiss_alert_from_gui(self._missed_alerts[alert_id])
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
@@ -219,7 +219,7 @@ class AlertManager:
         try:
             with self._read_lock:
                 alert = self._missed_alerts.pop(alert_id)
-                self.dismiss_timer_from_gui(alert)
+                self.dismiss_alert_from_gui(alert_id)
             return alert
         except KeyError:
             LOG.error(f"{alert_id} is not missed")
@@ -243,7 +243,7 @@ class AlertManager:
             LOG.debug(f"Removing alert: {alert_id}")
             with self._read_lock:
                 alert = self._pending_alerts.pop(alert_id)
-                self.dismiss_timer_from_gui(alert)
+                self.dismiss_alert_from_gui(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
         self._scheduler.cancel_scheduled_event(alert_id)
@@ -257,21 +257,17 @@ class AlertManager:
         self._active_gui_timers.sort(
             key=lambda i: i.time_to_expiration.total_seconds())
 
-    def dismiss_timer_from_gui(self, alert: Alert):
+    def dismiss_alert_from_gui(self, alert_id: str):
         """
-        Dismiss a timer from the GUI.
+        Dismiss an alert from the GUI.
         """
-        if alert in self._active_gui_timers:
-            self._active_gui_timers.remove(alert)
-        else:
-            # Active timers are a copy of the original, check by ID
-            for pending in self._active_gui_timers:
-                requested_id = get_alert_id(alert)
-                if get_alert_id(pending) == requested_id:
-                    LOG.debug(f'Dismissing Timer from GUI and active list')
-                    self._active_gui_timers.remove(pending)
-                    self.dismiss_active_alert(requested_id)
-                    break
+        # Active timers are a copy of the original, check by ID
+        for pending in self._active_gui_timers:
+            if get_alert_id(pending) == alert_id:
+                self._active_gui_timers.remove(pending)
+                return True
+        # TODO: Dismiss an active alarm/reminder UI here
+        return False
 
     def shutdown(self):
         """
