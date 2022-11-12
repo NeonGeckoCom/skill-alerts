@@ -264,6 +264,14 @@ class AlertManager:
         """
         if alert in self._active_gui_timers:
             self._active_gui_timers.remove(alert)
+        else:
+            # Active timers are a copy of the original, check by ID
+            for pending in self._active_gui_timers:
+                requested_id = get_alert_id(alert)
+                if get_alert_id(pending) == requested_id:
+                    self._active_gui_timers.remove(pending)
+                    self.dismiss_active_alert(requested_id)
+                    break
 
     def shutdown(self):
         """

@@ -618,6 +618,7 @@ class AlertSkill(NeonSkill):
         Callback for AlertManager on Alert expiration
         :param alert: expired Alert object
         """
+        LOG.debug(f'alert expired: {get_alert_id(alert)}')
         self.make_active()
         message = Message("neon.alert_expired", alert.data, alert.context)
         skill_prefs = self.preference_skill(message)
@@ -692,6 +693,7 @@ class AlertSkill(NeonSkill):
             self.alert_manager.mark_alert_missed(alert_id)
 
     def _speak_notify_expired(self, alert: Alert):
+        LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
         alert_message = Message("neon.alert", alert.data, alert.context)
 
         # Notify user until they dismiss the alert
@@ -710,6 +712,7 @@ class AlertSkill(NeonSkill):
             self.make_active()
             time.sleep(10)
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
+            LOG.debug(f"mark alert missed: {get_alert_id(alert)}")
             self.alert_manager.mark_alert_missed(alert_id)
 
     def shutdown(self):
