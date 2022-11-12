@@ -597,11 +597,8 @@ class AlertSkill(NeonSkill):
             self.alert_manager.dismiss_missed_alert(alert_id)
         else:
             LOG.warning(f'GUI alert not in AlertManager')
-            for alert in self.alert_manager.active_gui_timers:
-                if get_alert_id(alert) == alert_id:
-                    self.alert_manager.dismiss_alert_from_gui(alert)
-                    break
-            LOG.debug(self.alert_manager.active_gui_timers)
+        self.alert_manager.dismiss_alert_from_gui(alert_id)
+        LOG.debug(self.alert_manager.active_gui_timers)
 
     def _gui_notify_expired(self, alert: Alert):
         """
