@@ -769,7 +769,7 @@ class TestAlert(unittest.TestCase):
                          "expired alert name")
         self.assertTrue(expired_alert_expired_repeat.is_expired)
         self.assertIsNone(expired_alert_expired_repeat.next_expiration)
-        self.assertLessEqual(expired_alert_expired_repeat.time_to_expiration, 0)
+        self.assertLessEqual(expired_alert_expired_repeat.time_to_expiration.total_seconds(), 0)
 
         alert_time = now_time_valid.replace(microsecond=0) - \
             dt.timedelta(hours=1)
