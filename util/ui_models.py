@@ -29,6 +29,7 @@
 from datetime import datetime
 from lingua_franca.format import nice_duration
 from .alert import Alert, AlertType
+from .alert_manager import get_alert_id
 
 
 def build_timer_data(alert: Alert) -> dict:
@@ -54,6 +55,7 @@ def build_timer_data(alert: Alert) -> dict:
         human_delta = nice_duration(delta_seconds.total_seconds(), speech=False)
 
     return {
+        'alertId': get_alert_id(alert),
         'backgroundColor': '',  # Color hex code
         'expired': alert.is_expired,
         'percentRemaining': percent_remaining,  # float percent remaining

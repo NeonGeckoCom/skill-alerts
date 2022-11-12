@@ -102,8 +102,14 @@ class AlertManager:
         self._missed_alerts = dict()
         self._active_alerts = dict()
         self._read_lock = NamedLock("alert_manager")
+        self._active_gui_timers = list()
 
         self._load_cache()
+
+    @property
+    def active_gui_timers(self):
+        with self._read_lock:
+            return deepcopy(self._active_gui_timers)
 
     @property
     def missed_alerts(self):
@@ -198,7 +204,9 @@ class AlertManager:
         """
         try:
             with self._read_lock:
-                return self._active_alerts.pop(alert_id)
+                alert = self._active_alerts.pop(alert_id)
+                self.dismiss_timer_from_gui(alert)
+            return alert
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
@@ -231,11 +239,28 @@ class AlertManager:
         """
         try:
             with self._read_lock:
-                self._pending_alerts.pop(alert_id)
+                alert = self._pending_alerts.pop(alert_id)
+                self.dismiss_timer_from_gui(alert)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
         LOG.debug(f"Removing alert: {alert_id}")
         self._scheduler.cancel_scheduled_event(alert_id)
+
+    def add_timer_to_gui(self, alert: Alert):
+        """
+        Add a timer to the GUI.
+        :param alert: Timer to add to GUI
+        """
+        self._active_gui_timers.append(alert)
+        self._active_gui_timers.sort(
+            key=lambda i: i.time_to_expiration.total_seconds())
+
+    def dismiss_timer_from_gui(self, alert: Alert):
+        """
+        Dismiss a timer from the GUI.
+        """
+        if alert in self._active_gui_timers:
+            self._active_gui_timers.remove(alert)
 
     def shutdown(self):
         """

@@ -56,7 +56,6 @@ class AlertSkill(NeonSkill):
     def __init__(self):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self._alert_manager = None
-        self._active_gui_timers = list()
         self._gui_timer_lock = RLock()
 
     @property
@@ -71,6 +70,9 @@ class AlertSkill(NeonSkill):
                                                         "alerts.json"),
                                            self.event_scheduler,
                                            self._alert_expired)
+
+        self.gui.register_handler("timerskill.gui.stop.timer",
+                                  self._gui_cancel_timer)
 
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
@@ -557,8 +559,7 @@ class AlertSkill(NeonSkill):
         the new timer in the time-sorted list
         :param alert: Timer Alert object to display
         """
-        self._active_gui_timers.append(alert)
-        self._active_gui_timers.sort(key=lambda i: i.time_to_expiration.totalseconds())
+        self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
         self._start_timer_gui_thread()
 
@@ -568,14 +569,21 @@ class AlertSkill(NeonSkill):
         refresh them every second.
         """
         self._gui_timer_lock.acquire(True, 1)
-        while self._active_gui_timers:
-            timers_to_display = self._active_gui_timers[:10]
+        while self.alert_manager.active_gui_timers:
+            timers_to_display = self.alert_manager.active_gui_timers[:10]
             if timers_to_display:
                 display_data = [build_timer_data(timer)
                                 for timer in timers_to_display]
                 self.gui['activeTimers'] = {'timers': display_data}
             time.sleep(1)
         self._gui_timer_lock.release()
+
+    def _gui_cancel_timer(self, message):
+        """
+        Handle a GUI timer dismissal
+        """
+        alert_id = message.data['timer']['alertId']
+        self.alert_manager.rm_alert(alert_id)
 
     def _gui_notify_expired(self, alert: Alert):
         """
