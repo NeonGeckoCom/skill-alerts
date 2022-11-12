@@ -577,6 +577,7 @@ class AlertSkill(NeonSkill):
                 self.gui['activeTimers'] = {'timers': display_data}
             time.sleep(1)
         self._gui_timer_lock.release()
+        self.gui.release()
 
     def _gui_cancel_timer(self, message):
         """

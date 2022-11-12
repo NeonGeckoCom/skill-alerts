@@ -238,12 +238,12 @@ class AlertManager:
         :param alert_id: ident of active alert to remove
         """
         try:
+            LOG.debug(f"Removing alert: {alert_id}")
             with self._read_lock:
                 alert = self._pending_alerts.pop(alert_id)
                 self.dismiss_timer_from_gui(alert)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
-        LOG.debug(f"Removing alert: {alert_id}")
         self._scheduler.cancel_scheduled_event(alert_id)
 
     def add_timer_to_gui(self, alert: Alert):

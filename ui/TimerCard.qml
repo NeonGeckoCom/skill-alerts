@@ -101,9 +101,6 @@ ItemDelegate {
                     }
 
                     onClicked: {
-                        if (timerViews.count == 1) {
-                            Mycroft.MycroftController.sendText("cancel all timers")
-                        }
                         triggerGuiEvent("timerskill.gui.stop.timer", {"timer": modelData})
                     }
                 }
