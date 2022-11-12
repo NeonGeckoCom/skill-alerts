@@ -193,6 +193,7 @@ class AlertManager:
         try:
             with self._read_lock:
                 self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
+            self.dismiss_timer_from_gui(self._missed_alerts[alert_id])
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 

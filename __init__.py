@@ -586,11 +586,20 @@ class AlertSkill(NeonSkill):
         """
         alert_id = message.data['timer']['alertId']
         if alert_id in self.alert_manager.active_alerts:
+            LOG.debug('Dismissing active alert')
             self.alert_manager.dismiss_active_alert(alert_id)
         elif alert_id in self.alert_manager.pending_alerts:
+            LOG.debug('Dismissing pending alert')
             self.alert_manager.rm_alert(alert_id)
         elif alert_id in self.alert_manager.missed_alerts:
+            LOG.debug('Dismissing missed alert')
             self.alert_manager.dismiss_missed_alert(alert_id)
+        else:
+            LOG.warning(f'GUI alert not in AlertManager')
+            for alert in self.alert_manager.active_gui_timers:
+                if get_alert_id(alert) == alert_id:
+                    self.alert_manager.dismiss_timer_from_gui(alert)
+                    break
 
     def _gui_notify_expired(self, alert: Alert):
         """
