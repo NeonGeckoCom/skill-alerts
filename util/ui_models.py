@@ -48,15 +48,15 @@ def build_timer_data(alert: Alert) -> dict:
         human_delta = '-' + nice_duration(-1 * delta_seconds.total_seconds(),
                                           speech=False)
     else:
-        total_time = datetime.now(alert.timezone).timestamp() - \
-                     start_time.timestamp() + delta_seconds.total_seconds()
-        percent_remaining = ((total_time - delta_seconds.total_seconds()) /
-                             total_time)
+        total_time = (datetime.now(alert.timezone).timestamp() -
+                      start_time.timestamp()) * 1000 + \
+                     delta_seconds.total_seconds()
+        percent_remaining = delta_seconds.total_seconds() / total_time
         human_delta = nice_duration(delta_seconds.total_seconds(), speech=False)
 
     return {
         'alertId': get_alert_id(alert),
-        'backgroundColor': '',  # Color hex code
+        'backgroundColor': '',  # TODO Color hex code
         'expired': alert.is_expired,
         'percentRemaining': percent_remaining,  # float percent remaining
         'timerName': alert.alert_name,
