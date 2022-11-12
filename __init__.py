@@ -568,7 +568,8 @@ class AlertSkill(NeonSkill):
         Start updating the Timer UI while there are still active timers and
         refresh them every second.
         """
-        self._gui_timer_lock.acquire(True, 1)
+        if not self._gui_timer_lock.acquire(True, 1):
+            return
         while self.alert_manager.active_gui_timers:
             timers_to_display = self.alert_manager.active_gui_timers[:10]
             if timers_to_display:
