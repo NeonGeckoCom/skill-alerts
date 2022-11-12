@@ -1878,7 +1878,7 @@ class TestUIModels(unittest.TestCase):
                          {'alertId', 'backgroundColor', 'expired',
                           'percentRemaining', 'timerName', 'timeDelta'})
         self.assertEqual(timer_data['alertId'], get_alert_id(valid_alert))
-        self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
+        self.assertAlmostEqual(timer_data['percentRemaining'], 1, 2)
         self.assertEqual(timer_data['timerName'], 'test timer')
         self.assertIsInstance(timer_data['timeDelta'], str)
 
@@ -1886,6 +1886,7 @@ class TestUIModels(unittest.TestCase):
         new_timer_data = build_timer_data(valid_alert)
         self.assertLess(new_timer_data['percentRemaining'],
                         timer_data['percentRemaining'])
+        self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
 
 
 if __name__ == '__main__':

@@ -49,7 +49,7 @@ def build_timer_data(alert: Alert) -> dict:
                                           speech=False)
     else:
         total_time = (datetime.now(alert.timezone).timestamp() -
-                      start_time.timestamp()) * 1000 + \
+                      start_time.timestamp()) + \
                      delta_seconds.total_seconds()
         percent_remaining = delta_seconds.total_seconds() / total_time
         human_delta = nice_duration(delta_seconds.total_seconds(), speech=False)
