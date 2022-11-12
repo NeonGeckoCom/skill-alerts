@@ -206,7 +206,6 @@ class AlertManager:
         try:
             with self._read_lock:
                 alert = self._active_alerts.pop(alert_id)
-                self.dismiss_timer_from_gui(alert)
             return alert
         except KeyError:
             LOG.error(f"{alert_id} is not active")
@@ -269,6 +268,7 @@ class AlertManager:
             for pending in self._active_gui_timers:
                 requested_id = get_alert_id(alert)
                 if get_alert_id(pending) == requested_id:
+                    LOG.debug(f'Dismissing Timer from GUI and active list')
                     self._active_gui_timers.remove(pending)
                     self.dismiss_active_alert(requested_id)
                     break

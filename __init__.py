@@ -510,6 +510,7 @@ class AlertSkill(NeonSkill):
                     for alert in user_alerts["active"]:
                         self.alert_manager.dismiss_active_alert(
                             get_alert_id(alert))
+                        self.alert_manager.dismiss_timer_from_gui(alert)
                         self.speak_dialog("confirm_dismiss_alert",
                                           {"kind": self._get_spoken_alert_type(
                                               alert.alert_type)})
