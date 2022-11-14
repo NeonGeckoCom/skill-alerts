@@ -726,7 +726,7 @@ class AlertSkill(NeonSkill):
                 'text': f'Reminder: {alert.alert_name}',
                 'action': 'alerts.gui.dismiss_notification',
                 'type': 'sticky' if
-                alert.priority > AlertPriority.AVERAGE.value() else 'transient',
+                alert.priority > AlertPriority.AVERAGE else 'transient',
                 'style': 'info'
             }
             self.bus.emit(Message("ovos.notification.api.set",
