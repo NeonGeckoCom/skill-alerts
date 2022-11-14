@@ -74,8 +74,8 @@ class AlertSkill(NeonSkill):
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
-        self.gui.register_handler("alerts.gui.dismiss_notification",
-                                  self._gui_dismiss_notification)
+        self.add_event("alerts.gui.dismiss_notification",
+                       self._gui_dismiss_notification)
         self.gui.register_handler("ovos.alarm.skill.cancel",
                                   self._gui_cancel_alarm)
         self.gui.register_handler("ovos.alarm.skill.snooze",
