@@ -605,7 +605,9 @@ class AlertSkill(NeonSkill):
         Handles gui display on alert expiration
         :param alert: expired alert
         """
-        # TODO: Refactor to use OVOS GUIs
+        if alert.alert_type == AlertType.TIMER and self.gui.pages:
+            # Ensure the Timer GUI is active on expiration
+            self.gui.show_pages(self.gui.pages, override_idle=True)
         if alert.alert_type != AlertType.TIMER:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
