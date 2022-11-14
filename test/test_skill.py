@@ -16,7 +16,9 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+import time
 
+import lingua_franca
 import pytest
 import random
 import sys
@@ -332,8 +334,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(
-            long_timer.alert_name, long_timer.next_expiration)
+        self.skill._display_timer_status.assert_called_with(long_timer)
 
         # Multiple active timers not specifically requested
         self.skill.alert_manager.add_alert(test_timer)
@@ -355,8 +356,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(
-            long_timer.alert_name, long_timer.next_expiration)
+        self.skill._display_timer_status.assert_called_with(long_timer)
 
         self.skill.alert_manager.rm_alert(get_alert_id(long_timer))
         self.skill.alert_manager.rm_alert(get_alert_id(test_timer))
@@ -750,7 +750,7 @@ class TestAlert(unittest.TestCase):
                          "script_file")
         self.assertTrue(expired_alert_no_repeat.is_expired)
         self.assertIsNone(expired_alert_no_repeat.next_expiration)
-        self.assertIsNone(expired_alert_no_repeat.time_to_expiration)
+        self.assertLessEqual(expired_alert_no_repeat.time_to_expiration.total_seconds(), 0)
 
         expired_alert_expired_repeat = Alert.create(
             now_time_valid - dt.timedelta(hours=6),
@@ -771,7 +771,7 @@ class TestAlert(unittest.TestCase):
                          "expired alert name")
         self.assertTrue(expired_alert_expired_repeat.is_expired)
         self.assertIsNone(expired_alert_expired_repeat.next_expiration)
-        self.assertIsNone(expired_alert_expired_repeat.time_to_expiration)
+        self.assertLessEqual(expired_alert_expired_repeat.time_to_expiration.total_seconds(), 0)
 
         alert_time = now_time_valid.replace(microsecond=0) - \
             dt.timedelta(hours=1)
@@ -1847,6 +1847,46 @@ class TestParseUtils(unittest.TestCase):
         self.assertIsNone(rotate_logs_reminder.repeat_days)
         self.assertEqual(rotate_logs_reminder.repeat_frequency,
                          dt.timedelta(hours=8))
+
+
+class TestUIModels(unittest.TestCase):
+    lingua_franca.load_language('en')
+
+    def test_build_timer_data(self):
+        from util.ui_models import build_timer_data
+
+        now_time_valid = dt.datetime.now(dt.timezone.utc)
+        invalid_alert = Alert.create(
+            now_time_valid + dt.timedelta(hours=1),
+            "test alert name",
+            AlertType.ALARM,
+            context={"testing": True}
+        )
+
+        with self.assertRaises(ValueError):
+            build_timer_data(invalid_alert)
+
+        valid_alert = Alert.create(
+            dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1),
+            "test timer",
+            AlertType.TIMER,
+            context={"testing": True,
+                     "start_time": now_time_valid.isoformat()}
+        )
+        timer_data = build_timer_data(valid_alert)
+        self.assertEqual(set(timer_data.keys()),
+                         {'alertId', 'backgroundColor', 'expired',
+                          'percentRemaining', 'timerName', 'timeDelta'})
+        self.assertEqual(timer_data['alertId'], get_alert_id(valid_alert))
+        self.assertAlmostEqual(timer_data['percentRemaining'], 1, 2)
+        self.assertEqual(timer_data['timerName'], 'test timer')
+        self.assertIsInstance(timer_data['timeDelta'], str)
+
+        time.sleep(1)
+        new_timer_data = build_timer_data(valid_alert)
+        self.assertLess(new_timer_data['percentRemaining'],
+                        timer_data['percentRemaining'])
+        self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
 
 
 if __name__ == '__main__':

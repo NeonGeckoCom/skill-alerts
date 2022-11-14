@@ -163,7 +163,7 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     audio_file = parse_audio_file_from_message(message, tokens)
     script_file = parse_script_file_from_message(message, tokens)
     anchor_time = dt.datetime.now(timezone)
-    alert_time = parse_alert_time_from_message(message, tokens, timezone)
+    alert_time = parse_alert_time_from_message(message, tokens, timezone, anchor_time)
 
     if not alert_time:
         if repeat_interval:
@@ -183,6 +183,7 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     else:
         articles = list()
     alert_context = parse_alert_context_from_message(message)
+    alert_context['start_time'] = anchor_time.isoformat()
     alert_name = parse_alert_name_from_message(message, tokens, True,
                                                articles) or \
         get_default_alert_name(alert_time, alert_type, anchor_time, lang,
@@ -338,7 +339,8 @@ def parse_end_condition_from_message(message: Message,
 
 def parse_alert_time_from_message(message: Message,
                                   tokens: Optional[list] = None,
-                                  timezone: dt.tzinfo = dt.timezone.utc) -> \
+                                  timezone: dt.tzinfo = dt.timezone.utc,
+                                  anchor_time: dt.datetime = None) -> \
         Optional[dt.datetime]:
     """
     Parse a requested alert time from the request utterance
@@ -347,19 +349,19 @@ def parse_alert_time_from_message(message: Message,
     :param timezone: timezone of request, defaults to utc
     :returns: Parsed datetime for the alert or None if no time is extracted
     """
+    anchor_time = anchor_time or dt.datetime.now(timezone)
     tokens = tokens or tokenize_utterance(message)
     remainder_tokens = get_unmatched_tokens(message, tokens)
     load_language(message.data.get("lang") or _default_lang)
     alert_time = None
     for token in remainder_tokens:
-        start_time = dt.datetime.now(timezone)
         extracted = extract_duration(token)
         if extracted and extracted[0]:
             duration, remainder = extracted
-            alert_time = start_time + duration
+            alert_time = anchor_time + duration
             tokens[tokens.index(token)] = remainder
             break
-        extracted = extract_datetime(token, anchorDate=start_time)
+        extracted = extract_datetime(token, anchorDate=anchor_time)
         if extracted and extracted[0]:
             alert_time, remainder = extracted
             tokens[tokens.index(token)] = remainder
