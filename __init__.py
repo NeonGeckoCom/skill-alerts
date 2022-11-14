@@ -715,7 +715,7 @@ class AlertSkill(NeonSkill):
             self.make_active()
             time.sleep(10)
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
-            LOG.debug(f"mark alert missed: {get_alert_id(alert)}")
+            LOG.debug(f"mark alert missed: {alert_id}")
             self.alert_manager.mark_alert_missed(alert_id)
 
     def shutdown(self):
