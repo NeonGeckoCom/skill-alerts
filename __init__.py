@@ -561,7 +561,8 @@ class AlertSkill(NeonSkill):
         :param alert: Timer Alert object to display
         """
         # If the user asks how much time, don't duplicate the timer
-        if alert not in self.alert_manager.active_gui_timers:
+        if not any((get_alert_id(alert) == get_alert_id(active) for active in
+                    self.alert_manager.active_gui_timers)):
             self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
         self._start_timer_gui_thread()
@@ -720,6 +721,7 @@ class AlertSkill(NeonSkill):
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed")
         self.alert_manager.shutdown()
+        self.gui.clear()
 
     def stop(self):
         message = dig_for_message()
