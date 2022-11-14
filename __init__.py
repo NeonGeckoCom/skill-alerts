@@ -560,7 +560,9 @@ class AlertSkill(NeonSkill):
         the new timer in the time-sorted list
         :param alert: Timer Alert object to display
         """
-        self.alert_manager.add_timer_to_gui(alert)
+        # If the user asks how much time, don't duplicate the timer
+        if alert not in self.alert_manager.active_gui_timers:
+            self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
         self._start_timer_gui_thread()
 
