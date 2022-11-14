@@ -44,7 +44,7 @@ from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
 from ovos_utils import create_daemon
 
-from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
+from .util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
 from .util.ui_models import build_timer_data, build_alarm_data
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
@@ -74,6 +74,8 @@ class AlertSkill(NeonSkill):
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
+        self.gui.register_handler("alerts.gui.dismiss_notification",
+                                  self._gui_dismiss_notification)
         self.gui.register_handler("ovos.alarm.skill.cancel",
                                   self._gui_cancel_alarm)
         self.gui.register_handler("ovos.alarm.skill.snooze",
@@ -701,6 +703,10 @@ class AlertSkill(NeonSkill):
                 LOG.error(e)
             self.gui.release()
 
+    def _gui_dismiss_notification(self, message):
+        # TODO: Implement dismissing active/missed notification
+        LOG.info(message.serialize())
+
     def _gui_notify_expired(self, alert: Alert):
         """
         Handles gui display on alert expiration
@@ -713,6 +719,18 @@ class AlertSkill(NeonSkill):
                 self._start_timer_gui_thread()
         elif alert.alert_type == AlertType.ALARM:
             self._display_alarm_gui(alert)
+        elif alert.alert_type == AlertType.REMINDER:
+            # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
+            notification_data = {
+                'sender': self.skill_id,
+                'text': f'Reminder: {alert.alert_name}',
+                'action': 'alerts.gui.dismiss_notification',
+                'type': 'sticky' if
+                alert.priority > AlertPriority.AVERAGE.value() else 'transient',
+                'style': 'info'
+            }
+            self.bus.emit(Message("ovos.notification.api.set",
+                                  data=notification_data))
         else:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
