@@ -620,18 +620,7 @@ class AlertSkill(NeonSkill):
         Handle a GUI timer dismissal
         """
         alert_id = message.data['timer']['alertId']
-        if alert_id in self.alert_manager.active_alerts:
-            LOG.debug('Dismissing active alert')
-            self.alert_manager.dismiss_active_alert(alert_id)
-        elif alert_id in self.alert_manager.pending_alerts:
-            LOG.debug('Dismissing pending alert')
-            self.alert_manager.rm_alert(alert_id)
-        elif alert_id in self.alert_manager.missed_alerts:
-            LOG.debug('Dismissing missed alert')
-            self.alert_manager.dismiss_missed_alert(alert_id)
-        else:
-            LOG.warning(f'GUI alert not in AlertManager')
-        self.alert_manager.dismiss_alert_from_gui(alert_id)
+        self._dismiss_alert(alert_id)
         LOG.debug(self.alert_manager.active_gui_timers)
         self.speak_dialog("confirm_dismiss_alert",
                           {"kind": self._get_spoken_alert_type(
@@ -643,7 +632,7 @@ class AlertSkill(NeonSkill):
         """
         alert_id = message.data.get('alarmIndex')
         LOG.info(f"GUI Cancel alert: {alert_id}")
-        self.alert_manager.rm_alert(alert_id)
+        self._dismiss_alert(alert_id)
         self.gui.release()
         self.speak_dialog("confirm_dismiss_alert",
                           {"kind": self._get_spoken_alert_type(
@@ -787,6 +776,26 @@ class AlertSkill(NeonSkill):
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             LOG.debug(f"mark alert missed: {alert_id}")
             self.alert_manager.mark_alert_missed(alert_id)
+
+    def _dismiss_alert(self, alert_id: str):
+        """
+        Handle a request to dismiss an alert. Removes the first valid entry in
+        active, missed, or pending lists.
+        :param alert_id: ID of alert to dismiss
+        """
+        if alert_id in self.alert_manager.active_alerts:
+            LOG.debug('Dismissing active alert')
+            self.alert_manager.dismiss_active_alert(alert_id)
+        elif alert_id in self.alert_manager.missed_alerts:
+            LOG.debug('Dismissing missed alert')
+            self.alert_manager.dismiss_missed_alert(alert_id)
+        elif alert_id in self.alert_manager.pending_alerts:
+            LOG.debug('Dismissing pending alert')
+            self.alert_manager.rm_alert(alert_id)
+        else:
+            LOG.warning(f'Alert not in AlertManager: {alert_id}')
+
+        self.alert_manager.dismiss_alert_from_gui(alert_id)
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed")

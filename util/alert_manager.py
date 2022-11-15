@@ -293,7 +293,7 @@ class AlertManager:
 
     def dismiss_alert_from_gui(self, alert_id: str):
         """
-        Dismiss an alert from the GUI.
+        Dismiss an alert from long-lived GUI displays.
         """
         # Active timers are a copy of the original, check by ID
         for pending in self._active_gui_timers:
