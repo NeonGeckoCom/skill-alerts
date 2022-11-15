@@ -575,8 +575,8 @@ class AlertSkill(NeonSkill):
     def _display_alarm_gui(self, alert: Alert):
         """
         Display an alarm UI for created or active alarms.
+        :param alert: Alarm Alert object to display
         """
-
         self.gui.remove_page("AlarmsOverviewCard.qml")
         for key, val in build_alarm_data(alert).items():
             self.gui[key] = val
@@ -584,8 +584,7 @@ class AlertSkill(NeonSkill):
             override = True
         else:
             override = 30
-        page_name = "AlarmCard.qml"
-        self.gui.show_page(page_name, override_idle=override)
+        self.gui.show_page("AlarmCard.qml", override_idle=override)
 
     def _display_timer_status(self, alert: Alert):
         """
@@ -664,10 +663,14 @@ class AlertSkill(NeonSkill):
         Handles gui display on alert expiration
         :param alert: expired alert
         """
-        if alert.alert_type == AlertType.TIMER and self.gui.pages:
+        if alert.alert_type == AlertType.TIMER:
             # Ensure the Timer GUI is active on expiration
-            self.gui.show_pages(self.gui.pages, override_idle=True)
-        if alert.alert_type != AlertType.TIMER:
+            if self.gui.pages != ["Timer.qml"]:
+                self.gui.show_page("Timer.qml", override_idle=True)
+                self._start_timer_gui_thread()
+        elif alert.alert_type == AlertType.ALARM:
+            self._display_alarm_gui(alert)
+        else:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
 
