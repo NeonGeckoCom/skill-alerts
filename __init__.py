@@ -672,7 +672,7 @@ class AlertSkill(NeonSkill):
                     self.gui['activeAlarms'].remove(alarm)
                     break
             self.gui['activeAlarmCount'] = len(self.gui['activeAlarms'])
-            if self.gui['activeAlarmsCount'] == 0:
+            if self.gui['activeAlarmCount'] == 0:
                 self.gui.release()
         else:
             # Single alarm view
