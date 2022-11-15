@@ -67,6 +67,7 @@ ItemDelegate {
             alarmName: model.alarmName
             alarmIndex: model.alarmIndex
             alarmContext: "overview"
+            alarmExpired: sessionData.alarmExpired
         }
     }
 }

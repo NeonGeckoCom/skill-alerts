@@ -125,6 +125,7 @@ Mycroft.CardDelegate {
             alarmName: sessionData.alarmName
             alarmIndex: sessionData.alarmIndex
             alarmContext: "single"
+            alarmExpired: sessionData.alarmExpired
         }
     }
 }

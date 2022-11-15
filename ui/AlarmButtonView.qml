@@ -27,6 +27,7 @@ Rectangle {
     property var alarmName
     property var alarmIndex
     property var alarmContext
+    property var alarmExpired
 
     RowLayout {
         id: columnThreeRowLayout
@@ -37,6 +38,7 @@ Rectangle {
             id: snoozeButton
             Layout.fillWidth: true                    
             Layout.fillHeight: true
+            enabled: alarmExpired ? 1 : 0
 
             background: Rectangle {
                 id: snoozeButtonBackground
@@ -105,7 +107,7 @@ Rectangle {
                     color: Kirigami.Theme.textColor
                 }
                 Text {
-                    text: "Cancel"
+                    text: alarmExpired ? qsTr("Dismiss") : qsTr("Cancel")
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     horizontalAlignment: Text.AlignHCenter
