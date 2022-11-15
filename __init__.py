@@ -42,6 +42,7 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
+from ovos_utils import create_daemon
 
 from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
 from .util.ui_models import build_timer_data, build_alarm_data
@@ -627,7 +628,7 @@ class AlertSkill(NeonSkill):
         for timer in timers:
             self.alert_manager.add_timer_to_gui(timer)
         self.gui.show_page("Timer.qml", override_idle=True)
-        self._start_timer_gui_thread()
+        create_daemon(self._start_timer_gui_thread)
 
     def _start_timer_gui_thread(self):
         """
