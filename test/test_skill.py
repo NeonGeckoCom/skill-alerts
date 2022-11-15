@@ -1196,6 +1196,8 @@ class TestAlertManager(unittest.TestCase):
             self.assertIsInstance(alert, Alert)
             self.assertEqual(alert.alert_type, AlertType.REMINDER)
 
+    # TODO: Test Snooze Alert
+
 
 class TestParseUtils(unittest.TestCase):
     def test_round_nearest_minute(self):

@@ -79,6 +79,14 @@ class AlertSkill(NeonSkill):
         self.gui.register_handler("ovos.alarm.skill.snooze",
                                   self._gui_snooze_alarm)
 
+    @property
+    def snooze_duration(self) -> timedelta:
+        """
+        Get default snooze duration
+        """
+        snooze_minutes = self.settings.get('snooze_mins') or 15
+        return timedelta(minutes=snooze_minutes)
+
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
                     .require("alarm").optionally("playable")
@@ -200,6 +208,7 @@ class AlertSkill(NeonSkill):
         else:
             alert = alerts_list[0]  # These are all sorted time ascending
             use_24hour = get_user_prefs(message)["units"]["time"] == 24
+            LOG.debug(f'alert={alert.data}')
             # This is patching LF type annotation bug
             # noinspection PyTypeChecker
             data = {
@@ -631,13 +640,24 @@ class AlertSkill(NeonSkill):
         """
         Handle a gui alarm dismissal
         """
-        LOG.info(message.serialize())
+        alert_id = message.data.get('alarmIndex')
+        LOG.info(f"GUI Cancel alert: {alert_id}")
+        self.alert_manager.rm_alert(alert_id)
 
     def _gui_snooze_alarm(self, message):
         """
         Handle a gui alarm snooze request
         """
-        LOG.info(message.serialize())
+        alert_id = message.data.get('alarmIndex')
+        LOG.info(f"GUI Snooze alert: {alert_id}")
+        if alert_id not in self.alert_manager.active_alerts:
+            LOG.error(f"Can't snooze inactive alert: {alert_id}")
+        else:
+            try:
+                self.alert_manager.snooze_alert(alert_id,
+                                                self.snooze_duration)
+            except KeyError as e:
+                LOG.error(e)
 
     def _gui_notify_expired(self, alert: Alert):
         """
