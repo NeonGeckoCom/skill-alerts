@@ -307,8 +307,8 @@ class TestSkill(unittest.TestCase):
 
     def test_handle_timer_status(self):
 
-        real_timer_status = self.skill._display_timer_status
-        self.skill._display_timer_status = Mock()
+        real_timer_status = self.skill._display_timer_gui
+        self.skill._display_timer_gui = Mock()
 
         timer_test_user = "timer_user"
         valid_message = Message("test", {"timer_time_remaining": ""},
@@ -336,7 +336,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(long_timer)
+        self.skill._display_timer_gui.assert_called_with(long_timer)
 
         # Multiple active timers not specifically requested
         self.skill.alert_manager.add_alert(test_timer)
@@ -358,11 +358,11 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(long_timer)
+        self.skill._display_timer_gui.assert_called_with(long_timer)
 
         self.skill.alert_manager.rm_alert(get_alert_id(long_timer))
         self.skill.alert_manager.rm_alert(get_alert_id(test_timer))
-        self.skill._display_timer_status = real_timer_status
+        self.skill._display_timer_gui = real_timer_status
 
     def test_handle_start_quiet_hours(self):
         real_method = self.skill.update_skill_settings

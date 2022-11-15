@@ -206,6 +206,10 @@ class AlertSkill(NeonSkill):
                               {"kind": spoken_type}, private=True)
         else:
             alert = alerts_list[0]  # These are all sorted time ascending
+            if alert.alert_type == AlertType.TIMER:
+                self._display_timer_gui(alert)
+            elif alert.alert_type == AlertType.ALARM:
+                self._display_alarm_gui(alert)
             use_24hour = get_user_prefs(message)["units"]["time"] == 24
             LOG.debug(f'alert={alert.data}')
             # This is patching LF type annotation bug
@@ -247,6 +251,10 @@ class AlertSkill(NeonSkill):
         alerts_string = self.dialog_renderer.render("list_alert_intro",
                                                     {'kind': spoken_type})
         use_24hour = get_user_prefs(message)["units"]["time"] == 24
+        if alert_type == AlertType.ALARM:
+            self._display_alarms(alerts_list)
+        elif alert_type == AlertType.TIMER:
+            self._display_timers(alerts_list)
         for alert in alerts_list:
             data = self._get_alert_dialog_data(alert,
                                                message.data.get("lang"),
@@ -293,11 +301,12 @@ class AlertSkill(NeonSkill):
             remaining_time = \
                 spoken_time_remaining(matched_timer.next_expiration,
                                       lang=message.data.get("lang"))
-            self._display_timer_status(matched_timer)
+            self._display_timer_gui(matched_timer)
             self.speak_dialog('timer_status',
                               {'timer': name,
                                'duration': remaining_time}, private=True)
         else:
+            self._display_timers(user_timers)
             to_speak = ""
             for timer in user_timers:
                 remaining_time = \
@@ -447,7 +456,7 @@ class AlertSkill(NeonSkill):
             self.speak_dialog('confirm_timer_started',
                               {'duration': spoken_duration}, private=True)
             # TODO: Filter to only local requests
-            self._display_timer_status(alert)
+            self._display_timer_gui(alert)
             return
 
         if alert.alert_type == AlertType.ALARM:
@@ -585,7 +594,7 @@ class AlertSkill(NeonSkill):
             override = 30
         self.gui.show_page("AlarmCard.qml", override_idle=override)
 
-    def _display_timer_status(self, alert: Alert):
+    def _display_timer_gui(self, alert: Alert):
         """
         Updates the GUI timers display with the next expiring timer(s). Places
         the new timer in the time-sorted list
@@ -595,6 +604,28 @@ class AlertSkill(NeonSkill):
         if not any((get_alert_id(alert) == get_alert_id(active) for active in
                     self.alert_manager.active_gui_timers)):
             self.alert_manager.add_timer_to_gui(alert)
+        self.gui.show_page("Timer.qml", override_idle=True)
+        self._start_timer_gui_thread()
+
+    def _display_alarms(self, alarms: List[Alert]):
+        """
+        Create a GUI view with the passed list of alarms and show immediately
+        :param alarms: List of alarm type Alerts to display
+        """
+        alarms_view = list()
+        for alarm in alarms:
+            alarms_view.append(build_alarm_data(alarm))
+        self.gui['activeAlarmCount'] = len(alarms_view)
+        self.gui['activeAlarms'] = alarms_view
+        self.gui.show_page("AlarmsOverviewCard.qml")
+
+    def _display_timers(self, timers: List[Alert]):
+        """
+        Create a GUI view with the passed list of timers and show immediately
+        :param timers: List of timer type Alerts to display
+        """
+        for timer in timers:
+            self.alert_manager.add_timer_to_gui(timer)
         self.gui.show_page("Timer.qml", override_idle=True)
         self._start_timer_gui_thread()
 
