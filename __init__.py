@@ -34,6 +34,7 @@ from typing import Tuple, List, Optional
 from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
+from lingua_franca.format import nice_duration
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.user_utils import get_user_prefs, get_message_user
@@ -177,7 +178,7 @@ class AlertSkill(NeonSkill):
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_next_alert(self, message):
         """
-        Intent handler to handle request for the next alert (kind optionally specified)
+        Intent handler to handle request for the next alert (kind optional)
         :param message: Message associated with request
         """
         if not self.neon_in_request(message):
@@ -215,7 +216,7 @@ class AlertSkill(NeonSkill):
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
-        Intent handler to handle request for all alerts (kind optionally specified)
+        Intent handler to handle request for all alerts (kind optional)
         :param message: Message associated with request
         """
         if not self.neon_in_request(message):
@@ -405,7 +406,8 @@ class AlertSkill(NeonSkill):
     def confirm_alert(self, alert: Alert, message: Message,
                       anchor_time: datetime = None):
         """
-        Confirm alert details; get time and name for alerts if not specified and schedule
+        Confirm alert details; get time and name for alerts if not
+        specified and schedule.
         :param alert: Alert object built from user request
         :param message: Message associated with request
         :param anchor_time:
@@ -785,7 +787,8 @@ class AlertSkill(NeonSkill):
     # Static parser methods
     def _get_events(self, message):
         """
-        Handles a request to get scheduled events for a specified user and disposition
+        Handles a request to get scheduled events for a specified
+        user and disposition.
         :param message: Message specifying 'user' (optional)
          and 'disposition' (pending/missed)
         """
@@ -931,18 +934,17 @@ class AlertSkill(NeonSkill):
         }
         if alert.repeat_days:
             if alert.repeat_days == WEEKDAYS:
-                data["repeat"] = self.translate("word_weekend")
-            elif alert.repeat_days == WEEKENDS:
                 data["repeat"] = self.translate("word_weekday")
+            elif alert.repeat_days == WEEKENDS:
+                data["repeat"] = self.translate("word_weekend")
             elif alert.repeat_days == EVERYDAY:
                 data["repeat"] = self.translate("word_day")
             else:
                 data["repeat"] = ", ".join([self._get_spoken_weekday(day)
                                             for day in alert.repeat_days])
         elif alert.repeat_frequency:
-            now_time = datetime.now(timezone.utc)
-            data["repeat"] = spoken_time_remaining(
-                now_time + alert.repeat_frequency, now_time, lang)
+            data["repeat"] = nice_duration(
+                alert.repeat_frequency.total_seconds())
 
         return data
 

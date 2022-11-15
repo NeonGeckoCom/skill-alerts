@@ -16,6 +16,7 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+import datetime
 import time
 
 import lingua_franca
@@ -30,6 +31,7 @@ from threading import Event
 from os import mkdir, remove
 from os.path import dirname, join, exists
 from dateutil.tz import gettz
+from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
 from mock.mock import call
 from mycroft_bus_client import Message
@@ -107,7 +109,7 @@ class TestSkill(unittest.TestCase):
                                           AlertType.REMINDER,
                                           context=invalid_context)
         cls.other_timer = Alert.create(invalid_timer_time, "Other Timer",
-                                   AlertType.TIMER, context=invalid_context)
+                                       AlertType.TIMER, context=invalid_context)
         for a in {cls.other_timer, cls.other_reminder, cls.valid_reminder,
                   cls.valid_alarm_3, cls.valid_alarm_1, cls.valid_alarm_2}:
             cls.skill.alert_manager.add_alert(a)
@@ -429,7 +431,7 @@ class TestSkill(unittest.TestCase):
         alarm_1_time = now_time + dt.timedelta(days=1)
         alarm_2_time = alarm_1_time + dt.timedelta(hours=1)
         alarm_3_time = now_time.replace(hour=9, minute=30, second=0) + \
-            dt.timedelta(days=1)
+                       dt.timedelta(days=1)
         reminder_time = now_time + dt.timedelta(days=2)
         timer_1_time = now_time + dt.timedelta(minutes=5)
         timer_2_time = now_time + dt.timedelta(minutes=10)
@@ -483,10 +485,10 @@ class TestSkill(unittest.TestCase):
                                "start_token": 0,
                                "end_token": 0},
                                {
-                                "match": "timer",
-                                "key": "timer",
-                                "start_token": 3,
-                                "end_token": 3
+                                   "match": "timer",
+                                   "key": "timer",
+                                   "start_token": 3,
+                                   "end_token": 3
                                }
                            ]}, valid_context)
         pending = self.skill.alert_manager.pending_alerts.keys()
@@ -507,10 +509,10 @@ class TestSkill(unittest.TestCase):
                                "start_token": 0,
                                "end_token": 0},
                                {
-                                "match": "timer",
-                                "key": "timer",
-                                "start_token": 3,
-                                "end_token": 3
+                                   "match": "timer",
+                                   "key": "timer",
+                                   "start_token": 3,
+                                   "end_token": 3
                                }
                            ]}, valid_context)
         self.assertIn(get_alert_id(pasta_timer),
@@ -534,10 +536,10 @@ class TestSkill(unittest.TestCase):
                                "start_token": 0,
                                "end_token": 0},
                                {
-                                "match": "alarm",
-                                "key": "alarm",
-                                "start_token": 4,
-                                "end_token": 4
+                                   "match": "alarm",
+                                   "key": "alarm",
+                                   "start_token": 4,
+                                   "end_token": 4
                                }
                            ]}, valid_context)
         self.assertIn(get_alert_id(morning_alarm),
@@ -561,10 +563,10 @@ class TestSkill(unittest.TestCase):
                                "start_token": 0,
                                "end_token": 0},
                                {
-                                "match": "timer",
-                                "key": "timer",
-                                "start_token": 3,
-                                "end_token": 3
+                                   "match": "timer",
+                                   "key": "timer",
+                                   "start_token": 3,
+                                   "end_token": 3
                                }
                            ]}, valid_context)
         self.assertIn(get_alert_id(oven_timer),
@@ -644,8 +646,111 @@ class TestSkill(unittest.TestCase):
         pass
 
     def test_get_alert_dialog_data(self):
-        # TODO
-        pass
+        real_translate = self.skill.translate
+        self.skill.translate = Mock()
+        self.skill.translate.return_value = "repeat"
+
+        now_time = datetime.datetime.now(datetime.timezone.utc)
+        # Alert for tomorrow at 9 AM
+        tomorrow_alert_time = (now_time +
+                               datetime.timedelta(days=1)).replace(hour=9, minute=0,
+                                                                   second=0,
+                                                                   microsecond=0)
+        # Alert for later today
+        today_alert_time = now_time + datetime.timedelta(hours=1)
+
+        # Alarm later today
+        today_alert = Alert.create(today_alert_time, "Today Alarm",
+                                   AlertType.ALARM)
+        dialog = self.skill._get_alert_dialog_data(today_alert, 'en', False)
+        self.skill.translate.assert_not_called()
+        self.assertEqual(dialog,
+                         {'name': 'Today Alarm',
+                          'time': nice_time(today_alert.next_expiration
+                                            , use_24hour=False,
+                                            use_ampm=True)})
+
+        # One time alarm not today
+        one_time = Alert.create(tomorrow_alert_time, "One Time Alarm",
+                                AlertType.ALARM)
+        dialog = self.skill._get_alert_dialog_data(one_time, 'en', False)
+        self.skill.translate.assert_not_called()
+        self.assertEqual(dialog,
+                         {'name': 'One Time Alarm',
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+
+        # Weekend alarm
+        weekend = Alert.create(tomorrow_alert_time, "Weekend Alarm",
+                               AlertType.ALARM,
+                               repeat_days={Weekdays.SUN, Weekdays.SAT})
+        dialog = self.skill._get_alert_dialog_data(weekend, 'en', False)
+        self.skill.translate.assert_called_with('word_weekend')
+        self.assertEqual(dialog,
+                         {'name': 'Weekend Alarm',
+                          'repeat': 'repeat',
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+
+        # Weekday reminder
+        weekday = Alert.create(tomorrow_alert_time, "Weekday Reminder",
+                               AlertType.REMINDER,
+                               repeat_days={Weekdays.MON, Weekdays.TUE,
+                                            Weekdays.WED, Weekdays.THU,
+                                            Weekdays.FRI})
+        dialog = self.skill._get_alert_dialog_data(weekday, 'en', False)
+        self.skill.translate.assert_called_with('word_weekday')
+        self.assertEqual(dialog,
+                         {'name': 'Weekday Reminder',
+                          'repeat': 'repeat',
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+
+        # Daily reminder
+        daily = Alert.create(tomorrow_alert_time, "Daily Reminder",
+                             AlertType.REMINDER,
+                             repeat_days={Weekdays.MON, Weekdays.TUE,
+                                          Weekdays.WED, Weekdays.THU,
+                                          Weekdays.FRI, Weekdays.SAT,
+                                          Weekdays.SUN})
+        dialog = self.skill._get_alert_dialog_data(daily, 'en', False)
+        self.skill.translate.assert_called_with('word_day')
+        self.assertEqual(dialog,
+                         {'name': 'Daily Reminder',
+                          'repeat': 'repeat',
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+
+        # Weekly Reminder
+        weekly = Alert.create(tomorrow_alert_time, "Weekly Reminder",
+                              AlertType.REMINDER,
+                              repeat_days={Weekdays.MON})
+        dialog = self.skill._get_alert_dialog_data(weekly, 'en', False)
+        self.skill.translate.assert_called_with('word_weekday_monday')
+        self.assertEqual(dialog,
+                         {'name': 'Weekly Reminder',
+                          'repeat': 'repeat',
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+
+        # 8 hour reminder
+        eight_hour = Alert.create(tomorrow_alert_time, "Eight Hour Reminder",
+                                  AlertType.REMINDER,
+                                  repeat_frequency=datetime.timedelta(hours=8))
+        dialog = self.skill._get_alert_dialog_data(eight_hour, 'en', False)
+        self.assertEqual(dialog,
+                         {'name': 'Eight Hour Reminder',
+                          'repeat': nice_duration(
+                              datetime.timedelta(hours=8).total_seconds()),
+                          'time': nice_date_time(one_time.next_expiration,
+                                                 use_24hour=False,
+                                                 use_ampm=True)})
+        self.skill.translate = real_translate
 
     def test_get_spoken_alert_type(self):
         # TODO
@@ -774,7 +879,7 @@ class TestAlert(unittest.TestCase):
         self.assertLessEqual(expired_alert_expired_repeat.time_to_expiration.total_seconds(), 0)
 
         alert_time = now_time_valid.replace(microsecond=0) - \
-            dt.timedelta(hours=1)
+                     dt.timedelta(hours=1)
         expired_alert_weekday_repeat = Alert.create(
             alert_time,
             "expired weekly alert name",
@@ -1016,7 +1121,7 @@ class TestAlertManager(unittest.TestCase):
         all_alerts = alert_manager.get_all_alerts()
         self.assertEqual(len(all_alerts["pending"]), 15)
         for i in range(1, len(all_alerts)):
-            self.assertLessEqual(all_alerts["pending"][i-1].next_expiration,
+            self.assertLessEqual(all_alerts["pending"][i - 1].next_expiration,
                                  all_alerts["pending"][i].next_expiration)
 
     def test_get_alert_user(self):
@@ -1058,7 +1163,7 @@ class TestAlertManager(unittest.TestCase):
         self.assertEqual(len(unsorted), len(alerts))
         self.assertEqual(len(alerts), 10)
         for i in range(1, len(alerts)):
-            self.assertLessEqual(alerts[i-1].next_expiration,
+            self.assertLessEqual(alerts[i - 1].next_expiration,
                                  alerts[i].next_expiration)
 
     def test_get_alert_by_type(self):
@@ -1243,7 +1348,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(tokens, ['monday and thursday at 9 am'])
 
     def test_parse_repeat_from_message(self):
-        from util.parse_utils import parse_repeat_from_message,\
+        from util.parse_utils import parse_repeat_from_message, \
             tokenize_utterance
 
         daily = _get_message_from_file("create_alarm_daily.json")
@@ -1620,6 +1725,7 @@ class TestParseUtils(unittest.TestCase):
                                     dt.timedelta(seconds=1))
             self.assertIn(alert.next_expiration.time(),
                           (dt.time(hour=10), dt.time(hour=22)))
+
         _validate_daily(daily_alert_seattle)
         _validate_daily(daily_alert_utc)
         self.assertNotEqual(
