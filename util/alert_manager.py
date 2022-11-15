@@ -210,6 +210,40 @@ class AlertManager:
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
+    def snooze_alert(self, alert_id: str,
+                     snooze_duration: dt.timedelta) -> Alert:
+        """
+        Snooze an active or missed alert for some period of time.
+        :param alert_id: ID of active or missed alert to reschedule
+        :param snooze_duration: time until next notification
+        :returns: New Alert added to pending
+        """
+        alert = None
+        with self._read_lock:
+            if alert_id in self._active_alerts:
+                alert = self._active_alerts.pop(alert_id)
+            elif alert_id in self._missed_alerts:
+                alert = self._missed_alerts.pop(alert_id)
+        if not alert:
+            raise KeyError(f'No missed or active alert with ID: {alert_id}')
+        assert isinstance(alert, Alert)
+        alert_dict = alert.data
+        old_expiration = dt.datetime.fromisoformat(
+            alert_dict['next_expiration_time'])
+        new_expiration = old_expiration + snooze_duration
+        alert_dict['next_expiration_time'] = new_expiration.isoformat()
+        alert_dict['repeat_frequency'] = None
+        alert_dict['repeat_days'] = None
+        alert_dict['end_repeat'] = None
+        alert_dict['alert_name'] = alert.alert_name
+
+        if not alert_dict['context']['ident'].startswith('snoozed'):
+            alert_dict['context']['ident'] = f"snoozed_{get_alert_id(alert)}"
+
+        new_alert = Alert.from_dict(alert_dict)
+        self.add_alert(new_alert)
+        return new_alert
+
     def dismiss_missed_alert(self, alert_id: str) -> Alert:
         """
         Dismiss a missed alert
@@ -242,7 +276,7 @@ class AlertManager:
         try:
             LOG.debug(f"Removing alert: {alert_id}")
             with self._read_lock:
-                alert = self._pending_alerts.pop(alert_id)
+                self._pending_alerts.pop(alert_id)
                 self.dismiss_alert_from_gui(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
@@ -259,14 +293,13 @@ class AlertManager:
 
     def dismiss_alert_from_gui(self, alert_id: str):
         """
-        Dismiss an alert from the GUI.
+        Dismiss an alert from long-lived GUI displays.
         """
         # Active timers are a copy of the original, check by ID
         for pending in self._active_gui_timers:
             if get_alert_id(pending) == alert_id:
                 self._active_gui_timers.remove(pending)
                 return True
-        # TODO: Dismiss an active alarm/reminder UI here
         return False
 
     def shutdown(self):

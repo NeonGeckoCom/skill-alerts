@@ -307,8 +307,8 @@ class TestSkill(unittest.TestCase):
 
     def test_handle_timer_status(self):
 
-        real_timer_status = self.skill._display_timer_status
-        self.skill._display_timer_status = Mock()
+        real_timer_status = self.skill._display_timer_gui
+        self.skill._display_timer_gui = Mock()
 
         timer_test_user = "timer_user"
         valid_message = Message("test", {"timer_time_remaining": ""},
@@ -336,7 +336,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(long_timer)
+        self.skill._display_timer_gui.assert_called_with(long_timer)
 
         # Multiple active timers not specifically requested
         self.skill.alert_manager.add_alert(test_timer)
@@ -358,11 +358,11 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(call_args[0][1]["timer"], long_timer.alert_name)
         self.assertIsNotNone(call_args[0][1]["duration"])
         self.assertTrue(call_args[1]["private"])
-        self.skill._display_timer_status.assert_called_with(long_timer)
+        self.skill._display_timer_gui.assert_called_with(long_timer)
 
         self.skill.alert_manager.rm_alert(get_alert_id(long_timer))
         self.skill.alert_manager.rm_alert(get_alert_id(test_timer))
-        self.skill._display_timer_status = real_timer_status
+        self.skill._display_timer_gui = real_timer_status
 
     def test_handle_start_quiet_hours(self):
         real_method = self.skill.update_skill_settings
@@ -653,12 +653,11 @@ class TestSkill(unittest.TestCase):
         now_time = datetime.datetime.now(datetime.timezone.utc)
         # Alert for tomorrow at 9 AM
         tomorrow_alert_time = (now_time +
-                               datetime.timedelta(days=1)).replace(hour=9, minute=0,
-                                                                   second=0,
-                                                                   microsecond=0)
+                               datetime.timedelta(days=2)).replace(
+            hour=9, minute=0, second=0, microsecond=0)
         # Alert for later today
-        today_alert_time = now_time + datetime.timedelta(hours=1)
-
+        today_alert_time = now_time + datetime.timedelta(minutes=1)
+        # TODO: Above will fail if run at 11:59PM; consider better mocking
         # Alarm later today
         today_alert = Alert.create(today_alert_time, "Today Alarm",
                                    AlertType.ALARM)
@@ -1195,6 +1194,8 @@ class TestAlertManager(unittest.TestCase):
         for alert in reminders:
             self.assertIsInstance(alert, Alert)
             self.assertEqual(alert.alert_type, AlertType.REMINDER)
+
+    # TODO: Test Snooze Alert
 
 
 class TestParseUtils(unittest.TestCase):
@@ -1993,6 +1994,55 @@ class TestUIModels(unittest.TestCase):
         self.assertLess(new_timer_data['percentRemaining'],
                         timer_data['percentRemaining'])
         self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
+
+    def test_build_alarm_data(self):
+        from util.ui_models import build_alarm_data
+        us_context = {
+            "username": "test_user",
+            "user_profiles": [{
+                "user": {"username": "test_user"},
+                "units": {"time": 12}
+            }]
+        }
+        metric_context = {
+            "username": "test_user",
+            "user_profiles": [{
+                "user": {"username": "test_user"},
+                "units": {"time": 24}
+            }]
+        }
+
+        # Get tomorrow at 9 AM
+        now_time_valid = dt.datetime.now(dt.timezone.utc)
+        alarm_time = (now_time_valid +
+                      dt.timedelta(hours=24)).replace(hour=9, minute=0,
+                                                      second=0, microsecond=0)
+
+        us_alarm = Alert.create(alarm_time, "Test Alarm", AlertType.ALARM,
+                                context=us_context)
+        metric_alarm = Alert.create(alarm_time, "Test Alarm", AlertType.ALARM,
+                                    context=metric_context)
+
+        us_display = build_alarm_data(us_alarm)
+        self.assertEqual(set(us_display.keys()),
+                         {'alarmTime', 'alarmAmPm', 'alarmName', 'alarmExpired',
+                          'alarmIndex'})
+        self.assertEqual(us_display['alarmTime'], "9:00")
+        self.assertEqual(us_display['alarmAmPm'], "AM")
+        self.assertEqual(us_display['alarmName'], "Test Alarm")
+        self.assertFalse(us_display['alarmExpired'])
+        self.assertEqual(us_display['alarmIndex'], get_alert_id(us_alarm))
+
+        metric_display = build_alarm_data(metric_alarm)
+        self.assertEqual(set(metric_display.keys()),
+                         {'alarmTime', 'alarmAmPm', 'alarmName', 'alarmExpired',
+                          'alarmIndex'})
+        self.assertEqual(metric_display['alarmTime'], "09:00")
+        self.assertEqual(metric_display['alarmAmPm'], "")
+        self.assertEqual(metric_display['alarmName'], "Test Alarm")
+        self.assertFalse(metric_display['alarmExpired'])
+        self.assertEqual(metric_display['alarmIndex'],
+                         get_alert_id(metric_alarm))
 
 
 if __name__ == '__main__':

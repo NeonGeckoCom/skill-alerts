@@ -27,7 +27,10 @@
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from datetime import datetime
-from lingua_franca.format import nice_duration
+from lingua_franca.format import nice_duration, nice_time
+from mycroft_bus_client import Message
+from neon_utils.user_utils import get_user_prefs
+
 from .alert import Alert, AlertType
 from .alert_manager import get_alert_id
 
@@ -61,4 +64,37 @@ def build_timer_data(alert: Alert) -> dict:
         'percentRemaining': percent_remaining,  # float percent remaining
         'timerName': alert.alert_name,
         'timeDelta': human_delta  # Human-readable time remaining
+    }
+
+
+def build_alarm_data(alert: Alert):
+    """
+    Parse an alert object into a dict data structure for an alarm UI
+    """
+    if alert.alert_type != AlertType.ALARM:
+        raise ValueError(f"Expected a timer, got: {alert.alert_type.name}")
+
+    alert_message = Message("neon.alert", alert.data, alert.context)
+    use_ampm = get_user_prefs(alert_message)['units']['time'] == 12
+    use_24hr = not use_ampm
+    alarm_time = datetime.fromisoformat(alert.data["next_expiration_time"])
+    alarm_time = nice_time(alarm_time, speech=False, use_ampm=use_ampm,
+                           use_24hour=use_24hr)
+    if use_ampm:
+        alarm_time, alarm_am_pm = alarm_time.split()
+    else:
+        alarm_time = alarm_time
+        alarm_am_pm = ""
+
+    alarm_name = alert.alert_name.title() if alert.alert_name else "Alarm"
+
+    alarm_expired = alert.is_expired
+    alarm_index = get_alert_id(alert)
+
+    return {
+        "alarmTime": alarm_time,
+        "alarmAmPm": alarm_am_pm,
+        "alarmName": alarm_name,
+        "alarmExpired": alarm_expired,
+        "alarmIndex": alarm_index
     }

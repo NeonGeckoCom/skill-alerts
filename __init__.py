@@ -34,7 +34,7 @@ from typing import Tuple, List, Optional
 from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
-from lingua_franca.format import nice_duration
+from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.user_utils import get_user_prefs, get_message_user
@@ -42,10 +42,10 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
-from mycroft.util.format import nice_time, nice_date_time
+from ovos_utils import create_daemon
 
 from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
-from .util.ui_models import build_timer_data
+from .util.ui_models import build_timer_data, build_alarm_data
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
 from .util.parse_utils import build_alert_from_intent, spoken_time_remaining,\
@@ -74,6 +74,18 @@ class AlertSkill(NeonSkill):
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
+        self.gui.register_handler("ovos.alarm.skill.cancel",
+                                  self._gui_cancel_alarm)
+        self.gui.register_handler("ovos.alarm.skill.snooze",
+                                  self._gui_snooze_alarm)
+
+    @property
+    def snooze_duration(self) -> timedelta:
+        """
+        Get default snooze duration
+        """
+        snooze_minutes = self.settings.get('snooze_mins') or 15
+        return timedelta(minutes=snooze_minutes)
 
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
@@ -195,7 +207,12 @@ class AlertSkill(NeonSkill):
                               {"kind": spoken_type}, private=True)
         else:
             alert = alerts_list[0]  # These are all sorted time ascending
+            if alert.alert_type == AlertType.TIMER:
+                self._display_timer_gui(alert)
+            elif alert.alert_type == AlertType.ALARM:
+                self._display_alarm_gui(alert)
             use_24hour = get_user_prefs(message)["units"]["time"] == 24
+            LOG.debug(f'alert={alert.data}')
             # This is patching LF type annotation bug
             # noinspection PyTypeChecker
             data = {
@@ -235,6 +252,10 @@ class AlertSkill(NeonSkill):
         alerts_string = self.dialog_renderer.render("list_alert_intro",
                                                     {'kind': spoken_type})
         use_24hour = get_user_prefs(message)["units"]["time"] == 24
+        if alert_type == AlertType.ALARM:
+            self._display_alarms(alerts_list)
+        elif alert_type == AlertType.TIMER:
+            self._display_timers(alerts_list)
         for alert in alerts_list:
             data = self._get_alert_dialog_data(alert,
                                                message.data.get("lang"),
@@ -281,11 +302,12 @@ class AlertSkill(NeonSkill):
             remaining_time = \
                 spoken_time_remaining(matched_timer.next_expiration,
                                       lang=message.data.get("lang"))
-            self._display_timer_status(matched_timer)
+            self._display_timer_gui(matched_timer)
             self.speak_dialog('timer_status',
                               {'timer': name,
                                'duration': remaining_time}, private=True)
         else:
+            self._display_timers(user_timers)
             to_speak = ""
             for timer in user_timers:
                 remaining_time = \
@@ -435,8 +457,11 @@ class AlertSkill(NeonSkill):
             self.speak_dialog('confirm_timer_started',
                               {'duration': spoken_duration}, private=True)
             # TODO: Filter to only local requests
-            self._display_timer_status(alert)
+            self._display_timer_gui(alert)
             return
+
+        if alert.alert_type == AlertType.ALARM:
+            self._display_alarm_gui(alert)
 
         # Notify one-time Alert
         if not alert.repeat_days and not alert.repeat_frequency:
@@ -556,7 +581,21 @@ class AlertSkill(NeonSkill):
     #                                           'duration': duration}, private=True)
 
 # GUI methods
-    def _display_timer_status(self, alert: Alert):
+    def _display_alarm_gui(self, alert: Alert):
+        """
+        Display an alarm UI for created or active alarms.
+        :param alert: Alarm Alert object to display
+        """
+        self.gui.remove_page("AlarmsOverviewCard.qml")
+        for key, val in build_alarm_data(alert).items():
+            self.gui[key] = val
+        if alert.is_expired:
+            override = True
+        else:
+            override = 30
+        self.gui.show_page("AlarmCard.qml", override_idle=override)
+
+    def _display_timer_gui(self, alert: Alert):
         """
         Updates the GUI timers display with the next expiring timer(s). Places
         the new timer in the time-sorted list
@@ -568,6 +607,28 @@ class AlertSkill(NeonSkill):
             self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
         self._start_timer_gui_thread()
+
+    def _display_alarms(self, alarms: List[Alert]):
+        """
+        Create a GUI view with the passed list of alarms and show immediately
+        :param alarms: List of alarm type Alerts to display
+        """
+        alarms_view = list()
+        for alarm in alarms:
+            alarms_view.append(build_alarm_data(alarm))
+        self.gui['activeAlarmCount'] = len(alarms_view)
+        self.gui['activeAlarms'] = alarms_view
+        self.gui.show_page("AlarmsOverviewCard.qml")
+
+    def _display_timers(self, timers: List[Alert]):
+        """
+        Create a GUI view with the passed list of timers and show immediately
+        :param timers: List of timer type Alerts to display
+        """
+        for timer in timers:
+            self.alert_manager.add_timer_to_gui(timer)
+        self.gui.show_page("Timer.qml", override_idle=True)
+        create_daemon(self._start_timer_gui_thread)
 
     def _start_timer_gui_thread(self):
         """
@@ -591,29 +652,68 @@ class AlertSkill(NeonSkill):
         Handle a GUI timer dismissal
         """
         alert_id = message.data['timer']['alertId']
-        if alert_id in self.alert_manager.active_alerts:
-            LOG.debug('Dismissing active alert')
-            self.alert_manager.dismiss_active_alert(alert_id)
-        elif alert_id in self.alert_manager.pending_alerts:
-            LOG.debug('Dismissing pending alert')
-            self.alert_manager.rm_alert(alert_id)
-        elif alert_id in self.alert_manager.missed_alerts:
-            LOG.debug('Dismissing missed alert')
-            self.alert_manager.dismiss_missed_alert(alert_id)
-        else:
-            LOG.warning(f'GUI alert not in AlertManager')
-        self.alert_manager.dismiss_alert_from_gui(alert_id)
+        self._dismiss_alert(alert_id)
         LOG.debug(self.alert_manager.active_gui_timers)
+        self.speak_dialog("confirm_dismiss_alert",
+                          {"kind": self._get_spoken_alert_type(
+                              AlertType.TIMER)})
+
+    def _gui_cancel_alarm(self, message):
+        """
+        Handle a gui alarm dismissal
+        """
+        alert_id = message.data.get('alarmIndex')
+        LOG.info(f"GUI Cancel alert: {alert_id}")
+        self._dismiss_alert(alert_id)
+        if self.gui.get('activeAlarms'):
+            # Multi Alarm view
+            for alarm in self.gui.get('activeAlarms'):
+                if alarm.get('alarmIndex') == alert_id:
+                    self.gui['activeAlarms'].remove(alarm)
+                    break
+            self.gui['activeAlarmCount'] = len(self.gui['activeAlarms'])
+            if self.gui['activeAlarmCount'] == 0:
+                self.gui.release()
+        else:
+            # Single alarm view
+            self.gui.release()
+        self.speak_dialog("confirm_dismiss_alert",
+                          {"kind": self._get_spoken_alert_type(
+                              AlertType.ALARM)})
+
+    def _gui_snooze_alarm(self, message):
+        """
+        Handle a gui alarm snooze request
+        """
+        alert_id = message.data.get('alarmIndex')
+        LOG.info(f"GUI Snooze alert: {alert_id}")
+        if alert_id not in self.alert_manager.active_alerts:
+            LOG.error(f"Can't snooze inactive alert: {alert_id}")
+        else:
+            try:
+                snoozed = self.alert_manager.snooze_alert(alert_id,
+                                                          self.snooze_duration)
+                self.speak_dialog("confirm_snooze_alert",
+                                  {"name": snoozed.alert_name,
+                                   "duration": nice_duration(
+                                       self.snooze_duration)})
+            except KeyError as e:
+                LOG.error(e)
+            self.gui.release()
 
     def _gui_notify_expired(self, alert: Alert):
         """
         Handles gui display on alert expiration
         :param alert: expired alert
         """
-        if alert.alert_type == AlertType.TIMER and self.gui.pages:
+        if alert.alert_type == AlertType.TIMER:
             # Ensure the Timer GUI is active on expiration
-            self.gui.show_pages(self.gui.pages, override_idle=True)
-        if alert.alert_type != AlertType.TIMER:
+            if self.gui.pages != ["Timer.qml"]:
+                self.gui.show_page("Timer.qml", override_idle=True)
+                self._start_timer_gui_thread()
+        elif alert.alert_type == AlertType.ALARM:
+            self._display_alarm_gui(alert)
+        else:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
 
@@ -719,6 +819,26 @@ class AlertSkill(NeonSkill):
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             LOG.debug(f"mark alert missed: {alert_id}")
             self.alert_manager.mark_alert_missed(alert_id)
+
+    def _dismiss_alert(self, alert_id: str):
+        """
+        Handle a request to dismiss an alert. Removes the first valid entry in
+        active, missed, or pending lists.
+        :param alert_id: ID of alert to dismiss
+        """
+        if alert_id in self.alert_manager.active_alerts:
+            LOG.debug('Dismissing active alert')
+            self.alert_manager.dismiss_active_alert(alert_id)
+        elif alert_id in self.alert_manager.missed_alerts:
+            LOG.debug('Dismissing missed alert')
+            self.alert_manager.dismiss_missed_alert(alert_id)
+        elif alert_id in self.alert_manager.pending_alerts:
+            LOG.debug('Dismissing pending alert')
+            self.alert_manager.rm_alert(alert_id)
+        else:
+            LOG.warning(f'Alert not in AlertManager: {alert_id}')
+
+        self.alert_manager.dismiss_alert_from_gui(alert_id)
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed")
