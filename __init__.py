@@ -699,7 +699,7 @@ class AlertSkill(NeonSkill):
                                        self.snooze_duration)})
             except KeyError as e:
                 LOG.error(e)
-        self.gui.release()
+            self.gui.release()
 
     def _gui_notify_expired(self, alert: Alert):
         """
