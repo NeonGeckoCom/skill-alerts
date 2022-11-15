@@ -45,7 +45,7 @@ from mycroft.util import play_audio_file
 from mycroft.util.format import nice_time, nice_date_time
 
 from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
-from .util.ui_models import build_timer_data
+from .util.ui_models import build_timer_data, build_alarm_data
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
 from .util.parse_utils import build_alert_from_intent, spoken_time_remaining,\
@@ -74,6 +74,10 @@ class AlertSkill(NeonSkill):
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
+        self.gui.register_handler("ovos.alarm.skill.cancel",
+                                  self._gui_cancel_alarm)
+        self.gui.register_handler("ovos.alarm.skill.snooze",
+                                  self._gui_snooze_alarm)
 
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
@@ -438,6 +442,9 @@ class AlertSkill(NeonSkill):
             self._display_timer_status(alert)
             return
 
+        if alert.alert_type == AlertType.ALARM:
+            self._display_alarm_gui(alert)
+
         # Notify one-time Alert
         if not alert.repeat_days and not alert.repeat_frequency:
             if alert.audio_file:
@@ -556,6 +563,21 @@ class AlertSkill(NeonSkill):
     #                                           'duration': duration}, private=True)
 
 # GUI methods
+    def _display_alarm_gui(self, alert: Alert):
+        """
+        Display an alarm UI for created or active alarms.
+        """
+
+        self.gui.remove_page("AlarmsOverviewCard.qml")
+        for key, val in build_alarm_data(alert).items():
+            self.gui[key] = val
+        if alert.is_expired:
+            override = True
+        else:
+            override = 30
+        page_name = "AlarmCard.qml"
+        self.gui.show_page(page_name, override_idle=override)
+
     def _display_timer_status(self, alert: Alert):
         """
         Updates the GUI timers display with the next expiring timer(s). Places
