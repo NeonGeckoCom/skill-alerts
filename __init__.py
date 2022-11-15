@@ -704,8 +704,18 @@ class AlertSkill(NeonSkill):
             self.gui.release()
 
     def _gui_dismiss_notification(self, message):
-        # TODO: Implement dismissing active/missed notification
-        LOG.info(message.serialize())
+        if not message.data.get('alert'):
+            LOG.error("Outdated Notification, unable to dismiss alert")
+            return
+        alert = Alert.from_dict(message.data['alert'])
+        alert_id = get_alert_id(alert)
+        if alert_id in self.alert_manager.active_alerts:
+            self.alert_manager.dismiss_active_alert(alert_id)
+            self.speak_dialog("confirm_dismiss_alert",
+                              {"kind": self._get_spoken_alert_type(
+                                  alert.alert_type)})
+        elif alert_id in self.alert_manager.missed_alerts:
+            self.alert_manager.dismiss_missed_alert(alert_id)
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -727,8 +737,10 @@ class AlertSkill(NeonSkill):
                 'action': 'alerts.gui.dismiss_notification',
                 'type': 'sticky' if
                 alert.priority > AlertPriority.AVERAGE else 'transient',
-                'style': 'info'
+                'style': 'info',
+                'callback_data': {'alert': alert.data}
             }
+            LOG.info(f'showing notification: {notification_data}')
             self.bus.emit(Message("ovos.notification.api.set",
                                   data=notification_data))
         else:
