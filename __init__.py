@@ -43,7 +43,7 @@ from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
 from mycroft.util.format import nice_time, nice_date_time
 
-from .util import Weekdays, AlertState, MatchLevel
+from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
 from .util.ui_models import build_timer_data
 from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
@@ -930,10 +930,15 @@ class AlertSkill(NeonSkill):
             "time": spoken_time
         }
         if alert.repeat_days:
-            data["repeat"] = ", ".join([self._get_spoken_weekday(day)
-                                        for day in alert.repeat_days])
-            self.speak_dialog("list_alert_repeating",
-                              data, private=True)
+            if alert.repeat_days == WEEKDAYS:
+                data["repeat"] = self.translate("word_weekend")
+            elif alert.repeat_days == WEEKENDS:
+                data["repeat"] = self.translate("word_weekday")
+            elif alert.repeat_days == EVERYDAY:
+                data["repeat"] = self.translate("word_day")
+            else:
+                data["repeat"] = ", ".join([self._get_spoken_weekday(day)
+                                            for day in alert.repeat_days])
         elif alert.repeat_frequency:
             now_time = datetime.now(timezone.utc)
             data["repeat"] = spoken_time_remaining(
