@@ -642,6 +642,7 @@ class AlertSkill(NeonSkill):
         alert_id = message.data.get('alarmIndex')
         LOG.info(f"GUI Cancel alert: {alert_id}")
         self.alert_manager.rm_alert(alert_id)
+        self.gui.release()
 
     def _gui_snooze_alarm(self, message):
         """
@@ -657,6 +658,7 @@ class AlertSkill(NeonSkill):
                                                 self.snooze_duration)
             except KeyError as e:
                 LOG.error(e)
+        self.gui.release()
 
     def _gui_notify_expired(self, alert: Alert):
         """
