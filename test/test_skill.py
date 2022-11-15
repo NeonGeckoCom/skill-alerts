@@ -653,12 +653,11 @@ class TestSkill(unittest.TestCase):
         now_time = datetime.datetime.now(datetime.timezone.utc)
         # Alert for tomorrow at 9 AM
         tomorrow_alert_time = (now_time +
-                               datetime.timedelta(days=1)).replace(hour=9, minute=0,
-                                                                   second=0,
-                                                                   microsecond=0)
+                               datetime.timedelta(days=2)).replace(
+            hour=9, minute=0, second=0, microsecond=0)
         # Alert for later today
-        today_alert_time = now_time + datetime.timedelta(hours=1)
-
+        today_alert_time = now_time + datetime.timedelta(minutes=1)
+        # TODO: Above will fail if run at 11:59PM; consider better mocking
         # Alarm later today
         today_alert = Alert.create(today_alert_time, "Today Alarm",
                                    AlertType.ALARM)
