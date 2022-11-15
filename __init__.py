@@ -34,7 +34,7 @@ from typing import Tuple, List, Optional
 from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
-from lingua_franca.format import nice_duration
+from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.user_utils import get_user_prefs, get_message_user
@@ -42,7 +42,6 @@ from neon_utils.skills.neon_skill import NeonSkill, LOG
 
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
-from mycroft.util.format import nice_time, nice_date_time
 
 from .util import Weekdays, AlertState, MatchLevel, WEEKDAYS, WEEKENDS, EVERYDAY
 from .util.ui_models import build_timer_data, build_alarm_data
@@ -634,6 +633,9 @@ class AlertSkill(NeonSkill):
             LOG.warning(f'GUI alert not in AlertManager')
         self.alert_manager.dismiss_alert_from_gui(alert_id)
         LOG.debug(self.alert_manager.active_gui_timers)
+        self.speak_dialog("confirm_dismiss_alert",
+                          {"kind": self._get_spoken_alert_type(
+                              AlertType.TIMER)})
 
     def _gui_cancel_alarm(self, message):
         """
@@ -643,6 +645,9 @@ class AlertSkill(NeonSkill):
         LOG.info(f"GUI Cancel alert: {alert_id}")
         self.alert_manager.rm_alert(alert_id)
         self.gui.release()
+        self.speak_dialog("confirm_dismiss_alert",
+                          {"kind": self._get_spoken_alert_type(
+                              AlertType.ALARM)})
 
     def _gui_snooze_alarm(self, message):
         """
@@ -654,8 +659,12 @@ class AlertSkill(NeonSkill):
             LOG.error(f"Can't snooze inactive alert: {alert_id}")
         else:
             try:
-                self.alert_manager.snooze_alert(alert_id,
-                                                self.snooze_duration)
+                snoozed = self.alert_manager.snooze_alert(alert_id,
+                                                          self.snooze_duration)
+                self.speak_dialog("confirm_snooze_alert",
+                                  {"name": snoozed.alert_name,
+                                   "duration": nice_duration(
+                                       self.snooze_duration)})
             except KeyError as e:
                 LOG.error(e)
         self.gui.release()

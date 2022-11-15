@@ -210,11 +210,13 @@ class AlertManager:
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
-    def snooze_alert(self, alert_id: str, snooze_duration: dt.timedelta):
+    def snooze_alert(self, alert_id: str,
+                     snooze_duration: dt.timedelta) -> Alert:
         """
         Snooze an active or missed alert for some period of time.
         :param alert_id: ID of active or missed alert to reschedule
         :param snooze_duration: time until next notification
+        :returns: New Alert added to pending
         """
         alert = None
         with self._read_lock:
@@ -233,12 +235,14 @@ class AlertManager:
         alert_dict['repeat_frequency'] = None
         alert_dict['repeat_days'] = None
         alert_dict['end_repeat'] = None
-        alert_dict['alert_name'] = f'Snoozed {alert.alert_name}'
+        alert_dict['alert_name'] = alert.alert_name
 
         if not alert_dict['context']['ident'].startswith('snoozed'):
             alert_dict['context']['ident'] = f"snoozed_{get_alert_id(alert)}"
 
-        self.add_alert(Alert.from_dict(alert_dict))
+        new_alert = Alert.from_dict(alert_dict)
+        self.add_alert(new_alert)
+        return new_alert
 
     def dismiss_missed_alert(self, alert_id: str) -> Alert:
         """
