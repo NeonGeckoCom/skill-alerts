@@ -664,7 +664,18 @@ class AlertSkill(NeonSkill):
         alert_id = message.data.get('alarmIndex')
         LOG.info(f"GUI Cancel alert: {alert_id}")
         self._dismiss_alert(alert_id)
-        self.gui.release()
+        if self.gui.get('activeAlarms'):
+            # Multi Alarm view
+            for alarm in self.gui.get('activeAlarms'):
+                if alarm.get('alarmIndex') == alert_id:
+                    self.gui['activeAlarms'].remove(alarm)
+                    break
+            self.gui['activeAlarmCount'] = len(self.gui['activeAlarms'])
+            if self.gui['activeAlarmsCount'] == 0:
+                self.gui.release()
+        else:
+            # Single alarm view
+            self.gui.release()
         self.speak_dialog("confirm_dismiss_alert",
                           {"kind": self._get_spoken_alert_type(
                               AlertType.ALARM)})
