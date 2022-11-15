@@ -78,7 +78,7 @@ def build_alarm_data(alert: Alert):
     use_ampm = get_user_prefs(alert_message)['units']['time'] == 12
     use_24hr = not use_ampm
     alarm_time = datetime.fromisoformat(alert.data["next_expiration_time"])
-    alarm_time = nice_time(alarm_time, use_ampm=use_ampm,
+    alarm_time = nice_time(alarm_time, speech=False, use_ampm=use_ampm,
                            use_24hour=use_24hr)
     if use_ampm:
         alarm_time, alarm_am_pm = alarm_time.split()

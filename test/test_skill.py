@@ -1994,6 +1994,55 @@ class TestUIModels(unittest.TestCase):
                         timer_data['percentRemaining'])
         self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
 
+    def test_build_alarm_data(self):
+        from util.ui_models import build_alarm_data
+        us_context = {
+            "username": "test_user",
+            "user_profiles": [{
+                "user": {"username": "test_user"},
+                "units": {"time": 12}
+            }]
+        }
+        metric_context = {
+            "username": "test_user",
+            "user_profiles": [{
+                "user": {"username": "test_user"},
+                "units": {"time": 24}
+            }]
+        }
+
+        # Get tomorrow at 9 AM
+        now_time_valid = dt.datetime.now(dt.timezone.utc)
+        alarm_time = (now_time_valid +
+                      dt.timedelta(hours=24)).replace(hour=9, minute=0,
+                                                      second=0, microsecond=0)
+
+        us_alarm = Alert.create(alarm_time, "Test Alarm", AlertType.ALARM,
+                                context=us_context)
+        metric_alarm = Alert.create(alarm_time, "Test Alarm", AlertType.ALARM,
+                                    context=metric_context)
+
+        us_display = build_alarm_data(us_alarm)
+        self.assertEqual(set(us_display.keys()),
+                         {'alarmTime', 'alarmAmPm', 'alarmName', 'alarmExpired',
+                          'alarmIndex'})
+        self.assertEqual(us_display['alarmTime'], "9:00")
+        self.assertEqual(us_display['alarmAmPm'], "AM")
+        self.assertEqual(us_display['alarmName'], "Test Alarm")
+        self.assertFalse(us_display['alarmExpired'])
+        self.assertEqual(us_display['alarmIndex'], get_alert_id(us_alarm))
+
+        metric_display = build_alarm_data(metric_alarm)
+        self.assertEqual(set(metric_display.keys()),
+                         {'alarmTime', 'alarmAmPm', 'alarmName', 'alarmExpired',
+                          'alarmIndex'})
+        self.assertEqual(metric_display['alarmTime'], "09:00")
+        self.assertEqual(metric_display['alarmAmPm'], "")
+        self.assertEqual(metric_display['alarmName'], "Test Alarm")
+        self.assertFalse(metric_display['alarmExpired'])
+        self.assertEqual(metric_display['alarmIndex'],
+                         get_alert_id(metric_alarm))
+
 
 if __name__ == '__main__':
     pytest.main()

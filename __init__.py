@@ -627,6 +627,18 @@ class AlertSkill(NeonSkill):
         self.alert_manager.dismiss_alert_from_gui(alert_id)
         LOG.debug(self.alert_manager.active_gui_timers)
 
+    def _gui_cancel_alarm(self, message):
+        """
+        Handle a gui alarm dismissal
+        """
+        LOG.info(message.serialize())
+
+    def _gui_snooze_alarm(self, message):
+        """
+        Handle a gui alarm snooze request
+        """
+        LOG.info(message.serialize())
+
     def _gui_notify_expired(self, alert: Alert):
         """
         Handles gui display on alert expiration
