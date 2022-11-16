@@ -446,21 +446,18 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_method
 
     def test_handle_end_quiet_hours(self):
-        # quiet_hours = True
-        #
-        # def preference_skill(_):
-        #     return {"quiet_hours": quiet_hours}
-        #
-        # real_pref_skill = self.skill.preference_skill
-        # self.skill.preference_skill = preference_skill
+        quiet_hours = True
+
+        def preference_skill(_=None):
+            return {"quiet_hours": quiet_hours}
+
+        real_pref_skill = self.skill.preference_skill
+        self.skill.preference_skill = preference_skill
         real_update_settings = self.skill.update_skill_settings
         self.skill.update_skill_settings = Mock()
 
         test_message = Message("test", {"quiet_hours_end": ""},
                                {"username": self.valid_user,
-                                "user_profiles": [
-                                    {'user': {'username': self.valid_user},
-                                     'skills': {'skill-alerts.neongeckocom': {'quiet_hours': True}}}],
                                 "neon_should_respond": True})
 
         # Test end active quiet hours, nothing missed
@@ -477,8 +474,7 @@ class TestSkill(unittest.TestCase):
         # Test end active quiet hours, already inactive
         self.skill.speak_dialog.reset_mock()
         self.skill.update_skill_settings.reset_mock()
-        test_message.context['user_profiles'][0]['skills'][
-            'skill-alerts.neongeckocom']['quiet_hours'] = False
+        quiet_hours = False
         self.skill.handle_end_quiet_hours(test_message)
         self.skill.update_skill_settings.assert_not_called()
         self.skill.speak_dialog.assert_called_once()
@@ -487,7 +483,7 @@ class TestSkill(unittest.TestCase):
 
         # TODO: Test with missed alerts DM
 
-        # self.skill.preference_skill = real_pref_skill
+        self.skill.preference_skill = real_pref_skill
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
