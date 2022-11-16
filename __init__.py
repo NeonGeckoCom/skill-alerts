@@ -893,10 +893,11 @@ class AlertSkill(NeonSkill):
             else:
                 # TODO: Interrupt this if alert is dismissed DM
                 play_audio_file(to_play).wait(60)
-            time.sleep(5)
+            time.sleep(1)
+            # TODO: If ramp volume setting, do that
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             self.alert_manager.mark_alert_missed(alert_id)
-            # TODO: Generate notification
+            # TODO: Generate notification and dismiss active GUI
 
     def _speak_notify_expired(self, alert: Alert):
         LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
