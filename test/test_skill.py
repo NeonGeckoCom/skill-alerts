@@ -29,7 +29,7 @@ import datetime as dt
 
 from threading import Event
 from os import mkdir, remove
-from os.path import dirname, join, exists
+from os.path import dirname, join, exists, isfile
 from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
@@ -129,6 +129,69 @@ class TestSkill(unittest.TestCase):
         # TODO: This patches import resolution; revert after proper packaging
         # self.assertIsInstance(self.skill.alert_manager, AlertManager)
         self.assertTrue(hasattr(self.skill.alert_manager, "pending_alerts"))
+
+    def test_properties(self):
+        real_prefs = self.skill.preference_skill
+        mock_prefs = Mock()
+        settings = dict()
+        mock_prefs.return_value = settings
+        self.skill.preference_skill = mock_prefs
+
+        # speak_alarm
+        self.assertFalse(self.skill.speak_alarm)
+        settings['speak_alarm'] = True
+        self.assertTrue(self.skill.speak_alarm)
+        settings['speak_alarm'] = False
+        self.assertFalse(self.skill.speak_alarm)
+
+        # speak_timer
+        self.assertTrue(self.skill.speak_timer)
+        settings['speak_timer'] = False
+        self.assertFalse(self.skill.speak_timer)
+        settings['speak_timer'] = True
+        self.assertTrue(self.skill.speak_timer)
+
+        # alarm_sound_file
+        self.assertTrue(isfile(self.skill.alarm_sound_file))
+        test_file = join(dirname(__file__), 'test_sounds', 'alarm.mp3')
+        settings['sound_alarm'] = test_file
+        self.assertEqual(self.skill.alarm_sound_file, test_file)
+
+        # timer_sound_file
+        self.assertTrue(isfile(self.skill.timer_sound_file))
+        est_file = join(dirname(__file__), 'test_sounds', 'timer.mp3')
+        settings['sound_timer'] = test_file
+        self.assertEqual(self.skill.alarm_sound_file, test_file)
+
+        # quiet_hours
+        self.assertFalse(self.skill.quiet_hours)
+        settings['quiet_hours'] = True
+        self.assertTrue(self.skill.quiet_hours)
+        settings['quiet_hours'] = False
+        self.assertFalse(self.skill.quiet_hours)
+
+        # snooze_duration
+        self.assertEqual(self.skill.snooze_duration,
+                         datetime.timedelta(minutes=15))
+        settings['snooze_mins'] = 5
+        self.assertEqual(self.skill.snooze_duration,
+                         datetime.timedelta(minutes=5))
+        settings['snooze_mins'] = '10'
+        self.assertEqual(self.skill.snooze_duration,
+                         datetime.timedelta(minutes=15))
+
+        # alert_timeout_seconds
+        self.assertEqual(self.skill.alert_timeout_seconds, 60)
+        settings['timeout_min'] = 2
+        self.assertEqual(self.skill.alert_timeout_seconds, 120)
+        settings['timeout_min'] = '5'
+        self.assertEqual(self.skill.alert_timeout_seconds, 60)
+
+        # use_24hour
+        self.assertIsInstance(self.skill.use_24hour, bool)
+        # TODO: Better test here
+
+        self.skill.preference_skill = real_prefs
 
     def test_handle_create_alarm(self):
         real_confirm = self.skill.confirm_alert
@@ -383,18 +446,21 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_method
 
     def test_handle_end_quiet_hours(self):
-        quiet_hours = True
-
-        def preference_skill(_):
-            return {"quiet_hours": quiet_hours}
-
-        real_pref_skill = self.skill.preference_skill
-        self.skill.preference_skill = preference_skill
+        # quiet_hours = True
+        #
+        # def preference_skill(_):
+        #     return {"quiet_hours": quiet_hours}
+        #
+        # real_pref_skill = self.skill.preference_skill
+        # self.skill.preference_skill = preference_skill
         real_update_settings = self.skill.update_skill_settings
         self.skill.update_skill_settings = Mock()
 
         test_message = Message("test", {"quiet_hours_end": ""},
                                {"username": self.valid_user,
+                                "user_profiles": [
+                                    {'user': {'username': self.valid_user},
+                                     'skills': {'skill-alerts.neongeckocom': {'quiet_hours': True}}}],
                                 "neon_should_respond": True})
 
         # Test end active quiet hours, nothing missed
@@ -411,7 +477,8 @@ class TestSkill(unittest.TestCase):
         # Test end active quiet hours, already inactive
         self.skill.speak_dialog.reset_mock()
         self.skill.update_skill_settings.reset_mock()
-        quiet_hours = False
+        test_message.context['user_profiles'][0]['skills'][
+            'skill-alerts.neongeckocom']['quiet_hours'] = False
         self.skill.handle_end_quiet_hours(test_message)
         self.skill.update_skill_settings.assert_not_called()
         self.skill.speak_dialog.assert_called_once()
@@ -420,7 +487,7 @@ class TestSkill(unittest.TestCase):
 
         # TODO: Test with missed alerts DM
 
-        self.skill.preference_skill = real_pref_skill
+        # self.skill.preference_skill = real_pref_skill
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
@@ -642,8 +709,22 @@ class TestSkill(unittest.TestCase):
         pass
 
     def test_get_user_tz(self):
-        # TODO
-        pass
+        mock_username = 'test_user'
+        mock_userdata = {'user': {'username': mock_username}}
+        message = Message('test', {}, {'username': mock_username,
+                                       'user_profiles': [mock_userdata]})
+
+        # Test Default
+        self.assertEqual(self.skill._get_user_tz(message), self.skill.sys_tz)
+
+        # Test Configured
+        mock_userdata['location'] = {'tz': 'America/Los_Angeles'}
+        self.assertEqual(self.skill._get_user_tz(message),
+                         gettz('America/Los_Angeles'))
+
+        mock_userdata['location'] = {'tz': 'America/New_York'}
+        self.assertEqual(self.skill._get_user_tz(message),
+                         gettz('America/New_York'))
 
     def test_get_alert_dialog_data(self):
         real_translate = self.skill.translate

@@ -61,9 +61,97 @@ class AlertSkill(NeonSkill):
 
     @property
     def alert_manager(self) -> AlertManager:
+        """
+        Get the AlertManager that tracks all Alert objects and their statuses.
+        """
         if not self._alert_manager:
             raise RuntimeError("Requested AlertManager before initialize")
         return self._alert_manager
+
+    @property
+    def speak_alarm(self) -> bool:
+        """
+        If true, speak dialog for expired alarms instead of playing audio files.
+        """
+        return self.preference_skill().get('speak_alarm', False)
+
+    @property
+    def speak_timer(self) -> bool:
+        """
+        If true, speak dialog for expired alarms instead of playing audio files.
+        """
+        return self.preference_skill().get('speak_timer', True)
+
+    @property
+    def alarm_sound_file(self) -> str:
+        """
+        Return the path to a valid alarm sound resource file
+        """
+        filename = self.preference_skill().get('sound_alarm') or \
+            'default-alarm.wav'
+        if os.path.isfile(filename):
+            return filename
+        file = self.find_resource(filename)
+        if not file:
+            LOG.warning(f'Could not resolve requested file: {filename}')
+            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+                                'default-alarm.wav')
+        if not file:
+            raise FileNotFoundError(f"Could not resolve sound: {filename}")
+        return file
+
+    @property
+    def timer_sound_file(self) -> str:
+        """
+        Return the path to a valid timer sound resource file
+        """
+        filename = self.preference_skill().get('sound_timer') or \
+            'default-timer.wav'
+        if os.path.isfile(filename):
+            return filename
+        file = self.find_resource(filename)
+        if not file:
+            LOG.warning(f'Could not resolve requested file: {filename}')
+            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+                                'default-timer.wav')
+        if not file:
+            raise FileNotFoundError(f"Could not resolve sound: {filename}")
+        return file
+
+    @property
+    def quiet_hours(self) -> bool:
+        """
+        Return true if the user has requested not to be disturbed
+        """
+        return self.preference_skill().get('quiet_hours', False)
+
+    @property
+    def snooze_duration(self) -> timedelta:
+        """
+        Get default snooze duration
+        """
+        snooze_minutes = self.preference_skill().get('snooze_mins') or 15
+        if not isinstance(snooze_minutes, int):
+            LOG.error(f'Invalid `snooze_minutes` in settings. '
+                      f'Expected int but got: {snooze_minutes}')
+            snooze_minutes = 15
+        return timedelta(minutes=snooze_minutes)
+
+    @property
+    def alert_timeout_seconds(self) -> int:
+        """
+        Return the number of seconds to repeat an alert before marking it missed
+        """
+        timeout_minutes = self.preference_skill().get('timeout_min') or 1
+        if not isinstance(timeout_minutes, int):
+            LOG.error(f'Invalid `timeout_min` in settings. '
+                      f'Expected int but got: {timeout_minutes}')
+            timeout_minutes = 1
+        return 60 * timeout_minutes
+
+    @property
+    def use_24hour(self) -> bool:
+        return get_user_prefs()["units"]["time"] == 24
 
     def initialize(self):
         self._alert_manager = AlertManager(os.path.join(self.file_system.path,
@@ -82,14 +170,6 @@ class AlertSkill(NeonSkill):
         self.gui.register_handler("ovos.alarm.skill.snooze",
                                   self._gui_snooze_alarm)
 
-    @property
-    def snooze_duration(self) -> timedelta:
-        """
-        Get default snooze duration
-        """
-        snooze_minutes = self.settings.get('snooze_mins') or 15
-        return timedelta(minutes=snooze_minutes)
-
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
                     .require("alarm").optionally("playable")
@@ -104,9 +184,9 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.ALARM,
-                                        self._get_user_tz(message), use_24hour,
+                                        self._get_user_tz(message),
+                                        self.use_24hour,
                                         self._get_spoken_alert_type,
                                         self.find_resource)
         if not alert:
@@ -127,9 +207,8 @@ class AlertSkill(NeonSkill):
             return
         tz = self._get_user_tz(message)
         anchor_time = datetime.now(tz)
-        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.TIMER, tz,
-                                        use_24hour,
+                                        self.use_24hour,
                                         self._get_spoken_alert_type,
                                         self.find_resource)
         if not alert:
@@ -150,9 +229,9 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         alert = build_alert_from_intent(message, AlertType.REMINDER,
-                                        self._get_user_tz(message), use_24hour,
+                                        self._get_user_tz(message),
+                                        self.use_24hour,
                                         self._get_spoken_alert_type,
                                         self.find_resource)
         if not alert:
@@ -214,7 +293,6 @@ class AlertSkill(NeonSkill):
                 self._display_timer_gui(alert)
             elif alert.alert_type == AlertType.ALARM:
                 self._display_alarm_gui(alert)
-            use_24hour = get_user_prefs(message)["units"]["time"] == 24
             LOG.debug(f'alert={alert.data}')
             # This is patching LF type annotation bug
             # noinspection PyTypeChecker
@@ -223,7 +301,7 @@ class AlertSkill(NeonSkill):
                 "name": alert.alert_name,
                 "time": nice_time(alert.next_expiration,
                                   message.data.get("lang"),
-                                  use_24hour=use_24hour,
+                                  use_24hour=self.use_24hour,
                                   use_ampm=True)
             }
             if alert.alert_type == alert_type.REMINDER:
@@ -254,7 +332,6 @@ class AlertSkill(NeonSkill):
         # Build a single string to speak
         alerts_string = self.dialog_renderer.render("list_alert_intro",
                                                     {'kind': spoken_type})
-        use_24hour = get_user_prefs(message)["units"]["time"] == 24
         if alert_type == AlertType.ALARM:
             self._display_alarms(alerts_list)
         elif alert_type == AlertType.TIMER:
@@ -262,7 +339,7 @@ class AlertSkill(NeonSkill):
         for alert in alerts_list:
             data = self._get_alert_dialog_data(alert,
                                                message.data.get("lang"),
-                                               use_24hour)
+                                               self.use_24hour)
             if alert.repeat_days or alert.repeat_frequency:
                 add_str = self.dialog_renderer.render("list_alert_repeating",
                                                       data)
@@ -347,7 +424,7 @@ class AlertSkill(NeonSkill):
         """
         if not self.neon_in_request(message):
             return
-        if self.preference_skill(message).get("quiet_hours"):
+        if self.quiet_hours:
             self.speak_dialog("quiet_hours_end", private=True)
             self.update_skill_settings({"quiet_hours": False}, message)
         user = get_message_user(message)
@@ -356,11 +433,10 @@ class AlertSkill(NeonSkill):
                                                            AlertState.MISSED)
         if missed_alerts:  # TODO: Unit test this DM
             self.speak_dialog("list_alert_missed_intro", private=True)
-            use_24hour = get_user_prefs(message)["units"]["time"] == 24
             for alert in missed_alerts:
                 data = self._get_alert_dialog_data(alert,
                                                    message.data.get("lang"),
-                                                   use_24hour)
+                                                   self.use_24hour)
                 if alert.repeat_days or alert.repeat_frequency:
                     self.speak_dialog("list_alert_repeating",
                                       data, private=True)
@@ -447,7 +523,7 @@ class AlertSkill(NeonSkill):
         # noinspection PyTypeChecker
         spoken_alert_time = \
             nice_time(alert.next_expiration, message.data.get("lang", "en-us"),
-                      use_24hour=get_user_prefs(message)["units"]['time'] == 24)
+                      use_24hour=self.use_24hour)
 
         # Schedule alert expirations
         self.alert_manager.add_alert(alert)
@@ -757,18 +833,15 @@ class AlertSkill(NeonSkill):
         LOG.debug(f'alert expired: {get_alert_id(alert)}')
         self.make_active()
         message = Message("neon.alert_expired", alert.data, alert.context)
-        skill_prefs = self.preference_skill(message)
         self._gui_notify_expired(alert)
 
         if alert.script_filename:
             self._run_notify_expired(alert)
         elif alert.audio_file:
             self._play_notify_expired(alert)
-        elif alert.alert_type == AlertType.ALARM and \
-                not skill_prefs.get("speak_alarm"):
+        elif alert.alert_type == AlertType.ALARM and not self.speak_alarm:
             self._play_notify_expired(alert)
-        elif alert.alert_type == AlertType.TIMER and \
-                not skill_prefs.get("speak_timer", True):
+        elif alert.alert_type == AlertType.TIMER and not self.speak_timer:
             self._play_notify_expired(alert)
         else:
             self._speak_notify_expired(alert)
@@ -796,24 +869,20 @@ class AlertSkill(NeonSkill):
         if alert.audio_file:
             LOG.debug(alert.audio_file)
             self.speak_dialog("expired_audio_alert_intro", private=True)
-            to_play = alert.audio_file
+            to_play = self.find_resource(alert.audio_file, "snd")
         elif alert.alert_type == AlertType.ALARM:
-            to_play = self.preference_skill(alert_message)\
-                .get("sound_alarm", "constant_beep.mp3")
+            to_play = self.alarm_sound_file
         elif alert.alert_type == AlertType.TIMER:
-            to_play = self.preference_skill(alert_message)\
-                .get("sound_timer", "beep4.mp3")
+            to_play = self.timer_sound_file
         else:
             LOG.error(f"Audio File Not Specified")
             to_play = None
 
-        to_play = self.find_resource(to_play, "snd")
         if not to_play:
             self._speak_notify_expired(alert)
             return
 
-        timeout = time.time() + \
-            self.preference_skill(alert_message).get("timeout_min", 2) * 60
+        timeout = time.time() + self.alert_timeout_seconds
         alert_id = get_alert_id(alert)
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
@@ -827,14 +896,14 @@ class AlertSkill(NeonSkill):
             time.sleep(5)
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             self.alert_manager.mark_alert_missed(alert_id)
+            # TODO: Generate notification
 
     def _speak_notify_expired(self, alert: Alert):
         LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
         alert_message = Message("neon.alert", alert.data, alert.context)
 
         # Notify user until they dismiss the alert
-        timeout = time.time() + \
-            self.preference_skill(alert_message).get("timeout_min", 2) * 60
+        timeout = time.time() + self.alert_timeout_seconds
         alert_id = get_alert_id(alert)
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
@@ -850,6 +919,7 @@ class AlertSkill(NeonSkill):
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             LOG.debug(f"mark alert missed: {alert_id}")
             self.alert_manager.mark_alert_missed(alert_id)
+            # TODO: Generate notification
 
     def _dismiss_alert(self, alert_id: str):
         """
@@ -1056,7 +1126,7 @@ class AlertSkill(NeonSkill):
         :param message: Message associated with request
         :return: timezone object
         """
-        return gettz(get_user_prefs(message)["location"]['tz']) or self.sys_tz
+        return gettz(self.location_timezone) or self.sys_tz
 
     def _get_alert_dialog_data(self, alert: Alert, lang: str,
                                use_24hour: bool) -> dict:
