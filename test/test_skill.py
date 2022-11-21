@@ -1014,7 +1014,8 @@ class TestAlertManager(unittest.TestCase):
 
         # Load empty cache
         test_file = join(self.manager_path, "alerts.json")
-        os.remove(test_file)
+        if isfile(test_file):
+            os.remove(test_file)
         scheduler = EventSchedulerInterface("test")
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         return alert_manager
