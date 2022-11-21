@@ -287,9 +287,10 @@ class AlertManager:
         Add a timer to the GUI.
         :param alert: Timer to add to GUI
         """
-        self._active_gui_timers.append(alert)
-        self._active_gui_timers.sort(
-            key=lambda i: i.time_to_expiration.total_seconds())
+        if alert not in self._active_gui_timers:
+            self._active_gui_timers.append(alert)
+            self._active_gui_timers.sort(
+                key=lambda i: i.time_to_expiration.total_seconds())
 
     def dismiss_alert_from_gui(self, alert_id: str):
         """

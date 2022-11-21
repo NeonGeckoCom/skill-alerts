@@ -1275,6 +1275,46 @@ class TestAlertManager(unittest.TestCase):
 
     # TODO: Test Snooze Alert
 
+    def test_timer_gui(self):
+        manager = self._init_alert_manager()
+
+        now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        timer_1_time = now_time + dt.timedelta(minutes=5)
+        timer_1_name = '5 minute timer'
+        timer_1 = Alert.create(timer_1_time, timer_1_name, AlertType.TIMER)
+
+        # Add timer to GUI
+        manager.add_timer_to_gui(timer_1)
+        self.assertEqual(len(manager.active_gui_timers), 1)
+        self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
+
+        # Ignore adding duplicate timer to GUI
+        manager.add_timer_to_gui(timer_1)
+        self.assertEqual(len(manager.active_gui_timers), 1)
+        self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
+
+        # Add different timer at same time
+        timer_2 = Alert.create(timer_1_time, 'timer 2', AlertType.TIMER)
+        manager.add_timer_to_gui(timer_2)
+        self.assertEqual(len(manager.active_gui_timers), 2)
+        self.assertIn(manager.active_gui_timers[0].data,
+                      (timer_1.data, timer_2.data))
+        self.assertIn(manager.active_gui_timers[1].data,
+                      (timer_1.data, timer_2.data))
+
+        # Dismiss timer
+        manager.dismiss_alert_from_gui(get_alert_id(timer_2))
+        self.assertEqual(len(manager.active_gui_timers), 1)
+        self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
+
+        # Add timer with the same name at a later time
+        timer_3_time = now_time + dt.timedelta(minutes=6)
+        timer_3 = Alert.create(timer_3_time, timer_1_name, AlertType.TIMER)
+        manager.add_timer_to_gui(timer_3)
+        self.assertEqual(len(manager.active_gui_timers), 2)
+        self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
+        self.assertEqual(manager.active_gui_timers[1].data, timer_3.data)
+
 
 class TestParseUtils(unittest.TestCase):
     def test_round_nearest_minute(self):
