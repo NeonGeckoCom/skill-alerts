@@ -194,6 +194,7 @@ class AlertManager:
             with self._read_lock:
                 self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
             self.dismiss_alert_from_gui(alert_id)
+            self._dump_cache()
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
@@ -254,6 +255,7 @@ class AlertManager:
             with self._read_lock:
                 alert = self._missed_alerts.pop(alert_id)
                 self.dismiss_alert_from_gui(alert_id)
+            self._dump_cache()
             return alert
         except KeyError:
             LOG.error(f"{alert_id} is not missed")
@@ -266,6 +268,7 @@ class AlertManager:
         # TODO: Consider checking ident is unique
         ident = alert.context.get("ident") or str(uuid())
         self._schedule_alert_expiration(alert, ident)
+        self._dump_cache()
         return ident
 
     def rm_alert(self, alert_id: str):
@@ -280,6 +283,7 @@ class AlertManager:
                 self.dismiss_alert_from_gui(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
+        self._dump_cache()
         self._scheduler.cancel_scheduled_event(alert_id)
 
     def add_timer_to_gui(self, alert: Alert):
