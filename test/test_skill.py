@@ -1805,9 +1805,10 @@ class TestParseUtils(unittest.TestCase):
 
         local_user = parse_alert_context_from_message(test_message_local_user)
         self.assertEqual(local_user["user"], "local")
-        self.assertEqual(local_user["ident"], "1644629287")
+        self.assertEqual(local_user["origin_ident"], "1644629287")
         self.assertEqual(local_user["created"], 1644629287.028714)
         self.assertIsInstance(local_user["timing"], dict)
+        self.assertIsInstance(local_user['ident'], str)
 
         klat_user = parse_alert_context_from_message(test_message_klat_data)
         self.assertEqual(klat_user["user"], "server_user")
