@@ -1037,6 +1037,8 @@ class TestAlertManager(unittest.TestCase):
 
         # Load empty cache
         test_file = join(self.manager_path, "alerts.json")
+        if isfile(test_file):
+            remove(test_file)
         scheduler = EventSchedulerInterface("test")
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         self.assertEqual(alert_manager.missed_alerts, dict())
@@ -1118,11 +1120,53 @@ class TestAlertManager(unittest.TestCase):
         self.assertNotIn(alert_id, alert_manager.missed_alerts)
         self.assertNotIn(alert_id, alert_manager.active_alerts)
 
-    def test_alert_manager_caching(self):
+    def test_alert_manager_cache_file(self):
+        manager = self._init_alert_manager()
+        now_time = dt.datetime.now(dt.timezone.utc)
+
+        # Check pending alert dumped to cache
+        alert_time = now_time + dt.timedelta(hours=1)
+        alert = Alert.create(alert_time, 'test1')
+        ident = manager.add_alert(alert)
+
+        with open(join(self.manager_path, 'alerts.json')) as f:
+            alerts_data = json.load(f)
+        self.assertEqual(set(alerts_data['pending'].keys()), {ident})
+
+        # Check removed alert removed from cache
+        alert_2 = Alert.create(alert_time, 'test2')
+        ident_2 = manager.add_alert(alert_2)
+        manager.rm_alert(ident)
+
+        with open(join(self.manager_path, 'alerts.json')) as f:
+            alerts_data = json.load(f)
+        self.assertEqual(set(alerts_data['pending'].keys()), {ident_2})
+
+        # Check missed alert added to cache
+        missed_alert_time = now_time - dt.timedelta(hours=1)
+        missed_alert_ident = str(time.time())
+        alert = Alert.create(missed_alert_time, "missed test alert",
+                             context={'ident': missed_alert_ident})
+        manager._active_alerts[missed_alert_ident] = alert
+        manager.mark_alert_missed(missed_alert_ident)
+        with open(join(self.manager_path, 'alerts.json')) as f:
+            alerts_data = json.load(f)
+        self.assertEqual(set(alerts_data['missed'].keys()),
+                         {missed_alert_ident})
+
+        # Check dismissed missed alert removed from cache
+        manager.dismiss_missed_alert(missed_alert_ident)
+        with open(join(self.manager_path, 'alerts.json')) as f:
+            alerts_data = json.load(f)
+        self.assertEqual(len(alerts_data['missed']), 0)
+
+    def test_alert_manager_cache_load(self):
         alert_expired = Mock()
 
         # Load empty cache
         test_file = join(self.manager_path, "alerts.json")
+        if isfile(test_file):
+            remove(test_file)
         scheduler = EventSchedulerInterface("test")
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
 
@@ -1292,46 +1336,6 @@ class TestAlertManager(unittest.TestCase):
         manager.snooze_alert(ident, datetime.timedelta(minutes=10))
         self.assertEqual(len(manager.active_alerts), 0)
         self.assertIn(f'snoozed_{ident}', manager.pending_alerts)
-
-    def test_alert_caching(self):
-        manager = self._init_alert_manager()
-        now_time = dt.datetime.now(dt.timezone.utc)
-
-        # Check pending alert dumped to cache
-        alert_time = now_time + dt.timedelta(hours=1)
-        alert = Alert.create(alert_time, 'test1')
-        ident = manager.add_alert(alert)
-
-        with open(join(self.manager_path, 'alerts.json')) as f:
-            alerts_data = json.load(f)
-        self.assertEqual(set(alerts_data['pending'].keys()), {ident})
-
-        # Check removed alert removed from cache
-        alert_2 = Alert.create(alert_time, 'test2')
-        ident_2 = manager.add_alert(alert_2)
-        manager.rm_alert(ident)
-
-        with open(join(self.manager_path, 'alerts.json')) as f:
-            alerts_data = json.load(f)
-        self.assertEqual(set(alerts_data['pending'].keys()), {ident_2})
-
-        # Check missed alert added to cache
-        missed_alert_time = now_time - dt.timedelta(hours=1)
-        missed_alert_ident = str(time.time())
-        alert = Alert.create(missed_alert_time, "missed test alert",
-                             context={'ident': missed_alert_ident})
-        manager._active_alerts[missed_alert_ident] = alert
-        manager.mark_alert_missed(missed_alert_ident)
-        with open(join(self.manager_path, 'alerts.json')) as f:
-            alerts_data = json.load(f)
-        self.assertEqual(set(alerts_data['missed'].keys()),
-                         {missed_alert_ident})
-
-        # Check dismissed missed alert removed from cache
-        manager.dismiss_missed_alert(missed_alert_ident)
-        with open(join(self.manager_path, 'alerts.json')) as f:
-            alerts_data = json.load(f)
-        self.assertEqual(len(alerts_data['missed']), 0)
 
 
 class TestParseUtils(unittest.TestCase):
