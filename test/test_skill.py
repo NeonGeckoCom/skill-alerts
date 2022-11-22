@@ -34,8 +34,9 @@ from os import mkdir, remove
 from os.path import dirname, join, exists, isfile
 from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
+from lingua_franca.time import default_timezone
 from mock import Mock
-from mock.mock import call
+from mock.mock import call, patch
 from mycroft_bus_client import Message
 from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
@@ -706,15 +707,21 @@ class TestSkill(unittest.TestCase):
         # TODO
         pass
 
-    def test_get_user_tz(self):
+    @patch('neon_utils.configuration_utils._safe_mycroft_config')
+    def test_get_user_tz(self, get_location):
         mock_username = 'test_user'
         mock_userdata = {'user': {'username': mock_username}}
         message = Message('test', {}, {'username': mock_username,
                                        'user_profiles': [mock_userdata]})
 
-        # TODO: Implement this test of default behavior
-        # # Test Default
-        # self.assertEqual(self.skill._get_user_tz(message), self.skill.sys_tz)
+        # Test Default
+        config = dict(self.skill.config_core)
+        config['location'] = {
+            'city': None,
+            'timezone': None
+        }
+        get_location.return_value = config
+        # self.assertEqual(self.skill._get_user_tz(message), default_timezone())
 
         # Test Configured
         mock_userdata['location'] = {'tz': 'America/Los_Angeles'}
