@@ -1,3 +1,4 @@
 json_database~=0.5
-neon-utils>=1.1.3a1
+neon-utils[network]>=1.1.3a1
+# TODO: network extra specified to patch neon-utils dependency bug
 combo_lock~=0.2
