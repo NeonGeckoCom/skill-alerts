@@ -492,12 +492,12 @@ class TestSkill(unittest.TestCase):
     def test_handle_cancel_alert(self):
         cancel_test_user = "test_user_cancellation"
         valid_context = {"username": cancel_test_user}
-        sea_tz = gettz("America/Los_Angeles")
-        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+        tz = self.skill._get_user_tz()
+        now_time = dt.datetime.now(tz).replace(microsecond=0)
         alarm_1_time = now_time + dt.timedelta(days=1)
         alarm_2_time = alarm_1_time + dt.timedelta(hours=1)
         alarm_3_time = now_time.replace(hour=9, minute=30, second=0) + \
-                       dt.timedelta(days=1)
+            dt.timedelta(days=1)
         reminder_time = now_time + dt.timedelta(days=2)
         timer_1_time = now_time + dt.timedelta(minutes=5)
         timer_2_time = now_time + dt.timedelta(minutes=10)
