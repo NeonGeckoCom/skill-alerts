@@ -671,7 +671,19 @@ class AlertSkill(NeonSkill):
         if alert.is_expired:
             override = True
         else:
+            # Show created alarm UI for some set duration
             override = 30
+            # Update Homescreen UI
+            alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
+                      if a.alert_type == AlertType.ALARM]
+            widget_data = {
+                "count": len(alarms),
+                "action": "ovos.gui.show.active.alarms"
+            }
+            message = Message("ovos.widgets.update",
+                              {"type": "alarm", "data": widget_data})
+            self.bus.emit(message)
+
         self.gui.show_page("AlarmCard.qml", override_idle=override)
 
     def _display_timer_gui(self, alert: Alert):
@@ -685,6 +697,15 @@ class AlertSkill(NeonSkill):
                     self.alert_manager.active_gui_timers)):
             self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
+        # Update homescreen display
+        widget_data = {
+            "count": len(self.alert_manager.active_gui_timers),
+            "action": "ovos.gui.show.active.timers"
+        }
+        message = Message("ovos.widgets.update",
+                          {"type": "timer", "data": widget_data})
+        self.bus.emit(message)
+        # Start persistent GUI
         self._start_timer_gui_thread()
 
     def _display_alarms(self, alarms: List[Alert]):
