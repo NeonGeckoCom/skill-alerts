@@ -154,16 +154,20 @@ class AlertSkill(NeonSkill):
         return get_user_prefs()["units"]["time"] == 24
 
     def initialize(self):
+        # Initialize manager with any cached alerts
         self._alert_manager = AlertManager(os.path.join(self.file_system.path,
                                                         "alerts.json"),
                                            self.event_scheduler,
                                            self._alert_expired)
 
+        # Update Homescreen UI models
+        self.add_event("mycroft.ready", self.on_ready, once=True)
+
         self.add_event("neon.get_events", self._get_events)
         self.add_event("alerts.gui.dismiss_notification",
                        self._gui_dismiss_notification)
-        self.add_event("alerts.gui.show_timers", self._on_display_gui)
-        self.add_event("alerts.gui.show_alarms", self._on_display_gui)
+        self.add_event("ovos.gui.show.active.timers", self._on_display_gui)
+        self.add_event("ovos.gui.show.active.alarms", self._on_display_gui)
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
@@ -171,6 +175,12 @@ class AlertSkill(NeonSkill):
                                   self._gui_cancel_alarm)
         self.gui.register_handler("ovos.alarm.skill.snooze",
                                   self._gui_snooze_alarm)
+
+    def on_ready(self, _: Message):
+        """
+        On ready, update the Home screen elements
+        """
+        self._update_homescreen(True, True)
 
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
@@ -675,16 +685,7 @@ class AlertSkill(NeonSkill):
         else:
             # Show created alarm UI for some set duration
             override = 30
-            # Update Homescreen UI
-            alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
-                      if a.alert_type == AlertType.ALARM]
-            widget_data = {
-                "count": len(alarms),
-                "action": "alerts.gui.show_alarms"
-            }
-            message = Message("ovos.widgets.update",
-                              {"type": "alarm", "data": widget_data})
-            self.bus.emit(message)
+            self._update_homescreen(do_alarms=True)
 
         self.gui.show_page("AlarmCard.qml", override_idle=override)
 
@@ -699,14 +700,7 @@ class AlertSkill(NeonSkill):
                     self.alert_manager.active_gui_timers)):
             self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
-        # Update homescreen display
-        widget_data = {
-            "count": len(self.alert_manager.active_gui_timers),
-            "action": "alerts.gui.show_timers"
-        }
-        message = Message("ovos.widgets.update",
-                          {"type": "timer", "data": widget_data})
-        self.bus.emit(message)
+        self._update_homescreen(do_timers=True)
         # Start persistent GUI
         self._start_timer_gui_thread()
 
@@ -732,6 +726,26 @@ class AlertSkill(NeonSkill):
         self.gui.show_page("Timer.qml", override_idle=True)
         create_daemon(self._start_timer_gui_thread)
 
+    def _update_homescreen(self, do_timers=False, do_alarms=False):
+        """
+        Update homescreen widgets with the current alarms and timers counts.
+        :param do_timers: Update timers
+        """
+        if do_timers:
+            widget_data = {"count": len(self.alert_manager.active_gui_timers),
+                           "action": "alerts.gui.show_timers"}
+            message = Message("ovos.widgets.update",
+                              {"type": "timer", "data": widget_data})
+            self.bus.emit(message)
+        if do_alarms:
+            alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
+                      if a.alert_type == AlertType.ALARM]
+            widget_data = {"count": len(alarms),
+                           "action": "alerts.gui.show_alarms"}
+            message = Message("ovos.widgets.update",
+                              {"type": "alarm", "data": widget_data})
+            self.bus.emit(message)
+
     def _on_display_gui(self, message: Message):
         """
         Handle Messages requesting display of GUI
@@ -739,12 +753,12 @@ class AlertSkill(NeonSkill):
         """
         user = get_message_user(message)
 
-        if message.msg_type == "alerts.gui.show_timers":
+        if message.msg_type == "ovos.gui.show.active.timers":
             user_timers, _ = self._get_requested_alerts_list(user,
                                                              AlertType.TIMER,
                                                              AlertState.PENDING)
             self._display_timers(user_timers)
-        elif message.msg_type == "alerts.gui.show_alarms":
+        elif message.msg_type == "ovos.gui.show.active.alarms":
             user_alarms, _ = self._get_requested_alerts_list(user,
                                                              AlertType.ALARM,
                                                              AlertState.PENDING)
