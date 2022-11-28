@@ -162,6 +162,8 @@ class AlertSkill(NeonSkill):
         self.add_event("neon.get_events", self._get_events)
         self.add_event("alerts.gui.dismiss_notification",
                        self._gui_dismiss_notification)
+        self.add_event("alerts.gui.show_timers", self._on_display_gui)
+        self.add_event("alerts.gui.show_alarms", self._on_display_gui)
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
@@ -678,7 +680,7 @@ class AlertSkill(NeonSkill):
                       if a.alert_type == AlertType.ALARM]
             widget_data = {
                 "count": len(alarms),
-                "action": "ovos.gui.show.active.alarms"
+                "action": "alerts.gui.show_alarms"
             }
             message = Message("ovos.widgets.update",
                               {"type": "alarm", "data": widget_data})
@@ -700,7 +702,7 @@ class AlertSkill(NeonSkill):
         # Update homescreen display
         widget_data = {
             "count": len(self.alert_manager.active_gui_timers),
-            "action": "ovos.gui.show.active.timers"
+            "action": "alerts.gui.show_timers"
         }
         message = Message("ovos.widgets.update",
                           {"type": "timer", "data": widget_data})
@@ -729,6 +731,24 @@ class AlertSkill(NeonSkill):
             self.alert_manager.add_timer_to_gui(timer)
         self.gui.show_page("Timer.qml", override_idle=True)
         create_daemon(self._start_timer_gui_thread)
+
+    def _on_display_gui(self, message: Message):
+        """
+        Handle Messages requesting display of GUI
+        :param message: Message associated with GUI display request
+        """
+        user = get_message_user(message)
+
+        if message.msg_type == "alerts.gui.show_timers":
+            user_timers, _ = self._get_requested_alerts_list(user,
+                                                             AlertType.TIMER,
+                                                             AlertState.PENDING)
+            self._display_timers(user_timers)
+        elif message.msg_type == "alerts.gui.show_alarms":
+            user_alarms, _ = self._get_requested_alerts_list(user,
+                                                             AlertType.ALARM,
+                                                             AlertState.PENDING)
+            self._display_alarms(user_alarms)
 
     def _start_timer_gui_thread(self):
         """
