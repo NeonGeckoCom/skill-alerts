@@ -995,6 +995,7 @@ class AlertSkill(NeonSkill):
         else:
             LOG.warning(f'Alert not in AlertManager: {alert_id}')
 
+        self._update_homescreen(True, True)
         self.alert_manager.dismiss_alert_from_gui(alert_id)
 
     def shutdown(self):
