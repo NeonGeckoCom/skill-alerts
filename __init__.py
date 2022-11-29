@@ -627,11 +627,7 @@ class AlertSkill(NeonSkill):
                 elif self.voc_match(utterance, "dismiss"):
                     for alert in user_alerts["active"]:
                         alert_id = get_alert_id(alert)
-                        self.alert_manager.dismiss_active_alert(alert_id)
-                        self.alert_manager.dismiss_alert_from_gui(alert_id)
-                        self.speak_dialog("confirm_dismiss_alert",
-                                          {"kind": self._get_spoken_alert_type(
-                                              alert.alert_type)})
+                        self._dismiss_alert(alert_id, alert.alert_type, True)
                     return True
         return False
 
@@ -786,11 +782,8 @@ class AlertSkill(NeonSkill):
         Handle a GUI timer dismissal
         """
         alert_id = message.data['timer']['alertId']
-        self._dismiss_alert(alert_id)
+        self._dismiss_alert(alert_id, AlertType.TIMER, True)
         LOG.debug(self.alert_manager.active_gui_timers)
-        self.speak_dialog("confirm_dismiss_alert",
-                          {"kind": self._get_spoken_alert_type(
-                              AlertType.TIMER)})
 
     def _gui_cancel_alarm(self, message):
         """
@@ -798,7 +791,7 @@ class AlertSkill(NeonSkill):
         """
         alert_id = message.data.get('alarmIndex')
         LOG.info(f"GUI Cancel alert: {alert_id}")
-        self._dismiss_alert(alert_id)
+        self._dismiss_alert(alert_id, AlertType.ALARM, True)
         if self.gui.get('activeAlarms'):
             # Multi Alarm view
             for alarm in self.gui.get('activeAlarms'):
@@ -811,9 +804,6 @@ class AlertSkill(NeonSkill):
         else:
             # Single alarm view
             self.gui.release()
-        self.speak_dialog("confirm_dismiss_alert",
-                          {"kind": self._get_spoken_alert_type(
-                              AlertType.ALARM)})
 
     def _gui_snooze_alarm(self, message):
         """
@@ -977,11 +967,15 @@ class AlertSkill(NeonSkill):
             self.alert_manager.mark_alert_missed(alert_id)
             # TODO: Generate notification
 
-    def _dismiss_alert(self, alert_id: str):
+    def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
+                       speak: bool = False):
         """
         Handle a request to dismiss an alert. Removes the first valid entry in
         active, missed, or pending lists.
+        Also updates GUI displays and homescreen widgets
         :param alert_id: ID of alert to dismiss
+        :param alert_type: AlertType of dismissed alert (used in spoken dialog)
+        :param speak: if True, speak confirmation of alert dismissal
         """
         if alert_id in self.alert_manager.active_alerts:
             LOG.debug('Dismissing active alert')
@@ -997,6 +991,10 @@ class AlertSkill(NeonSkill):
 
         self._update_homescreen(True, True)
         self.alert_manager.dismiss_alert_from_gui(alert_id)
+
+        if speak:
+            self.speak_dialog("confirm_dismiss_alert",
+                              {"kind": self._get_spoken_alert_type(alert_type)})
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed")
