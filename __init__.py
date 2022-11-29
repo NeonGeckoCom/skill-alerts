@@ -154,14 +154,20 @@ class AlertSkill(NeonSkill):
         return get_user_prefs()["units"]["time"] == 24
 
     def initialize(self):
+        # Initialize manager with any cached alerts
         self._alert_manager = AlertManager(os.path.join(self.file_system.path,
                                                         "alerts.json"),
                                            self.event_scheduler,
                                            self._alert_expired)
 
+        # Update Homescreen UI models
+        self.add_event("mycroft.ready", self.on_ready, once=True)
+
         self.add_event("neon.get_events", self._get_events)
         self.add_event("alerts.gui.dismiss_notification",
                        self._gui_dismiss_notification)
+        self.add_event("ovos.gui.show.active.timers", self._on_display_gui)
+        self.add_event("ovos.gui.show.active.alarms", self._on_display_gui)
 
         self.gui.register_handler("timerskill.gui.stop.timer",
                                   self._gui_cancel_timer)
@@ -169,6 +175,12 @@ class AlertSkill(NeonSkill):
                                   self._gui_cancel_alarm)
         self.gui.register_handler("ovos.alarm.skill.snooze",
                                   self._gui_snooze_alarm)
+
+    def on_ready(self, _: Message):
+        """
+        On ready, update the Home screen elements
+        """
+        self._update_homescreen(True, True)
 
 # Intent Handlers
     @intent_handler(IntentBuilder("create_alarm").optionally("set")
@@ -602,6 +614,8 @@ class AlertSkill(NeonSkill):
         If there is an active alert, see if the user is trying to dismiss it
         """
         user = get_message_user(message)
+        if not user:
+            LOG.warning(f"No user associated with message, ")
         user_alerts = self.alert_manager.get_user_alerts(user)
         # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
         #     LOG.info("Getting default user alerts")
@@ -610,16 +624,14 @@ class AlertSkill(NeonSkill):
         if user_alerts["active"]:  # User has an active alert
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
+                    LOG.debug('Snooze')
                     # TODO: Implement this
                     return True
                 elif self.voc_match(utterance, "dismiss"):
+                    LOG.debug('Dismiss')
                     for alert in user_alerts["active"]:
                         alert_id = get_alert_id(alert)
-                        self.alert_manager.dismiss_active_alert(alert_id)
-                        self.alert_manager.dismiss_alert_from_gui(alert_id)
-                        self.speak_dialog("confirm_dismiss_alert",
-                                          {"kind": self._get_spoken_alert_type(
-                                              alert.alert_type)})
+                        self._dismiss_alert(alert_id, alert.alert_type, True)
                     return True
         return False
 
@@ -671,7 +683,10 @@ class AlertSkill(NeonSkill):
         if alert.is_expired:
             override = True
         else:
+            # Show created alarm UI for some set duration
             override = 30
+            self._update_homescreen(do_alarms=True)
+
         self.gui.show_page("AlarmCard.qml", override_idle=override)
 
     def _display_timer_gui(self, alert: Alert):
@@ -685,6 +700,8 @@ class AlertSkill(NeonSkill):
                     self.alert_manager.active_gui_timers)):
             self.alert_manager.add_timer_to_gui(alert)
         self.gui.show_page("Timer.qml", override_idle=True)
+        self._update_homescreen(do_timers=True)
+        # Start persistent GUI
         self._start_timer_gui_thread()
 
     def _display_alarms(self, alarms: List[Alert]):
@@ -709,6 +726,44 @@ class AlertSkill(NeonSkill):
         self.gui.show_page("Timer.qml", override_idle=True)
         create_daemon(self._start_timer_gui_thread)
 
+    def _update_homescreen(self, do_timers=False, do_alarms=False):
+        """
+        Update homescreen widgets with the current alarms and timers counts.
+        :param do_timers: Update timers
+        """
+        if do_timers:
+            widget_data = {"count": len(self.alert_manager.active_gui_timers),
+                           "action": "alerts.gui.show_timers"}
+            message = Message("ovos.widgets.update",
+                              {"type": "timer", "data": widget_data})
+            self.bus.emit(message)
+        if do_alarms:
+            alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
+                      if a.alert_type == AlertType.ALARM]
+            widget_data = {"count": len(alarms),
+                           "action": "alerts.gui.show_alarms"}
+            message = Message("ovos.widgets.update",
+                              {"type": "alarm", "data": widget_data})
+            self.bus.emit(message)
+
+    def _on_display_gui(self, message: Message):
+        """
+        Handle Messages requesting display of GUI
+        :param message: Message associated with GUI display request
+        """
+        user = get_message_user(message)
+
+        if message.msg_type == "ovos.gui.show.active.timers":
+            user_timers, _ = self._get_requested_alerts_list(user,
+                                                             AlertType.TIMER,
+                                                             AlertState.PENDING)
+            self._display_timers(user_timers)
+        elif message.msg_type == "ovos.gui.show.active.alarms":
+            user_alarms, _ = self._get_requested_alerts_list(user,
+                                                             AlertType.ALARM,
+                                                             AlertState.PENDING)
+            self._display_alarms(user_alarms)
+
     def _start_timer_gui_thread(self):
         """
         Start updating the Timer UI while there are still active timers and
@@ -731,11 +786,8 @@ class AlertSkill(NeonSkill):
         Handle a GUI timer dismissal
         """
         alert_id = message.data['timer']['alertId']
-        self._dismiss_alert(alert_id)
+        self._dismiss_alert(alert_id, AlertType.TIMER, True)
         LOG.debug(self.alert_manager.active_gui_timers)
-        self.speak_dialog("confirm_dismiss_alert",
-                          {"kind": self._get_spoken_alert_type(
-                              AlertType.TIMER)})
 
     def _gui_cancel_alarm(self, message):
         """
@@ -743,7 +795,7 @@ class AlertSkill(NeonSkill):
         """
         alert_id = message.data.get('alarmIndex')
         LOG.info(f"GUI Cancel alert: {alert_id}")
-        self._dismiss_alert(alert_id)
+        self._dismiss_alert(alert_id, AlertType.ALARM, True)
         if self.gui.get('activeAlarms'):
             # Multi Alarm view
             for alarm in self.gui.get('activeAlarms'):
@@ -756,9 +808,6 @@ class AlertSkill(NeonSkill):
         else:
             # Single alarm view
             self.gui.release()
-        self.speak_dialog("confirm_dismiss_alert",
-                          {"kind": self._get_spoken_alert_type(
-                              AlertType.ALARM)})
 
     def _gui_snooze_alarm(self, message):
         """
@@ -922,11 +971,15 @@ class AlertSkill(NeonSkill):
             self.alert_manager.mark_alert_missed(alert_id)
             # TODO: Generate notification
 
-    def _dismiss_alert(self, alert_id: str):
+    def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
+                       speak: bool = False):
         """
         Handle a request to dismiss an alert. Removes the first valid entry in
         active, missed, or pending lists.
+        Also updates GUI displays and homescreen widgets
         :param alert_id: ID of alert to dismiss
+        :param alert_type: AlertType of dismissed alert (used in spoken dialog)
+        :param speak: if True, speak confirmation of alert dismissal
         """
         if alert_id in self.alert_manager.active_alerts:
             LOG.debug('Dismissing active alert')
@@ -941,6 +994,13 @@ class AlertSkill(NeonSkill):
             LOG.warning(f'Alert not in AlertManager: {alert_id}')
 
         self.alert_manager.dismiss_alert_from_gui(alert_id)
+        do_timer = alert_type == AlertType.TIMER
+        do_alarm = alert_type == AlertType.ALARM
+        self._update_homescreen(do_timer, do_alarm)
+
+        if speak:
+            self.speak_dialog("confirm_dismiss_alert",
+                              {"kind": self._get_spoken_alert_type(alert_type)})
 
     def shutdown(self):
         LOG.debug(f"Shutdown, all active alerts are now missed")

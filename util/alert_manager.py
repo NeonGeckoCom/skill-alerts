@@ -405,6 +405,10 @@ class AlertManager:
             except ValueError:
                 # Alert is expired with no valid repeat param
                 pass
+            if alert.alert_type == AlertType.TIMER and \
+                    get_alert_user(alert) == _DEFAULT_USER:
+                LOG.debug(f'Adding timer to GUI: {alert.alert_name}')
+                self._active_gui_timers.append(alert)
 
     # Data Operations
     def _get_user_alerts(self, user: str = _DEFAULT_USER) -> tuple:
