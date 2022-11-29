@@ -614,6 +614,8 @@ class AlertSkill(NeonSkill):
         If there is an active alert, see if the user is trying to dismiss it
         """
         user = get_message_user(message)
+        if not user:
+            LOG.warning(f"No user associated with message, ")
         user_alerts = self.alert_manager.get_user_alerts(user)
         # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
         #     LOG.info("Getting default user alerts")
@@ -622,9 +624,11 @@ class AlertSkill(NeonSkill):
         if user_alerts["active"]:  # User has an active alert
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
+                    LOG.debug('Snooze')
                     # TODO: Implement this
                     return True
                 elif self.voc_match(utterance, "dismiss"):
+                    LOG.debug('Dismiss')
                     for alert in user_alerts["active"]:
                         alert_id = get_alert_id(alert)
                         self._dismiss_alert(alert_id, alert.alert_type, True)
@@ -989,8 +993,10 @@ class AlertSkill(NeonSkill):
         else:
             LOG.warning(f'Alert not in AlertManager: {alert_id}')
 
-        self._update_homescreen(True, True)
         self.alert_manager.dismiss_alert_from_gui(alert_id)
+        do_timer = alert_type == AlertType.TIMER
+        do_alarm = alert_type == AlertType.ALARM
+        self._update_homescreen(do_timer, do_alarm)
 
         if speak:
             self.speak_dialog("confirm_dismiss_alert",

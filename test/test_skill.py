@@ -831,6 +831,46 @@ class TestSkill(unittest.TestCase):
                                                  use_ampm=True)})
         self.skill.translate = real_translate
 
+    def test_dismiss_alert(self):
+        # Setup alert_manager with active alerts
+        alert_manager = self.skill.alert_manager
+        now_time = dt.datetime.now(dt.timezone.utc)
+        alarm_time = now_time + dt.timedelta(seconds=1)
+        timer_time = now_time + dt.timedelta(seconds=2)
+        alarm = Alert.create(alarm_time, alert_type=AlertType.ALARM)
+        alarm_id = get_alert_id(alarm)
+        timer = Alert.create(timer_time, alert_type=AlertType.TIMER)
+        timer_id = get_alert_id(timer)
+        time.sleep(2)
+
+        update_msg: Message = None
+
+        def _handle_message(msg):
+            nonlocal update_msg
+            update_msg = msg
+
+        self.skill.bus.on('ovos.widgets.update', _handle_message)
+
+        alert_manager._active_alerts = {timer_id: timer,
+                                        alarm_id: alarm}
+
+        self.skill._dismiss_alert(alarm_id, AlertType.ALARM)
+        self.skill.speak_dialog.assert_not_called()
+        self.assertIsInstance(update_msg, Message)
+        self.assertEqual(update_msg.msg_type, 'ovos.widgets.update')
+        self.assertEqual(update_msg.data,
+                         {'type': 'alarm',
+                          'data': {'count': 0,
+                                   'action': 'alerts.gui.show_alarms'}})
+
+        self.skill._dismiss_alert(timer_id, AlertType.TIMER, True)
+        self.skill.speak_dialog.assert_called_once_with("confirm_dismiss_alert",
+                                                        {"kind": "timer"})
+        self.assertEqual(update_msg.data,
+                         {'type': 'timer',
+                          'data': {'count': 0,
+                                   'action': 'alerts.gui.show_timers'}})
+
     def test_get_spoken_alert_type(self):
         # TODO
         pass
