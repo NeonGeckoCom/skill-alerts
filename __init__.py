@@ -30,11 +30,12 @@ import time
 import os
 from threading import RLock
 
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Union
 from dateutil.tz import gettz
 from datetime import datetime, timedelta, timezone
 from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
+from lingua_franca.time import default_timezone
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.user_utils import get_user_prefs, get_message_user
@@ -1187,7 +1188,8 @@ class AlertSkill(NeonSkill):
         :param message: Message associated with request
         :return: timezone object
         """
-        return gettz(self.location_timezone) or self.sys_tz
+        return gettz(self.location_timezone) if self.location_timezone else \
+            default_timezone()
 
     def _get_alert_dialog_data(self, alert: Alert, lang: str,
                                use_24hour: bool) -> dict:
