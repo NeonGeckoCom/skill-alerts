@@ -1562,7 +1562,7 @@ class TestParseUtils(unittest.TestCase):
 
         weekends = _get_message_from_file("wake_me_up_weekends.json")
         tokens = get_unmatched_tokens(weekends)
-        self.assertEqual(tokens, ['at 9 30 AM on'])
+        self.assertEqual(tokens, ['at 9 30 am on'])
 
         wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
         tokens = get_unmatched_tokens(wakeup_at)
