@@ -1521,7 +1521,7 @@ class TestParseUtils(unittest.TestCase):
 
         weekends = _get_message_from_file("wake_me_up_weekends.json")
         tokens = tokenize_utterance(weekends)
-        self.assertEqual(tokens, ['wake me up', 'at 9 30 AM on',
+        self.assertEqual(tokens, ['wake me up', 'at 9 30 am on',
                                   'weekends'])
 
         wakeup_at = _get_message_from_file("wake_me_up_at_time_alarm.json")
@@ -1537,6 +1537,10 @@ class TestParseUtils(unittest.TestCase):
         tokens = tokenize_utterance(multi_day_repeat)
         self.assertEqual(tokens, ['wake me up', 'every',
                                   'monday and thursday at 9 am'])
+
+        capitalized = _get_message_from_file("alarm_capitalized_vocab.json")
+        tokens = tokenize_utterance(capitalized)
+        self.assertEqual(tokens, ['alarm', 'in 30 minutes'])
 
     def test_get_unmatched_tokens_alarm(self):
         from util.parse_utils import get_unmatched_tokens
