@@ -201,7 +201,7 @@ def tokenize_utterance(message: Message) -> List[str]:
     :param message: Message associated with intent match
     :returns: list of utterance tokens where a tag defines a token
     """
-    utterance = message.data["utterance"]
+    utterance = message.data["utterance"].lower()
     tags = message.data["__tags__"]
     tags.sort(key=lambda tag: tag["start_token"])
     extracted_words = [tag.get("match") for tag in tags]
