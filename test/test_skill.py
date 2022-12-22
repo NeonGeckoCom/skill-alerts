@@ -1804,7 +1804,7 @@ class TestParseUtils(unittest.TestCase):
             "set_reminder_to_action_every_interval_until_end.json")
 
         with open(join(dirname(dirname(__file__)),
-                       "locale", "en-us", "articles.voc")) as f:
+                       "locale", "en-us", "vocab", "articles.voc")) as f:
             articles = f.read().split('\n')
 
         self.assertIsNone(parse_alert_name_from_message(monday_thursday_alarm,
