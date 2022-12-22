@@ -1052,9 +1052,8 @@ class TestAlert(unittest.TestCase):
 
 
 class TestAlertManager(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.manager_path = join(dirname(__file__), "test_cache")
+    manager_path = join(dirname(__file__), "test_cache")
+    bus = FakeBus()
 
     def _init_alert_manager(self):
         alert_expired = Mock()
@@ -1063,7 +1062,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             os.remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         return alert_manager
 
