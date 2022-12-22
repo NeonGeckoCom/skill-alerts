@@ -176,7 +176,7 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
         article_file = find_resource("articles.voc", lang=lang)
     except TypeError:
         LOG.error("Incompatible `find_resource` method passed")
-        article_file = _default_find_resource("articles.voc", lang=lang)
+        article_file = _default_find_resource("voc/articles.voc", lang=lang)
     if article_file:
         with open(article_file) as f:
             articles = f.read().split('\n')
