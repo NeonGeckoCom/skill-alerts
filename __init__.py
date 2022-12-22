@@ -184,7 +184,7 @@ class AlertSkill(NeonSkill):
         self._update_homescreen(True, True)
 
 # Intent Handlers
-    @intent_handler(IntentBuilder("create_alarm").optionally("set")
+    @intent_handler(IntentBuilder("CreateAlarm").optionally("set")
                     .require("alarm").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
@@ -209,7 +209,7 @@ class AlertSkill(NeonSkill):
             return  # TODO: Converse to get time
         self.confirm_alert(alert, message)
 
-    @intent_handler(IntentBuilder("create_timer").require("set")
+    @intent_handler(IntentBuilder("CreateTimer").require("set")
                     .require("timer"))
     def handle_create_timer(self, message):
         """
@@ -229,7 +229,7 @@ class AlertSkill(NeonSkill):
             return  # TODO: Converse to get time
         self.confirm_alert(alert, message, anchor_time)
 
-    @intent_handler(IntentBuilder("create_reminder").require("set")
+    @intent_handler(IntentBuilder("CreateReminder").require("set")
                     .require("reminder").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
@@ -254,7 +254,7 @@ class AlertSkill(NeonSkill):
             return  # TODO: Converse to get time
         self.confirm_alert(alert, message)
 
-    @intent_handler(IntentBuilder("alternate_reminder").require("remind_me")
+    @intent_handler(IntentBuilder("CreateReminderAlt").require("remind_me")
                     .optionally("playable").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
@@ -266,7 +266,7 @@ class AlertSkill(NeonSkill):
         """
         self.handle_create_reminder(message)
 
-    @intent_handler(IntentBuilder("create_event").optionally("set")
+    @intent_handler(IntentBuilder("CreateEvent").require("set")
                     .require("event").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday")
@@ -281,7 +281,7 @@ class AlertSkill(NeonSkill):
         self.handle_create_reminder(message)
 
     # Query Alerts
-    @intent_handler(IntentBuilder("next_alert").require("next")
+    @intent_handler(IntentBuilder("NextAlert").require('query').require("next")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_next_alert(self, message):
         """
@@ -323,7 +323,8 @@ class AlertSkill(NeonSkill):
             else:
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
-    @intent_handler(IntentBuilder("list_alerts").require("list")
+    # TODO: Alt intent like "are there any upcoming/pending <alert>"
+    @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
@@ -362,7 +363,8 @@ class AlertSkill(NeonSkill):
             alerts_string = f"{alerts_string}\n{add_str}"
         self.speak(alerts_string, private=True)
 
-    @intent_handler(IntentBuilder("timer_status")
+    # TODO: Alt intent like "what's the status on x timer"
+    @intent_handler(IntentBuilder("TimerStatus")
                     .require('timer_time_remaining'))
     def handle_timer_status(self, message):
         """
@@ -413,7 +415,7 @@ class AlertSkill(NeonSkill):
                 to_speak = f"{to_speak}\n{part}"
             self.speak(to_speak.lstrip('\n'), private=True)
 
-    @intent_handler(IntentBuilder("start_quiet_hours")
+    @intent_handler(IntentBuilder("StartQuietHours")
                     .require("quiet_hours_start"))
     def handle_start_quiet_hours(self, message):
         """
@@ -427,7 +429,7 @@ class AlertSkill(NeonSkill):
         self.speak_dialog("quiet_hours_start", private=True)
         self.update_skill_settings({"quiet_hours": True}, message)
 
-    @intent_handler(IntentBuilder("end_quiet_hours")
+    @intent_handler(IntentBuilder("EndQuietHours")
                     .require("quiet_hours_end"))
     def handle_end_quiet_hours(self, message):
         """
@@ -459,7 +461,7 @@ class AlertSkill(NeonSkill):
         else:
             self.speak_dialog("list_alert_none_missed", private=True)
 
-    @intent_handler(IntentBuilder("cancel_alert").require("cancel")
+    @intent_handler(IntentBuilder("CancelAlert").require("cancel")
                     .optionally("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_cancel_alert(self, message):
