@@ -47,6 +47,7 @@ _default_lang = "en-US"
 
 
 def _default_find_resource(res_name, _=None, lang=None):
+    # TODO: Refactor on skill resources object as a singleton
     LOG.warning("find_resource method not defined, using fallback")
     base_dir = os.path.dirname(os.path.dirname(__file__))
     lang = lang or "en-us"
@@ -176,11 +177,14 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
         article_file = find_resource("articles.voc", lang=lang)
     except TypeError:
         LOG.error("Incompatible `find_resource` method passed")
-        article_file = _default_find_resource("articles.voc", lang=lang)
+        article_file = None
+    article_file = article_file or _default_find_resource("vocab/articles.voc",
+                                                          lang=lang)
     if article_file:
         with open(article_file) as f:
             articles = f.read().split('\n')
     else:
+        LOG.warning(f"No articles.voc found for lang={lang}")
         articles = list()
     alert_context = parse_alert_context_from_message(message)
     alert_context['start_time'] = anchor_time.isoformat()

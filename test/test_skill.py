@@ -34,7 +34,6 @@ from os import mkdir, remove
 from os.path import dirname, join, exists, isfile
 from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
-from lingua_franca.time import default_timezone
 from mock import Mock
 from mock.mock import call, patch
 from mycroft_bus_client import Message
@@ -1052,9 +1051,8 @@ class TestAlert(unittest.TestCase):
 
 
 class TestAlertManager(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.manager_path = join(dirname(__file__), "test_cache")
+    manager_path = join(dirname(__file__), "test_cache")
+    bus = FakeBus()
 
     def _init_alert_manager(self):
         alert_expired = Mock()
@@ -1063,7 +1061,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             os.remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         return alert_manager
 
@@ -1086,7 +1084,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         self.assertEqual(alert_manager.missed_alerts, dict())
         self.assertEqual(alert_manager.pending_alerts, dict())
@@ -1214,7 +1212,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
 
         now_time = dt.datetime.now(dt.timezone.utc)
@@ -1804,7 +1802,7 @@ class TestParseUtils(unittest.TestCase):
             "set_reminder_to_action_every_interval_until_end.json")
 
         with open(join(dirname(dirname(__file__)),
-                       "locale", "en-us", "articles.voc")) as f:
+                       "locale", "en-us", "vocab", "articles.voc")) as f:
             articles = f.read().split('\n')
 
         self.assertIsNone(parse_alert_name_from_message(monday_thursday_alarm,
@@ -2275,6 +2273,212 @@ class TestUIModels(unittest.TestCase):
         self.assertFalse(metric_display['alarmExpired'])
         self.assertEqual(metric_display['alarmIndex'],
                          get_alert_id(metric_alarm))
+
+
+class TestSkillLoading(unittest.TestCase):
+    """
+    Test skill loading, intent registration, and langauge support. Test cases
+    are generic, only class variables should be modified per-skill.
+    """
+    # Static parameters
+    bus = FakeBus()
+    messages = list()
+    test_skill_id = 'test_skill.test'
+    # Default Core Events
+    default_events = ["mycroft.skill.enable_intent",
+                      "mycroft.skill.disable_intent",
+                      "mycroft.skill.set_cross_context",
+                      "mycroft.skill.remove_cross_context",
+                      "intent.service.skills.deactivated",
+                      "intent.service.skills.activated",
+                      "mycroft.skills.settings.changed",
+                      "skill.converse.ping",
+                      "skill.converse.request",
+                      f"{test_skill_id}.activate",
+                      f"{test_skill_id}.deactivate"
+                      ]
+
+    # Import and initialize installed skill
+    from skill_alerts import AlertSkill
+    skill = AlertSkill()
+
+    # Specify valid languages to test
+    supported_languages = ["en-us"]
+
+    # Specify skill intents as sets
+    adapt_intents = {'CreateAlarm', 'CreateTimer', 'CreateReminder',
+                     'CreateReminderAlt', 'CreateEvent', 'NextAlert',
+                     'ListAlerts', 'TimerStatus', 'StartQuietHours',
+                     'EndQuietHours', 'CancelAlert'}
+    padatious_intents = set()
+
+    # regex entities, not necessarily filenames
+    regex = set()
+    # vocab is lowercase .voc file basenames
+    vocab = {'script', 'next', 'playable', 'weekends', 'until',
+             'quiet_hours_end', 'everyday', 'repeat', 'event', 'set',
+             'weekdays', 'dismiss', 'alarm', 'timer', 'priority',
+             'quiet_hours_start', 'timer_time_remaining', 'cancel',
+             'snooze', 'reminder', 'remind_me', 'articles', 'query',
+             'all', 'alert'}
+    # dialog is .dialog file basenames (case-sensitive)
+    dialog = {'word_weekday_thursday', 'confirm_timer_started',
+              'confirm_cancel_all', 'confirm_alert_set', 'error_no_duration',
+              'next_alert_unnamed', 'list_alert_none_missed', 'word_weekday',
+              'word_weekend', 'confirm_alert_recurring_script',
+              'word_weekday_friday', 'list_alert_repeating', 'word_alert',
+              'word_alarm', 'confirm_alert_recurring', 'quiet_hours_end',
+              'expired_reminder', 'word_weekday_monday', 'next_alert_named',
+              'confirm_alert_script', 'list_alert_none_upcoming',
+              'word_weekday_wednesday', 'expired_alert',
+              'error_audio_reminder_too_far', 'list_alert_missed_intro',
+              'word_reminder', 'expired_audio_alert_intro',
+              'error_no_scheduled_kind_to_cancel',
+              'confirm_alert_recurring_playback', 'word_weekday_tuesday',
+              'confirm_snooze_alert', 'confirm_cancel_alert',
+              'confirm_dismiss_alert', 'confirm_alert_playback',
+              'word_weekday_saturday', 'word_weekday_sunday', 'word_day',
+              'error_no_time', 'word_timer', 'quiet_hours_start',
+              'timer_status', 'list_alert', 'timer_status_none_active',
+              'list_alert_intro', 'error_nothing_to_cancel'}
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.bus.on("message", cls._on_message)
+        cls.skill.config_core["secondary_langs"] = cls.supported_languages
+        cls.skill._startup(cls.bus, cls.test_skill_id)
+        cls.adapt_intents = {f'{cls.test_skill_id}:{intent}'
+                             for intent in cls.adapt_intents}
+        cls.padatious_intents = {f'{cls.test_skill_id}:{intent}'
+                                 for intent in cls.padatious_intents}
+
+    @classmethod
+    def _on_message(cls, message):
+        cls.messages.append(json.loads(message))
+
+    def test_skill_setup(self):
+        self.assertEqual(self.skill.skill_id, self.test_skill_id)
+        for msg in self.messages:
+            self.assertEqual(msg["context"]["skill_id"], self.test_skill_id)
+
+    def test_intent_registration(self):
+        registered_adapt = list()
+        registered_padatious = dict()
+        registered_vocab = dict()
+        registered_regex = dict()
+        for msg in self.messages:
+            if msg["type"] == "register_intent":
+                registered_adapt.append(msg["data"]["name"])
+            elif msg["type"] == "padatious:register_intent":
+                lang = msg["data"]["lang"]
+                registered_padatious.setdefault(lang, list())
+                registered_padatious[lang].append(msg["data"]["name"])
+            elif msg["type"] == "register_vocab":
+                lang = msg["data"]["lang"]
+                if msg['data'].get('regex'):
+                    registered_regex.setdefault(lang, dict())
+                    regex = msg["data"]["regex"].split(
+                        '<', 1)[1].split('>', 1)[0].replace(
+                        self.test_skill_id.replace('.', '_'), '').lower()
+                    registered_regex[lang].setdefault(regex, list())
+                    registered_regex[lang][regex].append(msg["data"]["regex"])
+                else:
+                    registered_vocab.setdefault(lang, dict())
+                    voc_filename = msg["data"]["entity_type"].replace(
+                        self.test_skill_id.replace('.', '_'), '').lower()
+                    registered_vocab[lang].setdefault(voc_filename, list())
+                    registered_vocab[lang][voc_filename].append(
+                        msg["data"]["entity_value"])
+        self.assertEqual(set(registered_adapt), self.adapt_intents)
+        for lang in self.supported_languages:
+            if self.padatious_intents:
+                self.assertEqual(set(registered_padatious[lang]),
+                                 self.padatious_intents)
+            if self.vocab:
+                self.assertEqual(set(registered_vocab[lang].keys()), self.vocab)
+            if self.regex:
+                self.assertEqual(set(registered_regex[lang].keys()), self.regex)
+            for voc in self.vocab:
+                # Ensure every vocab file has at least one entry
+                self.assertGreater(len(registered_vocab[lang][voc]), 0)
+            for rx in self.regex:
+                # Ensure every vocab file has exactly one entry
+                self.assertTrue(all((rx in line for line in
+                                     registered_regex[lang][rx])))
+
+    def test_skill_events(self):
+        events = self.default_events + list(self.adapt_intents)
+        for event in events:
+            self.assertIn(event, [e[0] for e in self.skill.events])
+
+    def test_dialog_files(self):
+        for lang in self.supported_languages:
+            for dialog in self.dialog:
+                file = self.skill.find_resource(f"{dialog}.dialog", "dialog",
+                                                lang)
+                self.assertTrue(os.path.isfile(file))
+
+
+class TestSkillIntentMatching(unittest.TestCase):
+    # Import and initialize installed skill
+    from skill_alerts import AlertSkill
+    skill = AlertSkill()
+
+    import yaml
+    test_intents = join(dirname(__file__), 'test_intents.yaml')
+    with open(test_intents) as f:
+        valid_intents = yaml.safe_load(f)
+
+    from mycroft.skills.intent_service import IntentService
+    bus = FakeBus()
+    intent_service = IntentService(bus)
+    test_skill_id = 'test_skill.test'
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.skill.config_core["secondary_langs"] = list(cls.valid_intents.keys())
+        cls.skill._startup(cls.bus, cls.test_skill_id)
+
+    def test_intents(self):
+        for lang in self.valid_intents.keys():
+            for intent, examples in self.valid_intents[lang].items():
+                intent_event = f'{self.test_skill_id}:{intent}'
+                self.skill.events.remove(intent_event)
+                intent_handler = Mock()
+                self.skill.events.add(intent_event, intent_handler)
+                for utt in examples:
+                    if isinstance(utt, dict):
+                        data = list(utt.values())[0]
+                        utt = list(utt.keys())[0]
+                    else:
+                        data = list()
+                    message = Message('test_utterance',
+                                      {"utterances": [utt], "lang": lang})
+                    self.intent_service.handle_utterance(message)
+                    intent_handler.assert_called_once()
+                    intent_message = intent_handler.call_args[0][0]
+                    self.assertIsInstance(intent_message, Message)
+                    self.assertEqual(intent_message.msg_type, intent_event)
+                    for datum in data:
+                        if isinstance(datum, dict):
+                            name = list(datum.keys())[0]
+                            value = list(datum.values())[0]
+                        else:
+                            name = datum
+                            value = None
+                        if name in intent_message.data:
+                            # This is an entity
+                            voc_id = name
+                        else:
+                            # We mocked the handler, data is munged
+                            voc_id = f'{self.test_skill_id.replace(".", "_")}' \
+                                     f'{name}'
+                        self.assertIsInstance(intent_message.data.get(voc_id),
+                                              str, intent_message.data)
+                        if value:
+                            self.assertEqual(intent_message.data.get(voc_id),
+                                             value)
+                    intent_handler.reset_mock()
 
 
 if __name__ == '__main__':
