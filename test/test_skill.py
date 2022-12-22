@@ -34,7 +34,6 @@ from os import mkdir, remove
 from os.path import dirname, join, exists, isfile
 from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
-from lingua_franca.time import default_timezone
 from mock import Mock
 from mock.mock import call, patch
 from mycroft_bus_client import Message
@@ -1085,7 +1084,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         self.assertEqual(alert_manager.missed_alerts, dict())
         self.assertEqual(alert_manager.pending_alerts, dict())
@@ -1213,7 +1212,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test")
+        scheduler = EventSchedulerInterface("test", bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
 
         now_time = dt.datetime.now(dt.timezone.utc)
