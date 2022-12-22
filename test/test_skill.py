@@ -2321,7 +2321,8 @@ class TestSkillLoading(unittest.TestCase):
              'quiet_hours_end', 'everyday', 'repeat', 'event', 'set',
              'weekdays', 'dismiss', 'alarm', 'timer', 'priority',
              'quiet_hours_start', 'timer_time_remaining', 'cancel',
-             'snooze', 'reminder', 'list', 'remind_me', 'articles'}
+             'snooze', 'reminder', 'list', 'remind_me', 'articles', 'query',
+             'all', 'alert'}
     # dialog is .dialog file basenames (case-sensitive)
     dialog = {'word_weekday_thursday', 'confirm_timer_started',
               'confirm_cancel_all', 'confirm_alert_set', 'error_no_duration',
