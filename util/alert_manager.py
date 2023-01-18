@@ -102,8 +102,14 @@ class AlertManager:
         self._missed_alerts = dict()
         self._active_alerts = dict()
         self._read_lock = NamedLock("alert_manager")
+        self._active_gui_timers = list()
 
         self._load_cache()
+
+    @property
+    def active_gui_timers(self):
+        with self._read_lock:
+            return deepcopy(self._active_gui_timers)
 
     @property
     def missed_alerts(self):
@@ -187,6 +193,8 @@ class AlertManager:
         try:
             with self._read_lock:
                 self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
+            self.dismiss_alert_from_gui(alert_id)
+            self._dump_cache()
         except KeyError:
             LOG.error(f"{alert_id} is not active")
 
@@ -198,9 +206,44 @@ class AlertManager:
         """
         try:
             with self._read_lock:
-                return self._active_alerts.pop(alert_id)
+                alert = self._active_alerts.pop(alert_id)
+            return alert
         except KeyError:
             LOG.error(f"{alert_id} is not active")
+
+    def snooze_alert(self, alert_id: str,
+                     snooze_duration: dt.timedelta) -> Alert:
+        """
+        Snooze an active or missed alert for some period of time.
+        :param alert_id: ID of active or missed alert to reschedule
+        :param snooze_duration: time until next notification
+        :returns: New Alert added to pending
+        """
+        alert = None
+        with self._read_lock:
+            if alert_id in self._active_alerts:
+                alert = self._active_alerts.pop(alert_id)
+            elif alert_id in self._missed_alerts:
+                alert = self._missed_alerts.pop(alert_id)
+        if not alert:
+            raise KeyError(f'No missed or active alert with ID: {alert_id}')
+        assert isinstance(alert, Alert)
+        alert_dict = alert.data
+        old_expiration = dt.datetime.fromisoformat(
+            alert_dict['next_expiration_time'])
+        new_expiration = old_expiration + snooze_duration
+        alert_dict['next_expiration_time'] = new_expiration.isoformat()
+        alert_dict['repeat_frequency'] = None
+        alert_dict['repeat_days'] = None
+        alert_dict['end_repeat'] = None
+        alert_dict['alert_name'] = alert.alert_name
+
+        if not alert_dict['context']['ident'].startswith('snoozed'):
+            alert_dict['context']['ident'] = f"snoozed_{get_alert_id(alert)}"
+
+        new_alert = Alert.from_dict(alert_dict)
+        self.add_alert(new_alert)
+        return new_alert
 
     def dismiss_missed_alert(self, alert_id: str) -> Alert:
         """
@@ -210,7 +253,10 @@ class AlertManager:
         """
         try:
             with self._read_lock:
-                return self._missed_alerts.pop(alert_id)
+                alert = self._missed_alerts.pop(alert_id)
+                self.dismiss_alert_from_gui(alert_id)
+            self._dump_cache()
+            return alert
         except KeyError:
             LOG.error(f"{alert_id} is not missed")
 
@@ -222,6 +268,7 @@ class AlertManager:
         # TODO: Consider checking ident is unique
         ident = alert.context.get("ident") or str(uuid())
         self._schedule_alert_expiration(alert, ident)
+        self._dump_cache()
         return ident
 
     def rm_alert(self, alert_id: str):
@@ -230,12 +277,35 @@ class AlertManager:
         :param alert_id: ident of active alert to remove
         """
         try:
+            LOG.debug(f"Removing alert: {alert_id}")
             with self._read_lock:
                 self._pending_alerts.pop(alert_id)
+                self.dismiss_alert_from_gui(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
-        LOG.debug(f"Removing alert: {alert_id}")
+        self._dump_cache()
         self._scheduler.cancel_scheduled_event(alert_id)
+
+    def add_timer_to_gui(self, alert: Alert):
+        """
+        Add a timer to the GUI.
+        :param alert: Timer to add to GUI
+        """
+        if alert not in self._active_gui_timers:
+            self._active_gui_timers.append(alert)
+            self._active_gui_timers.sort(
+                key=lambda i: i.time_to_expiration.total_seconds())
+
+    def dismiss_alert_from_gui(self, alert_id: str):
+        """
+        Dismiss an alert from long-lived GUI displays.
+        """
+        # Active timers are a copy of the original, check by ID
+        for pending in self._active_gui_timers:
+            if get_alert_id(pending) == alert_id:
+                self._active_gui_timers.remove(pending)
+                return True
+        return False
 
     def shutdown(self):
         """
@@ -335,6 +405,10 @@ class AlertManager:
             except ValueError:
                 # Alert is expired with no valid repeat param
                 pass
+            if alert.alert_type == AlertType.TIMER and \
+                    get_alert_user(alert) == _DEFAULT_USER:
+                LOG.debug(f'Adding timer to GUI: {alert.alert_name}')
+                self._active_gui_timers.append(alert)
 
     # Data Operations
     def _get_user_alerts(self, user: str = _DEFAULT_USER) -> tuple:

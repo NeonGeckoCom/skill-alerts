@@ -63,3 +63,10 @@ class Weekdays(IntEnum):
     FRI = 4
     SAT = 5
     SUN = 6
+
+
+WEEKDAYS = {Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU,
+            Weekdays.FRI}
+WEEKENDS = {Weekdays.SAT, Weekdays.SUN}
+EVERYDAY = {Weekdays.MON, Weekdays.TUE, Weekdays.WED, Weekdays.THU,
+            Weekdays.FRI, Weekdays.SAT, Weekdays.SUN}

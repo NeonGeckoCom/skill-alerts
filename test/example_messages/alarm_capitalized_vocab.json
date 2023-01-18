@@ -1,0 +1,115 @@
+{
+  "context": {
+    "timing": {
+      "handle_utterance": 1669777158.373366,
+      "save_transcript": 2.1457672119140625e-06,
+      "text_parsers": 0.0990297794342041,
+      "transcribed": 1669777158.373366
+    },
+    "translation_data": [
+      {
+        "detected_lang": "en",
+        "internal": "en-us",
+        "raw_utterance": "Alarm in 30 minutes",
+        "source_lang": "en-us",
+        "translated_utterance": "Alarm in 30 minutes",
+        "was_translated": false
+      }
+    ],
+    "user_profiles": [
+      {
+        "brands": {
+          "favorite_brands": {},
+          "ignored_brands": {},
+          "specially_requested": {}
+        },
+        "location": {
+          "city": "Renton",
+          "country": "United States",
+          "country_code": "us",
+          "lat": "47.4799078",
+          "lng": "-122.2034496",
+          "state": "Washington",
+          "tz": "America/Los_Angeles",
+          "utc": "-8.0"
+        },
+        "privacy": {
+          "save_audio": true,
+          "save_text": true
+        },
+        "response_mode": {
+          "hesitation": false,
+          "limit_dialog": false,
+          "speed_mode": "quick"
+        },
+        "speech": {
+          "alt_languages": [],
+          "neon_voice": "",
+          "secondary_neon_voice": "",
+          "secondary_tts_gender": "male",
+          "secondary_tts_language": "",
+          "speed_multiplier": 1.0,
+          "stt_language": "es-es",
+          "tts_gender": "female",
+          "tts_language": "en-us"
+        },
+        "units": {
+          "date": "MDY",
+          "measure": "imperial",
+          "time": 12
+        },
+        "user": {
+          "about": "",
+          "age": "",
+          "dob": "YYYY/MM/DD",
+          "email": "",
+          "email_verified": false,
+          "first_name": "",
+          "full_name": "",
+          "last_name": "",
+          "middle_name": "",
+          "password": "",
+          "phone": "",
+          "phone_verified": false,
+          "picture": "",
+          "preferred_name": "",
+          "username": "local"
+        }
+      }
+    ],
+    "username": "local"
+  },
+  "data": {
+    "__tags__": [
+      {
+        "end_token": 0,
+        "entities": [
+          {
+            "confidence": 1.0,
+            "data": [
+              [
+                "alarm",
+                "skill_alerts_neongeckocomAlarm"
+              ]
+            ],
+            "key": "alarm",
+            "match": "alarm"
+          }
+        ],
+        "from_context": false,
+        "key": "alarm",
+        "match": "alarm",
+        "start_token": 0
+      }
+    ],
+    "confidence": 0.21052631578947367,
+    "intent_type": "skill-alerts.neongeckocom:create_alarm",
+    "lang": "en-us",
+    "skill_alerts_neongeckocomalarm": "alarm",
+    "target": null,
+    "utterance": "Alarm in 30 minutes",
+    "utterances": [
+      "Alarm in 30 minutes"
+    ]
+  },
+  "type": "skill-alerts.neongeckocom:create_alarm"}

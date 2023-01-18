@@ -1,0 +1,120 @@
+# Specify intents to test here. Valid test cases are as follows:
+
+# Basic intent match tests only:
+#lang:
+#  intent_name:
+#    - example utterance
+#    - other example utterance
+
+# Intent tests with expected vocab/entity matches:
+#lang:
+#  intent_name:
+#    - example_utterance:
+#        - expected vocab name
+#        - other expected vocab name
+
+# Intent tests with specific vocab/entity extraction tests:
+#lang:
+#  intent_name:
+#    - example_utterance:
+#        - expected_vocab_key: expected_vocab_value
+#        - expected_entity_key: expected_entity_value
+
+
+en-us:
+  CreateAlarm:
+    - set an alarm:
+        - set
+        - alarm
+    - create a playback alarm every weekday with my test script until next tuesday:
+        - playable
+        - weekdays
+        - script
+        - until
+        - repeat
+    - alarm in an hour:
+        - alarm
+    - alarm daily for the next week at 9 AM:
+        - alarm
+        - everyday
+        - until
+    - make a 10 am weekend alarm:
+        - alarm
+        - set
+        - weekends
+  CreateTimer:
+    - set a timer
+    - start a timer
+    - create a baking timer
+    - make a 5 hour timer
+  CreateReminder:
+    - set a playback reminder to take out the trash daily at 5 pm until november:
+      - set
+      - playable
+      - reminder
+      - everyday
+      - until
+    - set a script reminder for weekends at 5 till next week:
+        - set
+        - script
+        - reminder
+        - weekends
+        - until
+    - create a reminder to go to work at 9 am daily for the next month:
+        - set
+        - reminder
+        - everyday
+        - until
+  CreateReminderAlt:
+    - remind me to go to work weekday mornings at 8:
+        - remind_me
+        - weekdays
+    - remind me every day to check for test failures until 2024:
+        - remind_me
+        - everyday
+        - until
+  CreateEvent:
+    - I have a work event next tuesday at 7 PM:
+        - event
+    - I have an appointment at 9 PM every weekend night until next year:
+        - event
+        - weekends
+        - until
+    - create a daily event to join zoom at 1 PM for the next year:
+        - event
+        - everyday
+        - until
+  NextAlert:
+    - tell me my next alert
+    - when is my next alarm
+    - what time is my next reminder
+    - what is my next timer
+    - what is my next event
+  ListAlerts:
+    - tell me my pending alarms
+    - what are my upcoming reminders
+    - list all of my timers
+    - show me all of my events
+  TimerStatus:
+    - how much time is left
+    - how long on that timer
+    - what is the timer status
+  StartQuietHours:
+    - start quiet hours
+    - do not disturb me for the next hour
+  EndQuietHours:
+    - end quiet hours
+    - what did I miss?
+  CancelAlert:
+    - cancel my next alarm:
+        - alarm
+    - cancel all reminders:
+        - reminder
+        - all
+    - clear all timers:
+        - timer
+        - all
+    - delete my next event:
+        - event
+    - remove my next alert:
+        - alert
