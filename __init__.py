@@ -26,32 +26,33 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import time
 import os
-from threading import RLock
-
-from typing import Tuple, List, Optional, Union
-from dateutil.tz import gettz
+import time
 from datetime import datetime, timedelta, timezone
+from threading import RLock
+from typing import Tuple, List, Optional, Union
+
 from adapt.intent import IntentBuilder
+from dateutil.tz import gettz
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.time import default_timezone
-from mycroft_bus_client import Message
-from neon_utils.message_utils import request_from_mobile, dig_for_message
-from neon_utils.user_utils import get_user_prefs, get_message_user
-from neon_utils.skills.neon_skill import NeonSkill, LOG
-
 from mycroft.skills import intent_handler
 from mycroft.util import play_audio_file
+from mycroft_bus_client import Message
+from neon_utils.message_utils import request_from_mobile, dig_for_message
+from neon_utils.skills.neon_skill import NeonSkill, LOG
+from neon_utils.user_utils import get_user_prefs, get_message_user
+from ovos_utils import classproperty
 from ovos_utils import create_daemon
+from ovos_utils.process_utils import RuntimeRequirements
 
 from .util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
-from .util.ui_models import build_timer_data, build_alarm_data
-from .util.alert_manager import AlertManager, get_alert_id
 from .util.alert import Alert, AlertType
-from .util.parse_utils import build_alert_from_intent, spoken_time_remaining,\
+from .util.alert_manager import AlertManager, get_alert_id
+from .util.parse_utils import build_alert_from_intent, spoken_time_remaining, \
     parse_alert_name_from_message, tokenize_utterance, \
     parse_alert_time_from_message
+from .util.ui_models import build_timer_data, build_alarm_data
 
 
 class AlertSkill(NeonSkill):
@@ -59,6 +60,18 @@ class AlertSkill(NeonSkill):
         super(AlertSkill, self).__init__(name="AlertSkill")
         self._alert_manager = None
         self._gui_timer_lock = RLock()
+
+    @classproperty
+    def runtime_requirements(self):
+        return RuntimeRequirements(internet_before_load=False,
+                                   network_before_load=False,
+                                   gui_before_load=False,
+                                   requires_internet=False,
+                                   requires_network=False,
+                                   requires_gui=False,
+                                   no_internet_fallback=True,
+                                   no_network_fallback=True,
+                                   no_gui_fallback=True)
 
     @property
     def alert_manager(self) -> AlertManager:
@@ -89,7 +102,7 @@ class AlertSkill(NeonSkill):
         Return the path to a valid alarm sound resource file
         """
         filename = self.preference_skill().get('sound_alarm') or \
-            'default-alarm.wav'
+                   'default-alarm.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -107,7 +120,7 @@ class AlertSkill(NeonSkill):
         Return the path to a valid timer sound resource file
         """
         filename = self.preference_skill().get('sound_timer') or \
-            'default-timer.wav'
+                   'default-timer.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -183,7 +196,7 @@ class AlertSkill(NeonSkill):
         """
         self._update_homescreen(True, True)
 
-# Intent Handlers
+    # Intent Handlers
     @intent_handler(IntentBuilder("CreateAlarm").optionally("set")
                     .require("alarm").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
@@ -674,7 +687,7 @@ class AlertSkill(NeonSkill):
     #         self.speak_dialog("confirm_snooze_alert", {'name': old_name,
     #                                           'duration': duration}, private=True)
 
-# GUI methods
+    # GUI methods
     def _display_alarm_gui(self, alert: Alert):
         """
         Display an alarm UI for created or active alarms.
@@ -876,7 +889,7 @@ class AlertSkill(NeonSkill):
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
 
-# Handlers for expired alerts
+    # Handlers for expired alerts
     def _alert_expired(self, alert: Alert):
         """
         Callback for AlertManager on Alert expiration
