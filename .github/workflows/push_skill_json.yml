@@ -9,23 +9,5 @@ on:
 
 jobs:
   push_skill_json:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v2
-      - name: Update skill.json in neon_skills
-        run: |
-          git clone https://github.com/neongeckocom/neon_skills -b ${{github.ref_name}}
-          cp skill.json neon_skills/skill_metadata/${{github.event.repository.name}}.json
-      - name: Push neon_skills changes
-        uses: cpina/github-action-push-to-another-repository@main
-        with:
-          source-directory: neon_skills/
-          destination-github-username: neongeckocom
-          destination-repository-name: neon_skills
-          user-name: github-actions[bot]
-          user-email: developers@neon.ai
-          target-branch: ${{github.ref_name}}
-          commit-message: Update skill.json for ${{github.event.repository.name}}
-        env:
-          API_TOKEN_GITHUB: ${{secrets.SKILL_JSON_TOKEN}}
+    uses: neongeckocom/.github/.github/workflows/skill_update_meta_repo.yml@master
+    secrets: inherit
