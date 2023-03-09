@@ -1,5 +1,5 @@
-import QtQuick 2.19
-import Qt5Compat.GraphicalEffects
+import QtQuick 2.9
+import QtGraphicalEffects 1.0
 
 Rectangle {
     id: control

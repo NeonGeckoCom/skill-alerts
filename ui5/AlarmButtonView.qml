@@ -14,12 +14,12 @@
  * limitations under the License.
  *
  */
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+import QtQuick 2.12
+import QtQuick.Controls 2.12
+import QtQuick.Layouts 1.3
+import QtGraphicalEffects 1.0
 import Mycroft 1.0 as Mycroft
-import org.kde.kirigami 2.19 as Kirigami
-import Qt5Compat.GraphicalEffects
+import org.kde.kirigami 2.11 as Kirigami
 
 Rectangle {
     id: alarmCardColumnThree
@@ -58,7 +58,7 @@ Rectangle {
                     color: Kirigami.Theme.textColor
                 }
                 Text {
-                    text: qsTr("Snooze")
+                    text: "Snooze"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     horizontalAlignment: Text.AlignHCenter
@@ -107,7 +107,7 @@ Rectangle {
                     color: Kirigami.Theme.textColor
                 }
                 Text {
-                    text: alarmExpired ? "Dismiss" : "Cancel"
+                    text: alarmExpired ? qsTr("Dismiss") : qsTr("Cancel")
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     horizontalAlignment: Text.AlignHCenter

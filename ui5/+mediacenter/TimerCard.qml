@@ -1,9 +1,9 @@
-import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Window 2.15
-import QtQuick.Shapes 1.15
-import org.kde.kirigami 2.19 as Kirigami
+import QtQuick 2.12
+import QtQuick.Controls 2.12
+import QtQuick.Layouts 1.3
+import QtQuick.Window 2.12
+import QtQuick.Shapes 1.12
+import org.kde.kirigami 2.11 as Kirigami
 import Mycroft 1.0 as Mycroft
 
 ItemDelegate {
