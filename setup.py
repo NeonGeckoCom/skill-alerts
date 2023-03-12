@@ -97,5 +97,8 @@ setup(
     packages=[SKILL_PKG, f"{SKILL_PKG}.util"],
     package_data={SKILL_PKG: find_resource_files()},
     include_package_data=True,
+    extras_require={
+        'neon': ["neon-utils~=1.2"]
+    },
     entry_points={"ovos.plugin.skill": PLUGIN_ENTRY_POINT}
 )
