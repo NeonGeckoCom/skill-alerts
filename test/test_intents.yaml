@@ -42,6 +42,10 @@ en-us:
         - alarm
         - set
         - weekends
+    - set an alarm for 9 AM every day:
+        - alarm
+        - set
+        - daily
   CreateTimer:
     - set a timer
     - start a timer
