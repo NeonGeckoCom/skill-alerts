@@ -99,7 +99,7 @@ en-us:
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
-  list_alerts:
+  list_alerts.intent:
     - what are my alerts
     - what are my timers
     - tell me my reminders
