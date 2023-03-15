@@ -36,7 +36,7 @@ from adapt.intent import IntentBuilder
 from dateutil.tz import gettz
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.time import default_timezone
-from mycroft.skills import intent_handler
+from mycroft.skills import intent_handler, intent_file_handler
 from mycroft.util import play_audio_file
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
@@ -336,8 +336,6 @@ class AlertSkill(NeonSkill):
             else:
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
-    # TODO: Alt intent like "are there any upcoming/pending <alert>"
-    # TODO: Alt intent "what are my <alerts>
     @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
@@ -376,6 +374,25 @@ class AlertSkill(NeonSkill):
                                                       data)
             alerts_string = f"{alerts_string}\n{add_str}"
         self.speak(alerts_string, private=True)
+
+    @intent_file_handler('list_alerts.intent')
+    def alt_handle_list_alerts(self, message):
+        """
+        Intent handler for "what are my alerts", "are there any alerts", etc.
+        :param message: Message associated with request
+        """
+        utterance = message.data.get('utterance')
+        if self.voc_match(utterance, 'alarm'):
+            message.data['alarm'] = True
+        elif self.voc_match(utterance, 'timer'):
+            message.data['timer'] = True
+        elif self.voc_match(utterance, 'reminder'):
+            message.data['reminder'] = True
+        elif self.voc_match(utterance, 'event'):
+            message.data['event'] = True
+        elif self.voc_match(utterance, 'alert'):
+            message.data['alert'] = True
+        self.handle_list_alerts(message)
 
     # TODO: Alt intent like "what's the status on x timer"
     @intent_handler(IntentBuilder("TimerStatus")

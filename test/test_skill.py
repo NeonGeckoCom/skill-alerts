@@ -382,6 +382,41 @@ class TestSkill(unittest.TestCase):
                       self.valid_alarm_3, self.valid_reminder}:
             self.assertIn(f"\n{alert.alert_name} - ", all_string)
 
+    def test_alt_handle_list_alerts(self):
+        real_list_alerts = self.skill.handle_list_alerts
+        test_list_alerts = Mock()
+        self.skill.handle_list_alerts = test_list_alerts
+
+        test_alert_message = Message('test', {'utterance': 'what are my alerts'})
+        self.skill.alt_handle_list_alerts(test_alert_message)
+        test_list_alerts.assert_called_with(test_alert_message)
+        self.assertTrue(test_alert_message.data['alert'])
+
+        test_timer_message = Message('test', {'utterance': 'tell me my timers'})
+        self.skill.alt_handle_list_alerts(test_timer_message)
+        test_list_alerts.assert_called_with(test_timer_message)
+        self.assertTrue(test_timer_message.data['timer'])
+
+        test_alarm_message = Message(
+            'test', {'utterance': 'are there any pending alarms'})
+        self.skill.alt_handle_list_alerts(test_alarm_message)
+        test_list_alerts.assert_called_with(test_alarm_message)
+        self.assertTrue(test_alarm_message.data['alarm'])
+
+        test_reminder_message = Message(
+            'test', {'utterance': 'do I have any reminders'})
+        self.skill.alt_handle_list_alerts(test_reminder_message)
+        test_list_alerts.assert_called_with(test_reminder_message)
+        self.assertTrue(test_reminder_message.data['reminder'])
+
+        test_event_message = Message(
+            'test', {'utterance': 'do I have any upcoming events'})
+        self.skill.alt_handle_list_alerts(test_event_message)
+        test_list_alerts.assert_called_with(test_event_message)
+        self.assertTrue(test_event_message.data['event'])
+
+        self.skill.handle_list_alerts = real_list_alerts
+
     def test_handle_timer_status(self):
 
         real_timer_status = self.skill._display_timer_gui
