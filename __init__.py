@@ -194,6 +194,8 @@ class AlertSkill(NeonSkill):
         """
         On ready, update the Home screen elements
         """
+        LOG.debug("Updating homescreen widgets")
+        time.sleep(3)
         self._update_homescreen(True, True)
 
     # Intent Handlers
