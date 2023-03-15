@@ -83,8 +83,8 @@ dialog:
 regex: []
 intents:
   # Padatious intents are the `.intent` file names
-  padatious: []
-  # Adapt intents are the name passed to the constructor
+  padatious:
+    - list_alerts.intent
   adapt:
     - 'CreateAlarm'
     - 'CreateTimer'
