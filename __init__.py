@@ -196,6 +196,7 @@ class AlertSkill(NeonSkill):
         """
         LOG.debug("Updating homescreen widgets")
         time.sleep(3)
+        # TODO: Above sleep resolves missing widgets on start, find and fix
         self._update_homescreen(True, True)
 
     # Intent Handlers
