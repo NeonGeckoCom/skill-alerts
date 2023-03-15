@@ -1,4 +1,4 @@
 json_database~=0.5
-neon-utils~=1.2
+neon-utils@git+https://github.com/neongeckocom/neon-utils@FIX_HandleNullLatLng
 combo_lock~=0.2
 ovos-utils~=0.0.28

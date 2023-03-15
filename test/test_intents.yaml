@@ -45,7 +45,7 @@ en-us:
     - set an alarm for 9 AM every day:
         - alarm
         - set
-        - daily
+        - everyday
   CreateTimer:
     - set a timer
     - start a timer
