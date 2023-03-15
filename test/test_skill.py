@@ -536,6 +536,13 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
+        real_dismiss_from_gui = self.skill.alert_manager.dismiss_alert_from_gui
+        mock_dismiss_gui = Mock()
+        self.skill.alert_manager.dismiss_alert_from_gui = mock_dismiss_gui
+        real_update_homescreen = self.skill._update_homescreen
+        mock_update_homescreen = Mock()
+        self.skill._update_homescreen = mock_update_homescreen
+
         cancel_test_user = "test_user_cancellation"
         valid_context = {"username": cancel_test_user}
         tz = self.skill._get_user_tz()
@@ -574,8 +581,11 @@ class TestSkill(unittest.TestCase):
         message = Message("test", {"cancel": "cancel",
                                    "reminder": "reminder"}, valid_context)
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(trash_reminder),
+        alert_id = get_alert_id(trash_reminder)
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(False, False)
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "reminder",
                                      "name": trash_reminder.alert_name},
@@ -610,7 +620,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(pending,
                          self.skill.alert_manager.pending_alerts.keys())
 
-        # Cancel match name  pasta timer
+        # Cancel match name pasta timer
         message = Message("test",
                           {"cancel": "cancel",
                            "timer": "timer",
@@ -627,17 +637,20 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 3
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(pasta_timer),
+        alert_id = get_alert_id(pasta_timer)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(pasta_timer),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "timer",
                                      "name": pasta_timer.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(True, False)
 
-        # Cancel match time  9:30 AM alarm
+        # Cancel match time 9:30 AM alarm
         message = Message("test",
                           {"cancel": "cancel",
                            "alarm": "alarm",
@@ -654,15 +667,18 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 4
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(morning_alarm),
+        alert_id = get_alert_id(morning_alarm)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(morning_alarm),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "alarm",
                                      "name": morning_alarm.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(False, True)
 
         # Cancel partial name oven (cherry pie)
         message = Message("test",
@@ -681,17 +697,21 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 3
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(oven_timer),
+        alert_id = get_alert_id(oven_timer)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(oven_timer),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "timer",
                                      "name": oven_timer.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(True, False)
 
         # Cancel all valid
+        all_alerts = self.skill.alert_manager.get_user_alerts()['pending']
         message = Message("test", {"cancel": "cancel",
                                    "alert": "alert",
                                    "all": "all"}, valid_context)
@@ -703,11 +723,15 @@ class TestSkill(unittest.TestCase):
             self.skill.alert_manager.get_user_alerts(cancel_test_user),
             {"missed": list(), "active": list(), "pending": list()}
         )
+        mock_dismiss_gui.assert_has_calls(all_alerts, True)
 
         # Cancel all nothing to cancel
         self.skill.handle_cancel_alert(message)
         self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
                                                    private=True)
+
+        self.skill.alert_manager.dismiss_alert_from_gui = real_dismiss_from_gui
+        self.skill._update_homescreen = real_update_homescreen
 
     def test_confirm_alert(self):
         # TODO
