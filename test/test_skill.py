@@ -735,7 +735,13 @@ class TestSkill(unittest.TestCase):
         # self.assertEqual(self.skill._get_user_tz(message), default_timezone())
 
         # Test Configured
-        mock_userdata['location'] = {'tz': 'America/Los_Angeles'}
+        mock_userdata['location'] = {'tz': 'America/Los_Angeles',
+                                     'lat': None,
+                                     'lng': None,
+                                     'city': None,
+                                     'state': None,
+                                     'country': None,
+                                     'utc': -8}
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/Los_Angeles'))
 
