@@ -745,7 +745,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/Los_Angeles'))
 
-        mock_userdata['location'] = {'tz': 'America/New_York'}
+        mock_userdata['location']['tz'] = 'America/New_York'
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/New_York'))
 
