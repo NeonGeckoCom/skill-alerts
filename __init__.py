@@ -529,7 +529,8 @@ class AlertSkill(NeonSkill):
         # Only one candidate alert
         if len(alerts) == 1:
             alert = alerts[0]
-            self.alert_manager.rm_alert(get_alert_id(alert))
+            self._dismiss_alert(get_alert_id(alert), alert.alert_type)
+            # self.alert_manager.rm_alert(get_alert_id(alert))
             self.speak_dialog('confirm_cancel_alert',
                               {'kind': spoken_type,
                                'name': alert.alert_name}, private=True)
@@ -545,7 +546,9 @@ class AlertSkill(NeonSkill):
             self.speak_dialog("error_nothing_to_cancel", private=True)
             return
 
-        self.alert_manager.rm_alert(get_alert_id(alert))
+        # Dismiss requested alert
+        self._dismiss_alert(get_alert_id(alert), alert.alert_type)
+        # self.alert_manager.rm_alert(get_alert_id(alert))
         self.speak_dialog('confirm_cancel_alert',
                           {'kind': spoken_type,
                            'name': alert.alert_name}, private=True)
@@ -770,6 +773,7 @@ class AlertSkill(NeonSkill):
                            "action": "alerts.gui.show_timers"}
             message = Message("ovos.widgets.update",
                               {"type": "timer", "data": widget_data})
+            LOG.debug(f"Updating GUI timers with: {widget_data}")
             self.bus.emit(message)
         if do_alarms:
             alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
@@ -778,6 +782,7 @@ class AlertSkill(NeonSkill):
                            "action": "alerts.gui.show_alarms"}
             message = Message("ovos.widgets.update",
                               {"type": "alarm", "data": widget_data})
+            LOG.debug(f"Updating GUI alarms with: {widget_data}")
             self.bus.emit(message)
 
     def _on_display_gui(self, message: Message):
