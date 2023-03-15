@@ -520,7 +520,7 @@ class AlertSkill(NeonSkill):
         # Cancel all alerts of some specified type
         if message.data.get("all"):
             for alert in alerts:
-                self.alert_manager.rm_alert(get_alert_id(alert))
+                self._dismiss_alert(get_alert_id(alert), alert.alert_type)
             self.speak_dialog("confirm_cancel_all",
                               {"kind": spoken_type},
                               private=True)
@@ -530,7 +530,6 @@ class AlertSkill(NeonSkill):
         if len(alerts) == 1:
             alert = alerts[0]
             self._dismiss_alert(get_alert_id(alert), alert.alert_type)
-            # self.alert_manager.rm_alert(get_alert_id(alert))
             self.speak_dialog('confirm_cancel_alert',
                               {'kind': spoken_type,
                                'name': alert.alert_name}, private=True)
@@ -548,7 +547,6 @@ class AlertSkill(NeonSkill):
 
         # Dismiss requested alert
         self._dismiss_alert(get_alert_id(alert), alert.alert_type)
-        # self.alert_manager.rm_alert(get_alert_id(alert))
         self.speak_dialog('confirm_cancel_alert',
                           {'kind': spoken_type,
                            'name': alert.alert_name}, private=True)

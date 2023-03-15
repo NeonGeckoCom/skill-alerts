@@ -711,6 +711,7 @@ class TestSkill(unittest.TestCase):
         mock_update_homescreen.assert_called_with(True, False)
 
         # Cancel all valid
+        all_alerts = self.skill.alert_manager.get_user_alerts()['pending']
         message = Message("test", {"cancel": "cancel",
                                    "alert": "alert",
                                    "all": "all"}, valid_context)
@@ -722,6 +723,7 @@ class TestSkill(unittest.TestCase):
             self.skill.alert_manager.get_user_alerts(cancel_test_user),
             {"missed": list(), "active": list(), "pending": list()}
         )
+        mock_dismiss_gui.assert_has_calls(all_alerts, True)
 
         # Cancel all nothing to cancel
         self.skill.handle_cancel_alert(message)
