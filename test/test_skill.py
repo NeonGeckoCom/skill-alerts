@@ -44,7 +44,7 @@ from lingua_franca import load_language
 from mycroft.util.format import nice_time
 
 sys.path.append(dirname(dirname(__file__)))
-from util import AlertType, AlertState, AlertPriority, Weekdays
+from util import AlertType, AlertState, AlertPriority, Weekdays, EVERYDAY
 from util.alert import Alert
 from util.alert_manager import AlertManager, get_alert_id
 
@@ -215,6 +215,18 @@ class TestSkill(unittest.TestCase):
                          AlertType.ALARM)
         self.assertEqual(self.skill.confirm_alert.call_args[0][1],
                          valid_message)
+
+        valid_every_day = _get_message_from_file("create_alarm_every_day.json")
+        self.skill.handle_create_alarm(valid_every_day)
+        self.skill.confirm_alert.assert_called()
+
+        self.assertEqual(self.skill.confirm_alert.call_args[0][1],
+                         valid_every_day)
+        alert = self.skill.confirm_alert.call_args[0][0]
+        self.assertEqual(alert.alert_type, AlertType.ALARM)
+        self.assertEqual(alert.repeat_days, EVERYDAY)
+        self.assertEqual(alert.next_expiration.hour, 9)
+        self.assertEqual(alert.next_expiration.minute, 0)
 
         self.skill.confirm_alert = real_confirm
 
@@ -723,11 +735,17 @@ class TestSkill(unittest.TestCase):
         # self.assertEqual(self.skill._get_user_tz(message), default_timezone())
 
         # Test Configured
-        mock_userdata['location'] = {'tz': 'America/Los_Angeles'}
+        mock_userdata['location'] = {'tz': 'America/Los_Angeles',
+                                     'lat': None,
+                                     'lng': None,
+                                     'city': None,
+                                     'state': None,
+                                     'country': None,
+                                     'utc': -8}
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/Los_Angeles'))
 
-        mock_userdata['location'] = {'tz': 'America/New_York'}
+        mock_userdata['location']['tz'] = 'America/New_York'
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/New_York'))
 

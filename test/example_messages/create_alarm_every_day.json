@@ -1,0 +1,103 @@
+{
+  "type": "skill-alerts.neongeckocom:CreateAlarm",
+  "data": {
+    "utterances": [
+      "set an alarm for 9 m everyday",
+      "set alarm for 9 a.m. everyday",
+      "set alarm for 9 a.m. every day",
+      "set alarm for 9 m everyday",
+      "set an alarm for 9 a.m. everyday",
+      "set an alarm for 9 a.m. every day",
+      "set an alarm for 9 a m everyday"
+    ],
+    "lang": "en-us",
+    "intent_type": "skill-alerts.neongeckocom:CreateAlarm",
+    "alarm": "alarm",
+    "set": "set",
+    "everyday": "everyday",
+    "target": null,
+    "confidence": 0.4730769230769231,
+    "__tags__": [
+      {
+        "match": "alarm",
+        "key": "alarm",
+        "start_token": 1,
+        "entities": [
+          {
+            "key": "alarm",
+            "match": "alarm",
+            "data": [
+              [
+                "alarm",
+                "Alarm"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 1,
+        "from_context": false
+      },
+      {
+        "match": "set",
+        "key": "set",
+        "start_token": 0,
+        "entities": [
+          {
+            "key": "set",
+            "match": "set",
+            "data": [
+              [
+                "set",
+                "skill_alerts_neongeckocomSet"
+              ],
+              [
+                "set",
+                "skill_device_controls_neongeckocomChange"
+              ],
+              [
+                "set",
+                "skill_user_settings_neongeckocomChange"
+              ],
+              [
+                "set",
+                "skill_synonyms_neongeckocomSet"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "end_token": 0,
+        "from_context": false
+      },
+      {
+        "start_token": 5,
+        "entities": [
+          {
+            "key": "everyday",
+            "match": "everyday",
+            "data": [
+              [
+                "everyday",
+                "skill_alerts_neongeckocomEveryday"
+              ]
+            ],
+            "confidence": 1.0
+          }
+        ],
+        "confidence": 1.0,
+        "end_token": 5,
+        "match": "everyday",
+        "key": "everyday",
+        "from_context": false
+      }
+    ],
+    "utterance": "set alarm for 9 m everyday"
+  },
+  "context": {
+    "client_name": "mycroft_listener",
+    "source": [
+      "skills"
+    ]
+  }
+}
