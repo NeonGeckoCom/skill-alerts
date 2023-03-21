@@ -129,3 +129,5 @@ en-us:
         - event
     - remove my next alert:
         - alert
+    - stop the timer:
+        - timer
