@@ -874,6 +874,7 @@ class AlertSkill(NeonSkill):
         if not message.data.get('alert'):
             LOG.error("Outdated Notification, unable to dismiss alert")
             return
+        self._dismiss_notification(message)
         alert = Alert.from_dict(message.data['alert'])
         alert_id = get_alert_id(alert)
         if alert_id in self.alert_manager.active_alerts:
@@ -922,6 +923,16 @@ class AlertSkill(NeonSkill):
         LOG.info(f'showing notification: {notification_data}')
         self.bus.emit(Message("ovos.notification.api.set",
                               data=notification_data))
+
+    def _dismiss_notification(self, message):
+        """
+        Dismiss the notification the user interacted with to trigger a callback.
+        """
+        LOG.debug(f"Clearing notification: {message.data}")
+        self.bus.emit(message.forward(
+            "ovos.notification.api.storage.clear.item",
+            {"notification": {"sender": self.skill_id,
+                              "text": message.data.get("notification")}}))
 
     # Handlers for expired alerts
     def _alert_expired(self, alert: Alert):
