@@ -719,6 +719,7 @@ class AlertSkill(NeonSkill):
         for key, val in build_alarm_data(alert).items():
             self.gui[key] = val
         if alert.is_expired:
+            # Display expiration until dismissed
             override = True
         else:
             # Show created alarm UI for some set duration
@@ -873,15 +874,18 @@ class AlertSkill(NeonSkill):
         if not message.data.get('alert'):
             LOG.error("Outdated Notification, unable to dismiss alert")
             return
+        self._dismiss_notification(message)
         alert = Alert.from_dict(message.data['alert'])
         alert_id = get_alert_id(alert)
         if alert_id in self.alert_manager.active_alerts:
-            self.alert_manager.dismiss_active_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
                                   alert.alert_type)})
         elif alert_id in self.alert_manager.missed_alerts:
-            self.alert_manager.dismiss_missed_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
+        else:
+            LOG.error(f"Alert not active or missed! {alert_id}")
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -896,22 +900,44 @@ class AlertSkill(NeonSkill):
         elif alert.alert_type == AlertType.ALARM:
             self._display_alarm_gui(alert)
         elif alert.alert_type == AlertType.REMINDER:
-            # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
-            notification_data = {
-                'sender': self.skill_id,
-                'text': f'Reminder: {alert.alert_name}',
-                'action': 'alerts.gui.dismiss_notification',
-                'type': 'sticky' if
-                alert.priority > AlertPriority.AVERAGE else 'transient',
-                'style': 'info',
-                'callback_data': {'alert': alert.data}
-            }
-            LOG.info(f'showing notification: {notification_data}')
-            self.bus.emit(Message("ovos.notification.api.set",
-                                  data=notification_data))
+            self._create_notification(alert)
         else:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
+
+    def _create_notification(self, alert: Alert):
+        """
+        Generate a notification for the specified alert
+        :param alert: expired alert to generate a notification for
+        """
+        # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
+        alert_name = alert.alert_name
+        if alert.alert_type == AlertType.REMINDER:
+            alert_name = f"{self.translate('word_reminder').title()}: " \
+                         f"{alert_name}"
+        notification_data = {
+            'sender': self.skill_id,
+            'text': alert_name,
+            'action': 'alerts.gui.dismiss_notification',
+            'type': 'sticky' if
+            alert.priority > AlertPriority.AVERAGE else 'transient',
+            'style': 'info',
+            'callback_data': {'alert': alert.data,
+                              'notification': alert_name}
+        }
+        LOG.info(f'showing notification: {notification_data}')
+        self.bus.emit(Message("ovos.notification.api.set",
+                              data=notification_data))
+
+    def _dismiss_notification(self, message):
+        """
+        Dismiss the notification the user interacted with to trigger a callback.
+        """
+        LOG.debug(f"Clearing notification: {message.data}")
+        self.bus.emit(message.forward(
+            "ovos.notification.api.storage.clear.item",
+            {"notification": {"sender": self.skill_id,
+                              "text": message.data.get("notification")}}))
 
     # Handlers for expired alerts
     def _alert_expired(self, alert: Alert):
@@ -919,9 +945,8 @@ class AlertSkill(NeonSkill):
         Callback for AlertManager on Alert expiration
         :param alert: expired Alert object
         """
-        LOG.debug(f'alert expired: {get_alert_id(alert)}')
+        LOG.info(f'alert expired: {get_alert_id(alert)}')
         self.make_active()
-        message = Message("neon.alert_expired", alert.data, alert.context)
         self._gui_notify_expired(alert)
 
         if alert.script_filename:
@@ -985,8 +1010,7 @@ class AlertSkill(NeonSkill):
             time.sleep(1)
             # TODO: If ramp volume setting, do that
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
-            self.alert_manager.mark_alert_missed(alert_id)
-            # TODO: Generate notification and dismiss active GUI
+            self._missed_alert(alert_id)
 
     def _speak_notify_expired(self, alert: Alert):
         LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
@@ -1007,9 +1031,24 @@ class AlertSkill(NeonSkill):
             self.make_active()
             time.sleep(10)
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
-            LOG.debug(f"mark alert missed: {alert_id}")
-            self.alert_manager.mark_alert_missed(alert_id)
-            # TODO: Generate notification
+            self._missed_alert(alert_id)
+
+    def _missed_alert(self, alert_id: str):
+        """
+        Handle a missed alert. Update status in the alert manager, dismiss an
+        active GUI, and generate a notification.
+        """
+        LOG.debug(f"mark alert missed: {alert_id}")
+        self.alert_manager.mark_alert_missed(alert_id)
+        alert = self.alert_manager.missed_alerts[alert_id]
+        if "Timer.qml" in self.gui.pages:
+            self.gui.clear()
+            self._create_notification(alert)
+            self._update_homescreen(do_timers=True)
+        elif "AlarmCard.qml" in self.gui.pages:
+            self.gui.clear()
+            self._create_notification(alert)
+            self._update_homescreen(do_alarms=True)
 
     def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
                        speak: bool = False):
