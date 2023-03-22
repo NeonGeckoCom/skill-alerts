@@ -877,12 +877,14 @@ class AlertSkill(NeonSkill):
         alert = Alert.from_dict(message.data['alert'])
         alert_id = get_alert_id(alert)
         if alert_id in self.alert_manager.active_alerts:
-            self.alert_manager.dismiss_active_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
                                   alert.alert_type)})
         elif alert_id in self.alert_manager.missed_alerts:
-            self.alert_manager.dismiss_missed_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
+        else:
+            LOG.error(f"Alert not active or missed! {alert_id}")
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -1026,9 +1028,11 @@ class AlertSkill(NeonSkill):
         if "Timer.qml" in self.gui.pages:
             self.gui.clear()
             self._create_notification(alert)
+            self._update_homescreen(do_timers=True)
         elif "AlarmCard.qml" in self.gui.pages:
             self.gui.clear()
             self._create_notification(alert)
+            self._update_homescreen(do_alarms=True)
 
     def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
                        speak: bool = False):
