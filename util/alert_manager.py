@@ -193,7 +193,7 @@ class AlertManager:
         try:
             with self._read_lock:
                 self._missed_alerts[alert_id] = self._active_alerts.pop(alert_id)
-            self.dismiss_timer_from_gui(alert_id)
+            self.dismiss_alert_from_gui(alert_id)
             self._dump_cache()
         except KeyError:
             LOG.error(f"{alert_id} is not active")
@@ -254,7 +254,7 @@ class AlertManager:
         try:
             with self._read_lock:
                 alert = self._missed_alerts.pop(alert_id)
-                self.dismiss_timer_from_gui(alert_id)
+                self.dismiss_alert_from_gui(alert_id)
             self._dump_cache()
             return alert
         except KeyError:
@@ -280,7 +280,7 @@ class AlertManager:
             LOG.debug(f"Removing alert: {alert_id}")
             with self._read_lock:
                 self._pending_alerts.pop(alert_id)
-                self.dismiss_timer_from_gui(alert_id)
+                self.dismiss_alert_from_gui(alert_id)
         except KeyError:
             LOG.error(f"{alert_id} is not pending")
         self._dump_cache()
@@ -296,7 +296,7 @@ class AlertManager:
             self._active_gui_timers.sort(
                 key=lambda i: i.time_to_expiration.total_seconds())
 
-    def dismiss_timer_from_gui(self, alert_id: str):
+    def dismiss_alert_from_gui(self, alert_id: str):
         """
         Dismiss an alert from long-lived GUI displays.
         """

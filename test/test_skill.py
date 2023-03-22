@@ -536,9 +536,9 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
-        real_dismiss_from_gui = self.skill.alert_manager.dismiss_timer_from_gui
+        real_dismiss_from_gui = self.skill.alert_manager.dismiss_alert_from_gui
         mock_dismiss_gui = Mock()
-        self.skill.alert_manager.dismiss_timer_from_gui = mock_dismiss_gui
+        self.skill.alert_manager.dismiss_alert_from_gui = mock_dismiss_gui
         real_update_homescreen = self.skill._update_homescreen
         mock_update_homescreen = Mock()
         self.skill._update_homescreen = mock_update_homescreen
@@ -730,7 +730,7 @@ class TestSkill(unittest.TestCase):
         self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
                                                    private=True)
 
-        self.skill.alert_manager.dismiss_timer_from_gui = real_dismiss_from_gui
+        self.skill.alert_manager.dismiss_alert_from_gui = real_dismiss_from_gui
         self.skill._update_homescreen = real_update_homescreen
 
     def test_confirm_alert(self):
@@ -1487,7 +1487,7 @@ class TestAlertManager(unittest.TestCase):
                       (timer_1.data, timer_2.data))
 
         # Dismiss timer
-        manager.dismiss_timer_from_gui(get_alert_id(timer_2))
+        manager.dismiss_alert_from_gui(get_alert_id(timer_2))
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 

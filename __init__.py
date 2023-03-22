@@ -1072,7 +1072,7 @@ class AlertSkill(NeonSkill):
         else:
             LOG.warning(f'Alert not in AlertManager: {alert_id}')
 
-        self.alert_manager.dismiss_timer_from_gui(alert_id)
+        self.alert_manager.dismiss_alert_from_gui(alert_id)
         do_timer = alert_type == AlertType.TIMER
         do_alarm = alert_type == AlertType.ALARM
         self._update_homescreen(do_timer, do_alarm)
