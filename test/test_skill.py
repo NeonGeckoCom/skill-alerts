@@ -1468,18 +1468,18 @@ class TestAlertManager(unittest.TestCase):
         timer_1 = Alert.create(timer_1_time, timer_1_name, AlertType.TIMER)
 
         # Add timer to GUI
-        manager.add_alert_to_gui(timer_1)
+        manager.add_timer_to_gui(timer_1)
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 
         # Ignore adding duplicate timer to GUI
-        manager.add_alert_to_gui(timer_1)
+        manager.add_timer_to_gui(timer_1)
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 
         # Add different timer at same time
         timer_2 = Alert.create(timer_1_time, 'timer 2', AlertType.TIMER)
-        manager.add_alert_to_gui(timer_2)
+        manager.add_timer_to_gui(timer_2)
         self.assertEqual(len(manager.active_gui_timers), 2)
         self.assertIn(manager.active_gui_timers[0].data,
                       (timer_1.data, timer_2.data))
@@ -1494,7 +1494,7 @@ class TestAlertManager(unittest.TestCase):
         # Add timer with the same name at a later time
         timer_3_time = now_time + dt.timedelta(minutes=6)
         timer_3 = Alert.create(timer_3_time, timer_1_name, AlertType.TIMER)
-        manager.add_alert_to_gui(timer_3)
+        manager.add_timer_to_gui(timer_3)
         self.assertEqual(len(manager.active_gui_timers), 2)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
         self.assertEqual(manager.active_gui_timers[1].data, timer_3.data)
