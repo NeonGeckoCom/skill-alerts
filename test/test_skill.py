@@ -536,9 +536,9 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
-        real_dismiss_from_gui = self.skill.alert_manager.dismiss_alert_from_gui
+        real_dismiss_from_gui = self.skill.alert_manager.dismiss_timer_from_gui
         mock_dismiss_gui = Mock()
-        self.skill.alert_manager.dismiss_alert_from_gui = mock_dismiss_gui
+        self.skill.alert_manager.dismiss_timer_from_gui = mock_dismiss_gui
         real_update_homescreen = self.skill._update_homescreen
         mock_update_homescreen = Mock()
         self.skill._update_homescreen = mock_update_homescreen
@@ -730,7 +730,7 @@ class TestSkill(unittest.TestCase):
         self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
                                                    private=True)
 
-        self.skill.alert_manager.dismiss_alert_from_gui = real_dismiss_from_gui
+        self.skill.alert_manager.dismiss_timer_from_gui = real_dismiss_from_gui
         self.skill._update_homescreen = real_update_homescreen
 
     def test_confirm_alert(self):
@@ -1468,18 +1468,18 @@ class TestAlertManager(unittest.TestCase):
         timer_1 = Alert.create(timer_1_time, timer_1_name, AlertType.TIMER)
 
         # Add timer to GUI
-        manager.add_timer_to_gui(timer_1)
+        manager.add_alert_to_gui(timer_1)
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 
         # Ignore adding duplicate timer to GUI
-        manager.add_timer_to_gui(timer_1)
+        manager.add_alert_to_gui(timer_1)
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 
         # Add different timer at same time
         timer_2 = Alert.create(timer_1_time, 'timer 2', AlertType.TIMER)
-        manager.add_timer_to_gui(timer_2)
+        manager.add_alert_to_gui(timer_2)
         self.assertEqual(len(manager.active_gui_timers), 2)
         self.assertIn(manager.active_gui_timers[0].data,
                       (timer_1.data, timer_2.data))
@@ -1487,14 +1487,14 @@ class TestAlertManager(unittest.TestCase):
                       (timer_1.data, timer_2.data))
 
         # Dismiss timer
-        manager.dismiss_alert_from_gui(get_alert_id(timer_2))
+        manager.dismiss_timer_from_gui(get_alert_id(timer_2))
         self.assertEqual(len(manager.active_gui_timers), 1)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
 
         # Add timer with the same name at a later time
         timer_3_time = now_time + dt.timedelta(minutes=6)
         timer_3 = Alert.create(timer_3_time, timer_1_name, AlertType.TIMER)
-        manager.add_timer_to_gui(timer_3)
+        manager.add_alert_to_gui(timer_3)
         self.assertEqual(len(manager.active_gui_timers), 2)
         self.assertEqual(manager.active_gui_timers[0].data, timer_1.data)
         self.assertEqual(manager.active_gui_timers[1].data, timer_3.data)
