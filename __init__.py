@@ -911,14 +911,19 @@ class AlertSkill(NeonSkill):
         :param alert: expired alert to generate a notification for
         """
         # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
+        alert_name = alert.alert_name
+        if alert.alert_type == AlertType.REMINDER:
+            alert_name = f"{self.translate('word_reminder').title()}: " \
+                         f"{alert_name}"
         notification_data = {
             'sender': self.skill_id,
-            'text': f'Reminder: {alert.alert_name}',
+            'text': alert_name,
             'action': 'alerts.gui.dismiss_notification',
             'type': 'sticky' if
             alert.priority > AlertPriority.AVERAGE else 'transient',
             'style': 'info',
-            'callback_data': {'alert': alert.data}
+            'callback_data': {'alert': alert.data,
+                              'notification': alert_name}
         }
         LOG.info(f'showing notification: {notification_data}')
         self.bus.emit(Message("ovos.notification.api.set",
