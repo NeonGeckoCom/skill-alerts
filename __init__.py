@@ -670,6 +670,9 @@ class AlertSkill(NeonSkill):
                     for alert in user_alerts["active"]:
                         alert_id = get_alert_id(alert)
                         self._dismiss_alert(alert_id, alert.alert_type, True)
+                        alert_name = self._notification_name_for_alert(alert)
+                        self._dismiss_notification(
+                            Message("dismiss", {'notification': alert_name}))
                     return True
         return False
 
@@ -905,16 +908,20 @@ class AlertSkill(NeonSkill):
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
 
+    def _notification_name_for_alert(self, alert: Alert):
+        alert_name = alert.alert_name
+        if alert.alert_type == AlertType.REMINDER:
+            alert_name = f"{self.translate('word_reminder').title()}: " \
+                         f"{alert_name}"
+        return alert_name
+
     def _create_notification(self, alert: Alert):
         """
         Generate a notification for the specified alert
         :param alert: expired alert to generate a notification for
         """
+        alert_name = self._notification_name_for_alert(alert)
         # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
-        alert_name = alert.alert_name
-        if alert.alert_type == AlertType.REMINDER:
-            alert_name = f"{self.translate('word_reminder').title()}: " \
-                         f"{alert_name}"
         notification_data = {
             'sender': self.skill_id,
             'text': alert_name,
@@ -1093,7 +1100,10 @@ class AlertSkill(NeonSkill):
         user = get_message_user(message)
         user_alerts = self.alert_manager.get_user_alerts(user)
         for alert in user_alerts["active"]:
-            self.alert_manager.dismiss_active_alert(get_alert_id(alert))
+            self._dismiss_alert(get_alert_id(alert), alert.alert_type)
+            alert_name = self._notification_name_for_alert(alert)
+            self._dismiss_notification(
+                Message("dismiss", {'notification': alert_name}))
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
                                   alert.alert_type)}, private=True)
