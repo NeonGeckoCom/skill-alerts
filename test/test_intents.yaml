@@ -42,6 +42,10 @@ en-us:
         - alarm
         - set
         - weekends
+    - set an alarm for 9 AM every day:
+        - alarm
+        - set
+        - everyday
   CreateTimer:
     - set a timer
     - start a timer
@@ -95,6 +99,13 @@ en-us:
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
+  list_alerts.intent:
+    - what are my alerts
+    - what are my timers
+    - tell me my reminders
+    - are there any alarms
+    - do i have pending timers
+    - do i have any upcoming events
   TimerStatus:
     - how much time is left
     - how long on that timer
@@ -118,3 +129,5 @@ en-us:
         - event
     - remove my next alert:
         - alert
+    - stop the timer:
+        - timer

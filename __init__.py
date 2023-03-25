@@ -36,7 +36,7 @@ from adapt.intent import IntentBuilder
 from dateutil.tz import gettz
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.time import default_timezone
-from mycroft.skills import intent_handler
+from mycroft.skills import intent_handler, intent_file_handler
 from mycroft.util import play_audio_file
 from mycroft_bus_client import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
@@ -194,6 +194,9 @@ class AlertSkill(NeonSkill):
         """
         On ready, update the Home screen elements
         """
+        LOG.debug("Updating homescreen widgets")
+        time.sleep(3)
+        # TODO: Above sleep resolves missing widgets on start, find and fix
         self._update_homescreen(True, True)
 
     # Intent Handlers
@@ -336,7 +339,6 @@ class AlertSkill(NeonSkill):
             else:
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
-    # TODO: Alt intent like "are there any upcoming/pending <alert>"
     @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
@@ -375,6 +377,25 @@ class AlertSkill(NeonSkill):
                                                       data)
             alerts_string = f"{alerts_string}\n{add_str}"
         self.speak(alerts_string, private=True)
+
+    @intent_file_handler('list_alerts.intent')
+    def alt_handle_list_alerts(self, message):
+        """
+        Intent handler for "what are my alerts", "are there any alerts", etc.
+        :param message: Message associated with request
+        """
+        utterance = message.data.get('utterance')
+        if self.voc_match(utterance, 'alarm'):
+            message.data['alarm'] = True
+        elif self.voc_match(utterance, 'timer'):
+            message.data['timer'] = True
+        elif self.voc_match(utterance, 'reminder'):
+            message.data['reminder'] = True
+        elif self.voc_match(utterance, 'event'):
+            message.data['event'] = True
+        elif self.voc_match(utterance, 'alert'):
+            message.data['alert'] = True
+        self.handle_list_alerts(message)
 
     # TODO: Alt intent like "what's the status on x timer"
     @intent_handler(IntentBuilder("TimerStatus")
@@ -502,7 +523,7 @@ class AlertSkill(NeonSkill):
         # Cancel all alerts of some specified type
         if message.data.get("all"):
             for alert in alerts:
-                self.alert_manager.rm_alert(get_alert_id(alert))
+                self._dismiss_alert(get_alert_id(alert), alert.alert_type)
             self.speak_dialog("confirm_cancel_all",
                               {"kind": spoken_type},
                               private=True)
@@ -511,7 +532,7 @@ class AlertSkill(NeonSkill):
         # Only one candidate alert
         if len(alerts) == 1:
             alert = alerts[0]
-            self.alert_manager.rm_alert(get_alert_id(alert))
+            self._dismiss_alert(get_alert_id(alert), alert.alert_type)
             self.speak_dialog('confirm_cancel_alert',
                               {'kind': spoken_type,
                                'name': alert.alert_name}, private=True)
@@ -527,7 +548,8 @@ class AlertSkill(NeonSkill):
             self.speak_dialog("error_nothing_to_cancel", private=True)
             return
 
-        self.alert_manager.rm_alert(get_alert_id(alert))
+        # Dismiss requested alert
+        self._dismiss_alert(get_alert_id(alert), alert.alert_type)
         self.speak_dialog('confirm_cancel_alert',
                           {'kind': spoken_type,
                            'name': alert.alert_name}, private=True)
@@ -648,6 +670,9 @@ class AlertSkill(NeonSkill):
                     for alert in user_alerts["active"]:
                         alert_id = get_alert_id(alert)
                         self._dismiss_alert(alert_id, alert.alert_type, True)
+                        alert_name = self._notification_name_for_alert(alert)
+                        self._dismiss_notification(
+                            Message("dismiss", {'notification': alert_name}))
                     return True
         return False
 
@@ -697,6 +722,7 @@ class AlertSkill(NeonSkill):
         for key, val in build_alarm_data(alert).items():
             self.gui[key] = val
         if alert.is_expired:
+            # Display expiration until dismissed
             override = True
         else:
             # Show created alarm UI for some set duration
@@ -752,6 +778,7 @@ class AlertSkill(NeonSkill):
                            "action": "alerts.gui.show_timers"}
             message = Message("ovos.widgets.update",
                               {"type": "timer", "data": widget_data})
+            LOG.debug(f"Updating GUI timers with: {widget_data}")
             self.bus.emit(message)
         if do_alarms:
             alarms = [a for a in self.alert_manager.get_user_alerts()['pending']
@@ -760,6 +787,7 @@ class AlertSkill(NeonSkill):
                            "action": "alerts.gui.show_alarms"}
             message = Message("ovos.widgets.update",
                               {"type": "alarm", "data": widget_data})
+            LOG.debug(f"Updating GUI alarms with: {widget_data}")
             self.bus.emit(message)
 
     def _on_display_gui(self, message: Message):
@@ -849,15 +877,18 @@ class AlertSkill(NeonSkill):
         if not message.data.get('alert'):
             LOG.error("Outdated Notification, unable to dismiss alert")
             return
+        self._dismiss_notification(message)
         alert = Alert.from_dict(message.data['alert'])
         alert_id = get_alert_id(alert)
         if alert_id in self.alert_manager.active_alerts:
-            self.alert_manager.dismiss_active_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
                                   alert.alert_type)})
         elif alert_id in self.alert_manager.missed_alerts:
-            self.alert_manager.dismiss_missed_alert(alert_id)
+            self._dismiss_alert(alert_id, alert.alert_type)
+        else:
+            LOG.error(f"Alert not active or missed! {alert_id}")
 
     def _gui_notify_expired(self, alert: Alert):
         """
@@ -872,22 +903,48 @@ class AlertSkill(NeonSkill):
         elif alert.alert_type == AlertType.ALARM:
             self._display_alarm_gui(alert)
         elif alert.alert_type == AlertType.REMINDER:
-            # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
-            notification_data = {
-                'sender': self.skill_id,
-                'text': f'Reminder: {alert.alert_name}',
-                'action': 'alerts.gui.dismiss_notification',
-                'type': 'sticky' if
-                alert.priority > AlertPriority.AVERAGE else 'transient',
-                'style': 'info',
-                'callback_data': {'alert': alert.data}
-            }
-            LOG.info(f'showing notification: {notification_data}')
-            self.bus.emit(Message("ovos.notification.api.set",
-                                  data=notification_data))
+            self._create_notification(alert)
         else:
             self.gui.show_text(alert.alert_name,
                                self._get_spoken_alert_type(alert.alert_type))
+
+    def _notification_name_for_alert(self, alert: Alert):
+        alert_name = alert.alert_name
+        if alert.alert_type == AlertType.REMINDER:
+            alert_name = f"{self.translate('word_reminder').title()}: " \
+                         f"{alert_name}"
+        return alert_name
+
+    def _create_notification(self, alert: Alert):
+        """
+        Generate a notification for the specified alert
+        :param alert: expired alert to generate a notification for
+        """
+        alert_name = self._notification_name_for_alert(alert)
+        # TODO: Implement ovos_utils.gui.GUIInterface in `NeonSkill`
+        notification_data = {
+            'sender': self.skill_id,
+            'text': alert_name,
+            'action': 'alerts.gui.dismiss_notification',
+            'type': 'sticky' if
+            alert.priority > AlertPriority.AVERAGE else 'transient',
+            'style': 'info',
+            'callback_data': {'alert': alert.data,
+                              'notification': alert_name}
+        }
+        LOG.info(f'showing notification: {notification_data}')
+        self.bus.emit(Message("ovos.notification.api.set",
+                              data=notification_data))
+
+    def _dismiss_notification(self, message):
+        """
+        Dismiss the notification the user interacted with to trigger a callback.
+        """
+        LOG.debug(f"Clearing notification: {message.data}")
+        self.bus.emit(message.forward(
+            "ovos.notification.api.storage.clear.item",
+            {"notification": {"sender": self.skill_id,
+                              "text": message.data.get("notification")}}))
 
     # Handlers for expired alerts
     def _alert_expired(self, alert: Alert):
@@ -895,9 +952,8 @@ class AlertSkill(NeonSkill):
         Callback for AlertManager on Alert expiration
         :param alert: expired Alert object
         """
-        LOG.debug(f'alert expired: {get_alert_id(alert)}')
+        LOG.info(f'alert expired: {get_alert_id(alert)}')
         self.make_active()
-        message = Message("neon.alert_expired", alert.data, alert.context)
         self._gui_notify_expired(alert)
 
         if alert.script_filename:
@@ -961,8 +1017,7 @@ class AlertSkill(NeonSkill):
             time.sleep(1)
             # TODO: If ramp volume setting, do that
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
-            self.alert_manager.mark_alert_missed(alert_id)
-            # TODO: Generate notification and dismiss active GUI
+            self._missed_alert(alert_id)
 
     def _speak_notify_expired(self, alert: Alert):
         LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
@@ -983,9 +1038,24 @@ class AlertSkill(NeonSkill):
             self.make_active()
             time.sleep(10)
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
-            LOG.debug(f"mark alert missed: {alert_id}")
-            self.alert_manager.mark_alert_missed(alert_id)
-            # TODO: Generate notification
+            self._missed_alert(alert_id)
+
+    def _missed_alert(self, alert_id: str):
+        """
+        Handle a missed alert. Update status in the alert manager, dismiss an
+        active GUI, and generate a notification.
+        """
+        LOG.debug(f"mark alert missed: {alert_id}")
+        self.alert_manager.mark_alert_missed(alert_id)
+        alert = self.alert_manager.missed_alerts[alert_id]
+        if "Timer.qml" in self.gui.pages:
+            self.gui.clear()
+            self._create_notification(alert)
+            self._update_homescreen(do_timers=True)
+        elif "AlarmCard.qml" in self.gui.pages:
+            self.gui.clear()
+            self._create_notification(alert)
+            self._update_homescreen(do_alarms=True)
 
     def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
                        speak: bool = False):
@@ -1030,7 +1100,10 @@ class AlertSkill(NeonSkill):
         user = get_message_user(message)
         user_alerts = self.alert_manager.get_user_alerts(user)
         for alert in user_alerts["active"]:
-            self.alert_manager.dismiss_active_alert(get_alert_id(alert))
+            self._dismiss_alert(get_alert_id(alert), alert.alert_type)
+            alert_name = self._notification_name_for_alert(alert)
+            self._dismiss_notification(
+                Message("dismiss", {'notification': alert_name}))
             self.speak_dialog("confirm_dismiss_alert",
                               {"kind": self._get_spoken_alert_type(
                                   alert.alert_type)}, private=True)
