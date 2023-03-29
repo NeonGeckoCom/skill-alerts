@@ -32,9 +32,9 @@ en-us:
         - script
         - until
         - repeat
-    - alarm in an hour:
+    - add an alarm in an hour:
         - alarm
-    - alarm daily for the next week at 9 AM:
+    - set an alarm daily for the next week at 9 AM:
         - alarm
         - everyday
         - until
