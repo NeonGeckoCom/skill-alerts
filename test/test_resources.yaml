@@ -95,6 +95,4 @@ intents:
     - 'NextAlert'
     - 'ListAllAlerts'
     - 'TimerStatus'
-    - 'StartQuietHours'
-    - 'EndQuietHours'
     - 'CancelAlert'
