@@ -1,8 +1,4 @@
-go to sleep
-(start|enable|enter) quiet hours
-nap time
-do not disturb me
-go to sleep (for|until) {{end_condition}}
-(start|enable|enter) quiet hours (for|until) {{end_condition}}
-nap time (for|until) {{end_condition}}
-do not disturb me (for|until) {{end_condition}}
+go to sleep(( for| until) {end_condition}|)
+(start|enable|enter) quiet hours(( for| until) {end_condition}|)
+nap time(( for| until) {end_condition}|)
+do not disturb me(( for| until) {end_condition}|)
