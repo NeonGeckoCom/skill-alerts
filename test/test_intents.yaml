@@ -102,6 +102,10 @@ en-us:
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
+    - list your alarms
+    - list upcoming alarms
+    - tell me the pending timers
+    - what are the reminders
   list_alerts.intent:
     - what are my alerts
     - what are my timers

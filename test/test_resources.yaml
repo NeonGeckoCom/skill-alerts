@@ -31,6 +31,7 @@ vocab:
   - 'query'
   - 'all'
   - 'alert'
+  - 'scheduled'
 
 # dialog is .dialog file basenames (case-sensitive)
 dialog:
