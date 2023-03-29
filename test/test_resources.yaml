@@ -92,7 +92,7 @@ intents:
     - 'CreateReminderAlt'
     - 'CreateEvent'
     - 'NextAlert'
-    - 'ListAlerts'
+    - 'ListAllAlerts'
     - 'TimerStatus'
     - 'StartQuietHours'
     - 'EndQuietHours'

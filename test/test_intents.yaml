@@ -97,14 +97,13 @@ en-us:
     - what time is my next reminder
     - what is my next timer
     - what is my next event
-  ListAlerts:
+  ListAllAlerts:
     - tell me my pending alarms
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
     - list upcoming alarms
     - tell me the pending timers
-    - what are the reminders
   list_alerts.intent:
     - what are my alerts
     - what are my timers
@@ -116,6 +115,7 @@ en-us:
     - do i have pending timers
     - do i have any upcoming events
     - list my alarms
+    - what are the reminders
   TimerStatus:
     - how much time is left
     - how long on that timer

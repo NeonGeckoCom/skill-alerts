@@ -339,7 +339,7 @@ class AlertSkill(NeonSkill):
             else:
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
-    @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
+    @intent_handler(IntentBuilder("ListAllAlerts").require("query").require("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
