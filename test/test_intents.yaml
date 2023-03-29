@@ -69,6 +69,7 @@ en-us:
         - reminder
         - everyday
         - until
+    - set a reminder to check my oil at noon
   CreateReminderAlt:
     - remind me to go to work weekday mornings at 8:
         - remind_me
@@ -77,6 +78,8 @@ en-us:
         - remind_me
         - everyday
         - until
+    - tell me to go to sleep at 11 PM:
+        - remind_me
   CreateEvent:
     - I have a work event next tuesday at 7 PM:
         - event
@@ -134,3 +137,13 @@ en-us:
         - alert
     - stop the timer:
         - timer
+
+unmatched intents:
+  en-us:
+    - what is an alarm
+    - what is a reminder
+    - what is a timer
+    - what do you know
+    - tell me my name
+    - set my office lights to max brightness
+    - what time is it
