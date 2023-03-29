@@ -122,7 +122,8 @@ en-us:
     - what is the timer status
   quiet_hours_start.intent:
     - start quiet hours
-    - do not disturb me for the next hour
+    - do not disturb me for the next hour:
+        - end_condition: the next hour
   quiet_hours_end.intent:
     - end quiet hours
     - what did I miss
