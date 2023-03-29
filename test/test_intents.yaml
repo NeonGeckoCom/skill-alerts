@@ -102,7 +102,6 @@ en-us:
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
-    - list your alarms
     - list upcoming alarms
     - tell me the pending timers
     - what are the reminders
@@ -116,6 +115,7 @@ en-us:
     - are there any alarms
     - do i have pending timers
     - do i have any upcoming events
+    - list my alarms
   TimerStatus:
     - how much time is left
     - how long on that timer
