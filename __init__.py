@@ -340,8 +340,7 @@ class AlertSkill(NeonSkill):
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
     @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
-                    .require("scheduled").one_of("alarm", "timer", "reminder",
-                                                 "event", "alert"))
+                    .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
         Intent handler to handle request for all alerts (kind optional)
