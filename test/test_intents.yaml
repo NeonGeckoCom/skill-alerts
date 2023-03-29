@@ -120,12 +120,12 @@ en-us:
     - how much time is left
     - how long on that timer
     - what is the timer status
-  StartQuietHours:
+  quiet_hours_start.intent:
     - start quiet hours
     - do not disturb me for the next hour
-  EndQuietHours:
+  quiet_hours_end.intent:
     - end quiet hours
-    - what did I miss?
+    - what did I miss
   CancelAlert:
     - cancel my next alarm:
         - alarm
