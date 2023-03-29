@@ -200,7 +200,7 @@ class AlertSkill(NeonSkill):
         self._update_homescreen(True, True)
 
     # Intent Handlers
-    @intent_handler(IntentBuilder("CreateAlarm").optionally("set")
+    @intent_handler(IntentBuilder("CreateAlarm").require("set")
                     .require("alarm").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
@@ -339,7 +339,7 @@ class AlertSkill(NeonSkill):
             else:
                 self.speak_dialog("next_alert_unnamed", data, private=True)
 
-    @intent_handler(IntentBuilder("ListAlerts").require("query").require("all")
+    @intent_handler(IntentBuilder("ListAllAlerts").require("query").require("all")
                     .one_of("alarm", "timer", "reminder", "event", "alert"))
     def handle_list_alerts(self, message):
         """
@@ -449,8 +449,7 @@ class AlertSkill(NeonSkill):
                 to_speak = f"{to_speak}\n{part}"
             self.speak(to_speak.lstrip('\n'), private=True)
 
-    @intent_handler(IntentBuilder("StartQuietHours")
-                    .require("quiet_hours_start"))
+    @intent_file_handler("quiet_hours_start.intent")
     def handle_start_quiet_hours(self, message):
         """
         Handles starting quiet hours.
@@ -463,8 +462,7 @@ class AlertSkill(NeonSkill):
         self.speak_dialog("quiet_hours_start", private=True)
         self.update_skill_settings({"quiet_hours": True}, message)
 
-    @intent_handler(IntentBuilder("EndQuietHours")
-                    .require("quiet_hours_end"))
+    @intent_file_handler("quiet_hours_end.intent")
     def handle_end_quiet_hours(self, message):
         """
         Handles ending quiet hours or requests for missed alerts.
