@@ -80,6 +80,9 @@ en-us:
         - until
     - tell me to go to sleep at 11 PM:
         - remind_me
+    - remind me to take out the trash every Friday at 2 PM:
+        - repeat
+        - remind_me
   CreateEvent:
     - I have a work event next tuesday at 7 PM:
         - event
@@ -127,6 +130,8 @@ en-us:
   quiet_hours_end.intent:
     - end quiet hours
     - what did I miss
+    - stop quiet hours
+    - disable quiet hours
   CancelAlert:
     - cancel my next alarm:
         - alarm
