@@ -11,7 +11,6 @@ vocab:
   - 'playable'
   - 'weekends'
   - 'until'
-  - 'quiet_hours_end'
   - 'everyday'
   - 'repeat'
   - 'event'
@@ -21,7 +20,6 @@ vocab:
   - 'alarm'
   - 'timer'
   - 'priority'
-  - 'quiet_hours_start'
   - 'timer_time_remaining'
   - 'cancel'
   - 'snooze'
@@ -85,6 +83,9 @@ intents:
   # Padatious intents are the `.intent` file names
   padatious:
     - list_alerts.intent
+    - quiet_hours_start.intent
+    - quiet_hours_end.intent
+
   adapt:
     - 'CreateAlarm'
     - 'CreateTimer'
@@ -92,8 +93,6 @@ intents:
     - 'CreateReminderAlt'
     - 'CreateEvent'
     - 'NextAlert'
-    - 'ListAlerts'
+    - 'ListAllAlerts'
     - 'TimerStatus'
-    - 'StartQuietHours'
-    - 'EndQuietHours'
     - 'CancelAlert'

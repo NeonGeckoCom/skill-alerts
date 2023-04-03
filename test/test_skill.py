@@ -2130,8 +2130,8 @@ class TestParseUtils(unittest.TestCase):
         _validate_alert_default_params(no_name_timer_utc)
         _validate_alert_default_params(no_name_timer_sea)
         self.assertAlmostEqual(
-            no_name_timer_sea.time_to_expiration.total_seconds(),
-            no_name_timer_utc.time_to_expiration.total_seconds(), 0)
+            no_name_timer_sea.time_to_expiration.total_seconds() * 10,
+            no_name_timer_utc.time_to_expiration.total_seconds() * 10, 0)
 
         baking_timer_sea = build_alert_from_intent(baking_12_minutes,
                                                    AlertType.TIMER,
