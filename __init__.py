@@ -678,7 +678,8 @@ class AlertSkill(NeonSkill):
                     LOG.debug("Pending timer(s) found")
                     timer = self.alert_manager.active_gui_timers[0]
                     LOG.info(f"Dismissing: {timer.alert_name}")
-                    self.alert_manager.dismiss_active_alert(get_alert_id(timer))
+                    self._dismiss_alert(get_alert_id(timer),
+                                        AlertType.TIMER, True)
                     return True
         return False
 
