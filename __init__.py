@@ -670,6 +670,7 @@ class AlertSkill(NeonSkill):
                         alert_name = self._notification_name_for_alert(alert)
                         self._dismiss_notification(
                             Message("dismiss", {'notification': alert_name}))
+                    self.gui.release()
                     return True
         # Check for pending timer
         elif self.alert_manager.active_gui_timers:
