@@ -653,11 +653,10 @@ class AlertSkill(NeonSkill):
         if not user:
             LOG.warning(f"No user associated with message, ")
         user_alerts = self.alert_manager.get_user_alerts(user)
-        # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
-        #     LOG.info("Getting default user alerts")
-        #     user_alerts = self.alert_manager.get_user_alerts()
         LOG.info(f"{user} has alerts: {user_alerts}")
-        if user_alerts["active"]:  # User has an active alert
+
+        # Check for Active Alerts
+        if user_alerts["active"]:
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
                     LOG.debug('Snooze')
@@ -671,6 +670,16 @@ class AlertSkill(NeonSkill):
                         alert_name = self._notification_name_for_alert(alert)
                         self._dismiss_notification(
                             Message("dismiss", {'notification': alert_name}))
+                    return True
+        # Check for pending timer
+        elif self.alert_manager.active_gui_timers:
+            for utterance in message.data.get("utterances"):
+                if self.voc_match(utterance, "dismiss"):
+                    LOG.debug("Pending timer(s) found")
+                    timer = self.alert_manager.active_gui_timers[0]
+                    LOG.info(f"Dismissing: {timer.alert_name}")
+                    self._dismiss_alert(get_alert_id(timer),
+                                        AlertType.TIMER, True)
                     return True
         return False
 
