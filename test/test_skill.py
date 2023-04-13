@@ -733,6 +733,58 @@ class TestSkill(unittest.TestCase):
         self.skill.alert_manager.dismiss_alert_from_gui = real_dismiss_from_gui
         self.skill._update_homescreen = real_update_homescreen
 
+    def test_snooze_alert(self):
+        real_snooze_alert = self.skill.alert_manager.snooze_alert
+        self.skill.alert_manager.snooze_alert = Mock()
+
+        sea_tz = gettz("America/Los_Angeles")
+        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+
+        # Test default snooze
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_no_time = Message("test")
+        self.skill._snooze_alert(message_no_time, alert, anchor_time=now_time)
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, self.skill.snooze_duration)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(self.skill.snooze_duration)})
+
+        # Test given duration
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_duration = Message("test",
+                                   {"utterances": ["snooze for 5 minutes"]})
+        delta = dt.timedelta(minutes=5)
+        self.skill._snooze_alert(message_duration, alert, anchor_time=now_time)
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, delta)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(delta)})
+
+        # Test specified time
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_newtime = Message("test",
+                                  {"utterances": ["snooze until 10 PM"]})
+        self.skill._snooze_alert(message_newtime, alert, anchor_time=now_time)
+        new_time = now_time.replace(hour=22, minute=0, second=0)
+        if new_time < now_time:
+            new_time = new_time + dt.timedelta(days=1)
+        delta = new_time - now_time
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, delta)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(delta)})
+
+        self.skill.alert_manager.snooze_alert = real_snooze_alert
+
     def test_confirm_alert(self):
         # TODO
         pass
