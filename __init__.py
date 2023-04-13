@@ -666,6 +666,7 @@ class AlertSkill(NeonSkill):
                                            args=(message, alert, utterance),
                                            daemon=True, name="snooze_alert")
                     snooze_thread.start()
+                    self.gui.release()
                     return True
                 elif self.voc_match(utterance, "dismiss"):
                     LOG.debug('Dismiss')
