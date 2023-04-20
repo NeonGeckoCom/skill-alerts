@@ -29,12 +29,13 @@
 import os
 import time
 from datetime import datetime, timedelta, timezone
-from threading import RLock
+from threading import RLock, Thread
 from typing import Tuple, List, Optional, Union
 
 from adapt.intent import IntentBuilder
 from dateutil.tz import gettz
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
+from lingua_franca.parse import extract_duration, extract_datetime
 from lingua_franca.time import default_timezone
 from mycroft.skills import intent_handler, intent_file_handler
 from mycroft.util import play_audio_file
@@ -653,15 +654,19 @@ class AlertSkill(NeonSkill):
         if not user:
             LOG.warning(f"No user associated with message, ")
         user_alerts = self.alert_manager.get_user_alerts(user)
-        # if not any([kind for kind in user_alerts.values() if len(kind) > 0]):
-        #     LOG.info("Getting default user alerts")
-        #     user_alerts = self.alert_manager.get_user_alerts()
         LOG.info(f"{user} has alerts: {user_alerts}")
-        if user_alerts["active"]:  # User has an active alert
+
+        # Check for Active Alerts
+        if user_alerts["active"]:
             for utterance in message.data.get("utterances"):
                 if self.voc_match(utterance, "snooze"):
                     LOG.debug('Snooze')
-                    # TODO: Implement this
+                    alert = user_alerts["active"][0]
+                    snooze_thread = Thread(target=self._snooze_alert,
+                                           args=(message, alert, utterance),
+                                           daemon=True, name="snooze_alert")
+                    snooze_thread.start()
+                    self.gui.release()
                     return True
                 elif self.voc_match(utterance, "dismiss"):
                     LOG.debug('Dismiss')
@@ -671,44 +676,56 @@ class AlertSkill(NeonSkill):
                         alert_name = self._notification_name_for_alert(alert)
                         self._dismiss_notification(
                             Message("dismiss", {'notification': alert_name}))
+                    self.gui.release()
+                    return True
+        # Check for pending timer
+        elif self.alert_manager.active_gui_timers:
+            for utterance in message.data.get("utterances"):
+                if self.voc_match(utterance, "dismiss"):
+                    LOG.debug("Pending timer(s) found")
+                    timer = self.alert_manager.active_gui_timers[0]
+                    LOG.info(f"Dismissing: {timer.alert_name}")
+                    self._dismiss_alert(get_alert_id(timer),
+                                        AlertType.TIMER, True)
                     return True
         return False
 
-    # def handle_snooze_alert(self, message):
-    #     """
-    #     Handle snoozing active alert. If no time is provided, the default value from the YML will be used
-    #     :param message: messagebus message
-    #     """
-    #     tz = self._get_user_tz(message)
-    #     user = get_message_user(message)
-    #     utt = message.data.get('utterance')
-    #     snooze_duration, remainder = extract_duration(message.data.get("utterance"), self.internal_language)
-    #     new_time = datetime.now(tz) + snooze_duration
-    #     tz = gettz(self.preference_location(message)["tz"])
-    #     if not new_time:
-    #         new_time = extract_datetime(utt, anchorDate=self._get_user_tz(message))[0]
-    #     if not new_time:
-    #         new_time = datetime.now(tz) + timedelta(minutes=self.preference_skill(message)['snooze_mins'])
-    #         snooze_duration = self.preference_skill(message)['snooze_mins']*60
-    #     LOG.debug(new_time)
-    #     active_alerts = self._get_alerts_for_user(user)["active"]
-    #     for alert_index in active_alerts:
-    #         data = self.active[alert_index]
-    #         old_name = data['name']
-    #         name = "Snoozed " + old_name
-    #         self.pending[str(new_time)] = data
-    #         if type(snooze_duration) not in (int, float):
-    #             snooze_duration = self.preference_skill(message)['snooze_mins']*60
-    #         duration = nice_duration(snooze_duration)
-    #         self.active.pop(alert_index)
-    #
-    #         data['name'] = name
-    #         data['time'] = str(new_time)
-    #         data['repeat'] = False
-    #         data['active'] = False
-    #         self._write_event_to_schedule(data)
-    #         self.speak_dialog("confirm_snooze_alert", {'name': old_name,
-    #                                           'duration': duration}, private=True)
+    def _snooze_alert(self, message: Message, alert: Alert,
+                      utterance: Optional[str] = None,
+                      anchor_time: datetime = None):
+        """
+        Handle snoozing active alert. If no time is provided,
+        the default value from skill config will be used
+        :param message: Message associated with "snooze" request
+        :param alert: Alert to be snoozed
+        :param utterance: Optional utterance matched requesting "snooze"
+        """
+        anchor_time = anchor_time or datetime.now(self._get_user_tz(message))
+        utterance = utterance or message.data.get('utterances', [None])[0]
+        alert_id = get_alert_id(alert)
+        snooze_duration = None
+        if utterance:
+            try:
+                snooze_duration, _ = extract_duration(utterance)
+            except Exception as e:
+                LOG.warning(e)
+                snooze_duration = None
+            if not snooze_duration:
+                try:
+                    next_expiration, _ = extract_datetime(utterance,
+                                                          anchor_time)
+                    snooze_duration = next_expiration - anchor_time
+                except Exception as e:
+                    LOG.warning(e)
+                    snooze_duration = None
+
+        if not snooze_duration:
+            snooze_duration = self.snooze_duration
+        LOG.info(f"Snoozing for: {snooze_duration}")
+        self.alert_manager.snooze_alert(alert_id, snooze_duration)
+        self.speak_dialog("confirm_snooze_alert",
+                          {"name": alert.alert_name,
+                           "duration": nice_duration(snooze_duration)})
 
     # GUI methods
     def _display_alarm_gui(self, alert: Alert):
