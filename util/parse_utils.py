@@ -268,6 +268,7 @@ def parse_repeat_from_message(message: Message,
         tokens = tokens or tokenize_utterance(message)
         repeat_index = tokens.index(message.data["repeat"]) + 1
         repeat_clause = tokens.pop(repeat_index)
+        LOG.debug(f"repeat_clause={repeat_clause}")
         repeat_days = list()
         remainder = ""
         default_time = dt.time()
@@ -302,6 +303,7 @@ def parse_repeat_from_message(message: Message,
                 return duration
 
         if remainder:
+            LOG.debug(f"Repeat remainder={remainder}")
             new_tokens = remainder.split('\n')
             for token in new_tokens:
                 if token.strip():
