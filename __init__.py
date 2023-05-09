@@ -272,7 +272,6 @@ class AlertSkill(NeonSkill):
         self.confirm_alert(alert, message)
 
     @intent_handler(IntentBuilder("CreateReminderAlt").require("remind_me")
-                    .optionally("playable").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
                     .optionally("until"))
