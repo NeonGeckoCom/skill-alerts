@@ -1029,7 +1029,7 @@ class AlertSkill(NeonSkill):
                     "expired_alert", {'name': alert.alert_name}),
                     to_play, alert_message, private=True)
             else:
-                # TODO: Interrupt this if alert is dismissed DM
+                # TODO: refactor to `self.play_audio`
                 play_audio(to_play).wait(60)
             time.sleep(1)
             # TODO: If ramp volume setting, do that
