@@ -164,13 +164,22 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     audio_file = parse_audio_file_from_message(message, tokens)
     script_file = parse_script_file_from_message(message, tokens)
     anchor_time = dt.datetime.now(timezone)
-    alert_time = parse_alert_time_from_message(message, tokens, timezone, anchor_time)
+    alert_time = parse_alert_time_from_message(message, tokens, timezone,
+                                               anchor_time)
 
     if not alert_time:
         if repeat_interval:
             alert_time = anchor_time + repeat_interval
         else:
-            return
+            LOG.info(f"Trying to parse time from alternate utterances")
+            for utt in message.data.get('utterances', []):
+                tokens = tokenize_utterance(message, utt)
+                alert_time = parse_alert_time_from_message(message, tokens,
+                                                           timezone, anchor_time)
+                if alert_time:
+                    break
+            if not alert_time:
+                return
 
     lang = message.data.get("lang")
     try:
@@ -199,13 +208,14 @@ def build_alert_from_intent(message: Message, alert_type: AlertType,
     return alert
 
 
-def tokenize_utterance(message: Message) -> List[str]:
+def tokenize_utterance(message: Message, utt: str = None) -> List[str]:
     """
     Get utterance tokens, split on matched vocab
     :param message: Message associated with intent match
+    :param utt: Utterance string to tokenize (default to intent match utterance)
     :returns: list of utterance tokens where a tag defines a token
     """
-    utterance = message.data["utterance"].lower()
+    utterance = (utt or message.data["utterance"]).lower()
     tags = message.data["__tags__"]
     tags.sort(key=lambda tag: tag["start_token"])
     extracted_words = [tag.get("match") for tag in tags]
@@ -258,6 +268,7 @@ def parse_repeat_from_message(message: Message,
         tokens = tokens or tokenize_utterance(message)
         repeat_index = tokens.index(message.data["repeat"]) + 1
         repeat_clause = tokens.pop(repeat_index)
+        LOG.debug(f"repeat_clause={repeat_clause}")
         repeat_days = list()
         remainder = ""
         default_time = dt.time()
@@ -292,6 +303,7 @@ def parse_repeat_from_message(message: Message,
                 return duration
 
         if remainder:
+            LOG.debug(f"Repeat remainder={remainder}")
             new_tokens = remainder.split('\n')
             for token in new_tokens:
                 if token.strip():

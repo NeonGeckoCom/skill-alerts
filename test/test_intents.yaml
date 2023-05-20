@@ -32,9 +32,9 @@ en-us:
         - script
         - until
         - repeat
-    - alarm in an hour:
+    - add an alarm in an hour:
         - alarm
-    - alarm daily for the next week at 9 AM:
+    - set an alarm daily for the next week at 9 AM:
         - alarm
         - everyday
         - until
@@ -42,6 +42,10 @@ en-us:
         - alarm
         - set
         - weekends
+    - set an alarm for 9 AM every day:
+        - alarm
+        - set
+        - everyday
   CreateTimer:
     - set a timer
     - start a timer
@@ -65,6 +69,7 @@ en-us:
         - reminder
         - everyday
         - until
+    - set a reminder to check my oil at noon
   CreateReminderAlt:
     - remind me to go to work weekday mornings at 8:
         - remind_me
@@ -73,6 +78,11 @@ en-us:
         - remind_me
         - everyday
         - until
+    - tell me to go to sleep at 11 PM:
+        - remind_me
+    - remind me to take out the trash every Friday at 2 PM:
+        - repeat
+        - remind_me
   CreateEvent:
     - I have a work event next tuesday at 7 PM:
         - event
@@ -90,21 +100,38 @@ en-us:
     - what time is my next reminder
     - what is my next timer
     - what is my next event
-  ListAlerts:
+  ListAllAlerts:
     - tell me my pending alarms
     - what are my upcoming reminders
     - list all of my timers
     - show me all of my events
+    - list upcoming alarms
+    - tell me the pending timers
+  list_alerts.intent:
+    - what are my alerts
+    - what are my timers
+    - tell me my reminders
+    - tell me my alarms
+    - tell me my timers
+    - tell me my alerts
+    - are there any alarms
+    - do i have pending timers
+    - do i have any upcoming events
+    - list my alarms
+    - what are the reminders
   TimerStatus:
     - how much time is left
     - how long on that timer
     - what is the timer status
-  StartQuietHours:
+  quiet_hours_start.intent:
     - start quiet hours
-    - do not disturb me for the next hour
-  EndQuietHours:
+    - do not disturb me for the next hour:
+        - end_condition: the next hour
+  quiet_hours_end.intent:
     - end quiet hours
-    - what did I miss?
+    - what did I miss
+    - stop quiet hours
+    - disable quiet hours
   CancelAlert:
     - cancel my next alarm:
         - alarm
@@ -118,3 +145,15 @@ en-us:
         - event
     - remove my next alert:
         - alert
+    - stop the timer:
+        - timer
+
+unmatched intents:
+  en-us:
+    - what is an alarm
+    - what is a reminder
+    - what is a timer
+    - what do you know
+    - tell me my name
+    - set my office lights to max brightness
+    - what time is it

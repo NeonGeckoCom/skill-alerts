@@ -44,7 +44,7 @@ from lingua_franca import load_language
 from mycroft.util.format import nice_time
 
 sys.path.append(dirname(dirname(__file__)))
-from util import AlertType, AlertState, AlertPriority, Weekdays
+from util import AlertType, AlertState, AlertPriority, Weekdays, EVERYDAY
 from util.alert import Alert
 from util.alert_manager import AlertManager, get_alert_id
 
@@ -216,6 +216,18 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(self.skill.confirm_alert.call_args[0][1],
                          valid_message)
 
+        valid_every_day = _get_message_from_file("create_alarm_every_day.json")
+        self.skill.handle_create_alarm(valid_every_day)
+        self.skill.confirm_alert.assert_called()
+
+        self.assertEqual(self.skill.confirm_alert.call_args[0][1],
+                         valid_every_day)
+        alert = self.skill.confirm_alert.call_args[0][0]
+        self.assertEqual(alert.alert_type, AlertType.ALARM)
+        self.assertEqual(alert.repeat_days, EVERYDAY)
+        self.assertEqual(alert.next_expiration.hour, 9)
+        self.assertEqual(alert.next_expiration.minute, 0)
+
         self.skill.confirm_alert = real_confirm
 
     def test_handle_create_timer(self):
@@ -370,6 +382,41 @@ class TestSkill(unittest.TestCase):
                       self.valid_alarm_3, self.valid_reminder}:
             self.assertIn(f"\n{alert.alert_name} - ", all_string)
 
+    def test_alt_handle_list_alerts(self):
+        real_list_alerts = self.skill.handle_list_alerts
+        test_list_alerts = Mock()
+        self.skill.handle_list_alerts = test_list_alerts
+
+        test_alert_message = Message('test', {'utterance': 'what are my alerts'})
+        self.skill.alt_handle_list_alerts(test_alert_message)
+        test_list_alerts.assert_called_with(test_alert_message)
+        self.assertTrue(test_alert_message.data['alert'])
+
+        test_timer_message = Message('test', {'utterance': 'tell me my timers'})
+        self.skill.alt_handle_list_alerts(test_timer_message)
+        test_list_alerts.assert_called_with(test_timer_message)
+        self.assertTrue(test_timer_message.data['timer'])
+
+        test_alarm_message = Message(
+            'test', {'utterance': 'are there any pending alarms'})
+        self.skill.alt_handle_list_alerts(test_alarm_message)
+        test_list_alerts.assert_called_with(test_alarm_message)
+        self.assertTrue(test_alarm_message.data['alarm'])
+
+        test_reminder_message = Message(
+            'test', {'utterance': 'do I have any reminders'})
+        self.skill.alt_handle_list_alerts(test_reminder_message)
+        test_list_alerts.assert_called_with(test_reminder_message)
+        self.assertTrue(test_reminder_message.data['reminder'])
+
+        test_event_message = Message(
+            'test', {'utterance': 'do I have any upcoming events'})
+        self.skill.alt_handle_list_alerts(test_event_message)
+        test_list_alerts.assert_called_with(test_event_message)
+        self.assertTrue(test_event_message.data['event'])
+
+        self.skill.handle_list_alerts = real_list_alerts
+
     def test_handle_timer_status(self):
 
         real_timer_status = self.skill._display_timer_gui
@@ -489,6 +536,13 @@ class TestSkill(unittest.TestCase):
         self.skill.update_skill_settings = real_update_settings
 
     def test_handle_cancel_alert(self):
+        real_dismiss_from_gui = self.skill.alert_manager.dismiss_alert_from_gui
+        mock_dismiss_gui = Mock()
+        self.skill.alert_manager.dismiss_alert_from_gui = mock_dismiss_gui
+        real_update_homescreen = self.skill._update_homescreen
+        mock_update_homescreen = Mock()
+        self.skill._update_homescreen = mock_update_homescreen
+
         cancel_test_user = "test_user_cancellation"
         valid_context = {"username": cancel_test_user}
         tz = self.skill._get_user_tz()
@@ -527,8 +581,11 @@ class TestSkill(unittest.TestCase):
         message = Message("test", {"cancel": "cancel",
                                    "reminder": "reminder"}, valid_context)
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(trash_reminder),
+        alert_id = get_alert_id(trash_reminder)
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(False, False)
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "reminder",
                                      "name": trash_reminder.alert_name},
@@ -563,7 +620,7 @@ class TestSkill(unittest.TestCase):
         self.assertEqual(pending,
                          self.skill.alert_manager.pending_alerts.keys())
 
-        # Cancel match name  pasta timer
+        # Cancel match name pasta timer
         message = Message("test",
                           {"cancel": "cancel",
                            "timer": "timer",
@@ -580,17 +637,20 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 3
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(pasta_timer),
+        alert_id = get_alert_id(pasta_timer)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(pasta_timer),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "timer",
                                      "name": pasta_timer.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(True, False)
 
-        # Cancel match time  9:30 AM alarm
+        # Cancel match time 9:30 AM alarm
         message = Message("test",
                           {"cancel": "cancel",
                            "alarm": "alarm",
@@ -607,15 +667,18 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 4
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(morning_alarm),
+        alert_id = get_alert_id(morning_alarm)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(morning_alarm),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "alarm",
                                      "name": morning_alarm.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(False, True)
 
         # Cancel partial name oven (cherry pie)
         message = Message("test",
@@ -634,17 +697,21 @@ class TestSkill(unittest.TestCase):
                                    "end_token": 3
                                }
                            ]}, valid_context)
-        self.assertIn(get_alert_id(oven_timer),
+        alert_id = get_alert_id(oven_timer)
+        self.assertIn(alert_id,
                       self.skill.alert_manager.pending_alerts.keys())
         self.skill.handle_cancel_alert(message)
-        self.assertNotIn(get_alert_id(oven_timer),
+        self.assertNotIn(alert_id,
                          self.skill.alert_manager.pending_alerts.keys())
         self.skill.speak_dialog.assert_called_with(
             "confirm_cancel_alert", {"kind": "timer",
                                      "name": oven_timer.alert_name},
             private=True)
+        mock_dismiss_gui.assert_called_with(alert_id)
+        mock_update_homescreen.assert_called_with(True, False)
 
         # Cancel all valid
+        all_alerts = self.skill.alert_manager.get_user_alerts()['pending']
         message = Message("test", {"cancel": "cancel",
                                    "alert": "alert",
                                    "all": "all"}, valid_context)
@@ -656,11 +723,67 @@ class TestSkill(unittest.TestCase):
             self.skill.alert_manager.get_user_alerts(cancel_test_user),
             {"missed": list(), "active": list(), "pending": list()}
         )
+        mock_dismiss_gui.assert_has_calls(all_alerts, True)
 
         # Cancel all nothing to cancel
         self.skill.handle_cancel_alert(message)
         self.skill.speak_dialog.assert_called_with("error_nothing_to_cancel",
                                                    private=True)
+
+        self.skill.alert_manager.dismiss_alert_from_gui = real_dismiss_from_gui
+        self.skill._update_homescreen = real_update_homescreen
+
+    def test_snooze_alert(self):
+        real_snooze_alert = self.skill.alert_manager.snooze_alert
+        self.skill.alert_manager.snooze_alert = Mock()
+
+        sea_tz = gettz("America/Los_Angeles")
+        now_time = dt.datetime.now(sea_tz).replace(microsecond=0)
+
+        # Test default snooze
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_no_time = Message("test")
+        self.skill._snooze_alert(message_no_time, alert, anchor_time=now_time)
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, self.skill.snooze_duration)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(self.skill.snooze_duration)})
+
+        # Test given duration
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_duration = Message("test",
+                                   {"utterances": ["snooze for 5 minutes"]})
+        delta = dt.timedelta(minutes=5)
+        self.skill._snooze_alert(message_duration, alert, anchor_time=now_time)
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, delta)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(delta)})
+
+        # Test specified time
+        alert = Alert.create(now_time, "test", AlertType.ALARM)
+        alert_id = get_alert_id(alert)
+        message_newtime = Message("test",
+                                  {"utterances": ["snooze until 10 PM"]})
+        self.skill._snooze_alert(message_newtime, alert, anchor_time=now_time)
+        new_time = now_time.replace(hour=22, minute=0, second=0)
+        if new_time < now_time:
+            new_time = new_time + dt.timedelta(days=1)
+        delta = new_time - now_time
+        self.skill.alert_manager.snooze_alert.assert_called_with(
+            alert_id, delta)
+        self.skill.speak_dialog.assert_called_with(
+            "confirm_snooze_alert",
+            {"name": alert.alert_name,
+             "duration": nice_duration(delta)})
+
+        self.skill.alert_manager.snooze_alert = real_snooze_alert
 
     def test_confirm_alert(self):
         # TODO
@@ -723,11 +846,17 @@ class TestSkill(unittest.TestCase):
         # self.assertEqual(self.skill._get_user_tz(message), default_timezone())
 
         # Test Configured
-        mock_userdata['location'] = {'tz': 'America/Los_Angeles'}
+        mock_userdata['location'] = {'tz': 'America/Los_Angeles',
+                                     'lat': None,
+                                     'lng': None,
+                                     'city': None,
+                                     'state': None,
+                                     'country': None,
+                                     'utc': -8}
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/Los_Angeles'))
 
-        mock_userdata['location'] = {'tz': 'America/New_York'}
+        mock_userdata['location']['tz'] = 'America/New_York'
         self.assertEqual(self.skill._get_user_tz(message),
                          gettz('America/New_York'))
 
@@ -2053,8 +2182,8 @@ class TestParseUtils(unittest.TestCase):
         _validate_alert_default_params(no_name_timer_utc)
         _validate_alert_default_params(no_name_timer_sea)
         self.assertAlmostEqual(
-            no_name_timer_sea.time_to_expiration.total_seconds(),
-            no_name_timer_utc.time_to_expiration.total_seconds(), 0)
+            no_name_timer_sea.time_to_expiration.total_seconds() * 10,
+            no_name_timer_utc.time_to_expiration.total_seconds() * 10, 0)
 
         baking_timer_sea = build_alert_from_intent(baking_12_minutes,
                                                    AlertType.TIMER,
