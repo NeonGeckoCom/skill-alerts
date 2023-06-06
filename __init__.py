@@ -30,22 +30,25 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from threading import RLock, Thread
-from typing import Tuple, List, Optional, Union
-
-from adapt.intent import IntentBuilder
+from typing import Tuple, List, Optional
 from dateutil.tz import gettz
-from lingua_franca.format import nice_duration, nice_time, nice_date_time
-from lingua_franca.parse import extract_duration, extract_datetime
-from lingua_franca.time import default_timezone
-from mycroft.skills import intent_handler, intent_file_handler
-from mycroft.util import play_audio_file
-from mycroft_bus_client import Message
-from neon_utils.message_utils import request_from_mobile, dig_for_message
-from neon_utils.skills.neon_skill import NeonSkill, LOG
-from neon_utils.user_utils import get_user_prefs, get_message_user
+
 from ovos_utils import classproperty
 from ovos_utils import create_daemon
 from ovos_utils.process_utils import RuntimeRequirements
+from ovos_utils.log import LOG
+from ovos_utils.sound import play_audio
+from adapt.intent import IntentBuilder
+
+from lingua_franca.format import nice_duration, nice_time, nice_date_time
+from lingua_franca.parse import extract_duration, extract_datetime
+from lingua_franca.time import default_timezone
+from ovos_bus_client.message import Message
+from neon_utils.message_utils import request_from_mobile, dig_for_message
+from neon_utils.skills.neon_skill import NeonSkill
+from neon_utils.user_utils import get_user_prefs, get_message_user
+
+from mycroft.skills import intent_handler, intent_file_handler
 
 from .util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
 from .util.alert import Alert, AlertType
@@ -272,7 +275,6 @@ class AlertSkill(NeonSkill):
         self.confirm_alert(alert, message)
 
     @intent_handler(IntentBuilder("CreateReminderAlt").require("remind_me")
-                    .optionally("playable").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
                     .optionally("everyday").optionally("repeat")
                     .optionally("until"))
@@ -1027,8 +1029,8 @@ class AlertSkill(NeonSkill):
                     "expired_alert", {'name': alert.alert_name}),
                     to_play, alert_message, private=True)
             else:
-                # TODO: Interrupt this if alert is dismissed DM
-                play_audio_file(to_play).wait(60)
+                # TODO: refactor to `self.play_audio`
+                play_audio(to_play).wait(60)
             time.sleep(1)
             # TODO: If ramp volume setting, do that
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
