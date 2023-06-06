@@ -1,24 +1,32 @@
 # Changelog
 
-## [1.4.1a3](https://github.com/NeonGeckoCom/skill-alerts/tree/1.4.1a3) (2023-04-20)
+## [1.5.1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1) (2023-06-06)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.4.0...1.4.1a3)
-
-**Implemented enhancements:**
-
-- \[FEAT\] Re-implement "snooze" intent [\#106](https://github.com/NeonGeckoCom/skill-alerts/issues/106)
-- \[FEAT\] Dismiss any active timer on "dismiss" [\#101](https://github.com/NeonGeckoCom/skill-alerts/issues/101)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1a2...1.5.1)
 
 **Fixed bugs:**
 
-- \[BUG\] GUI not dismissed with alert [\#100](https://github.com/NeonGeckoCom/skill-alerts/issues/100)
+- \[BUG\] Alarm Icon does not go away.  [\#108](https://github.com/NeonGeckoCom/skill-alerts/issues/108)
+
+## [1.5.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1a2) (2023-05-11)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1a1...1.5.1a2)
+
+**Fixed bugs:**
+
+- \[BUG\] Not working in headless [\#111](https://github.com/NeonGeckoCom/skill-alerts/issues/111)
 
 **Merged pull requests:**
 
-- Update GH Automation [\#109](https://github.com/NeonGeckoCom/skill-alerts/pull/109) ([NeonDaniel](https://github.com/NeonDaniel))
-- Implement "snooze" for active alerts [\#107](https://github.com/NeonGeckoCom/skill-alerts/pull/107) ([NeonDaniel](https://github.com/NeonDaniel))
-- Release GUI on alert dismissal \(converse\) [\#105](https://github.com/NeonGeckoCom/skill-alerts/pull/105) ([NeonDaniel](https://github.com/NeonDaniel))
-- Handle "dismiss" request with active timer [\#103](https://github.com/NeonGeckoCom/skill-alerts/pull/103) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update dependencies and import references [\#114](https://github.com/NeonGeckoCom/skill-alerts/pull/114) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [1.5.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1a1) (2023-05-11)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.0...1.5.1a1)
+
+**Merged pull requests:**
+
+- Troubleshoot repeat intent [\#113](https://github.com/NeonGeckoCom/skill-alerts/pull/113) ([NeonDaniel](https://github.com/NeonDaniel))
 
 
 
