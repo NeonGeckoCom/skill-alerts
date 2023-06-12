@@ -36,7 +36,7 @@ from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
 from mock.mock import call, patch
-from mycroft_bus_client import Message
+from ovos_bus_client import Message
 from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 from lingua_franca import load_language
