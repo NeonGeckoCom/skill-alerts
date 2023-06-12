@@ -28,7 +28,7 @@
 
 from datetime import datetime
 from lingua_franca.format import nice_duration, nice_time
-from mycroft_bus_client import Message
+from ovos_bus_client import Message
 from neon_utils.user_utils import get_user_prefs
 
 from .alert import Alert, AlertType
