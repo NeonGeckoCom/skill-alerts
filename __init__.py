@@ -91,21 +91,21 @@ class AlertSkill(NeonSkill):
         """
         If true, speak dialog for expired alarms instead of playing audio files.
         """
-        return self.settings().get('speak_alarm', False)
+        return self.settings.get('speak_alarm', False)
 
     @property
     def speak_timer(self) -> bool:
         """
         If true, speak dialog for expired alarms instead of playing audio files.
         """
-        return self.settings().get('speak_timer', True)
+        return self.settings.get('speak_timer', True)
 
     @property
     def alarm_sound_file(self) -> str:
         """
         Return the path to a valid alarm sound resource file
         """
-        filename = self.settings().get('sound_alarm') or 'default-alarm.wav'
+        filename = self.settings.get('sound_alarm') or 'default-alarm.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -122,7 +122,7 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid timer sound resource file
         """
-        filename = self.settings().get('sound_timer') or 'default-timer.wav'
+        filename = self.settings.get('sound_timer') or 'default-timer.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -139,14 +139,14 @@ class AlertSkill(NeonSkill):
         """
         Return true if the user has requested not to be disturbed
         """
-        return self.settings().get('quiet_hours', False)
+        return self.settings.get('quiet_hours', False)
 
     @property
     def snooze_duration(self) -> timedelta:
         """
         Get default snooze duration
         """
-        snooze_minutes = self.settings().get('snooze_mins') or 15
+        snooze_minutes = self.settings.get('snooze_mins') or 15
         if not isinstance(snooze_minutes, int):
             LOG.error(f'Invalid `snooze_minutes` in settings. '
                       f'Expected int but got: {snooze_minutes}')
@@ -158,7 +158,7 @@ class AlertSkill(NeonSkill):
         """
         Return the number of seconds to repeat an alert before marking it missed
         """
-        timeout_minutes = self.settings().get('timeout_min') or 1
+        timeout_minutes = self.settings.get('timeout_min') or 1
         if not isinstance(timeout_minutes, int):
             LOG.error(f'Invalid `timeout_min` in settings. '
                       f'Expected int but got: {timeout_minutes}')
