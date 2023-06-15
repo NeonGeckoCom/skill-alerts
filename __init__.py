@@ -60,8 +60,8 @@ from .util.ui_models import build_timer_data, build_alarm_data
 
 
 class AlertSkill(NeonSkill):
-    def __init__(self):
-        super(AlertSkill, self).__init__(name="AlertSkill")
+    def __init__(self, **kwargs):
+        NeonSkill.__init__(self, **kwargs)
         self._alert_manager = None
         self._gui_timer_lock = RLock()
 
@@ -105,8 +105,7 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid alarm sound resource file
         """
-        filename = self.preference_skill().get('sound_alarm') or \
-                   'default-alarm.wav'
+        filename = self.preference_skill().get('sound_alarm') or 'default-alarm.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -123,8 +122,7 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid timer sound resource file
         """
-        filename = self.preference_skill().get('sound_timer') or \
-                   'default-timer.wav'
+        filename = self.preference_skill().get('sound_timer') or 'default-timer.wav'
         if os.path.isfile(filename):
             return filename
         file = self.find_resource(filename)
@@ -171,6 +169,7 @@ class AlertSkill(NeonSkill):
     def use_24hour(self) -> bool:
         return get_user_prefs()["units"]["time"] == 24
 
+    # TODO: Move to __init__ after stable ovos-workshop
     def initialize(self):
         # Initialize manager with any cached alerts
         self._alert_manager = AlertManager(os.path.join(self.file_system.path,
@@ -1411,7 +1410,3 @@ class AlertSkill(NeonSkill):
     #         self.speak_dialog('ConfirmSet', {'kind': kind,
     #                                          'time': spoken_alert_time,
     #                                          'duration': spoken_time_remaining}, private=True)
-
-
-def create_skill():
-    return AlertSkill()
