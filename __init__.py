@@ -169,6 +169,7 @@ class AlertSkill(NeonSkill):
     def use_24hour(self) -> bool:
         return get_user_prefs()["units"]["time"] == 24
 
+    # TODO: Move to __init__ after stable ovos-workshop
     def initialize(self):
         # Initialize manager with any cached alerts
         self._alert_manager = AlertManager(os.path.join(self.file_system.path,
