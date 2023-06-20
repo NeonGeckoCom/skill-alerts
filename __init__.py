@@ -61,9 +61,9 @@ from .util.ui_models import build_timer_data, build_alarm_data
 
 class AlertSkill(NeonSkill):
     def __init__(self, **kwargs):
-        NeonSkill.__init__(self, **kwargs)
         self._alert_manager = None
         self._gui_timer_lock = RLock()
+        NeonSkill.__init__(self, **kwargs)
 
     @classproperty
     def runtime_requirements(self):
