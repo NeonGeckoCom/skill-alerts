@@ -178,7 +178,7 @@ class AlertSkill(NeonSkill):
                                            self._alert_expired)
 
         # Update Homescreen UI models
-        self.add_event("mycroft.ready", self.on_ready, once=True)
+        self.add_event("mycroft.ready", self.on_ready)
 
         self.add_event("neon.get_events", self._get_events)
         self.add_event("alerts.gui.dismiss_notification",
