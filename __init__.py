@@ -114,7 +114,7 @@ class AlertSkill(NeonSkill):
                                      self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
-            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+            file = os.path.join(self.root_dir, 'res', 'snd',
                                 'default-alarm.wav')
         if not file:
             raise FileNotFoundError(f"Could not resolve sound: {filename}")
@@ -134,7 +134,7 @@ class AlertSkill(NeonSkill):
                                      self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
-            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+            file = os.path.join(self.root_dir, 'res', 'snd',
                                 'default-timer.wav')
         if not file:
             raise FileNotFoundError(f"Could not resolve sound: {filename}")
@@ -1035,6 +1035,7 @@ class AlertSkill(NeonSkill):
                     to_play, alert_message, private=True)
             else:
                 # TODO: refactor to `self.play_audio`
+                LOG.debug(f"Playing file: {to_play}")
                 play_audio(to_play).wait(60)
             time.sleep(1)
             # TODO: If ramp volume setting, do that
