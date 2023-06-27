@@ -141,6 +141,13 @@ class AlertSkill(NeonSkill):
         return file
 
     @property
+    def escalate_volume(self) -> bool:
+        """
+        If true, increase volume while alert expiration is playing
+        """
+        return self.preference_skill().get("escalate_volume", False)
+
+    @property
     def quiet_hours(self) -> bool:
         """
         Return true if the user has requested not to be disturbed
@@ -1027,6 +1034,12 @@ class AlertSkill(NeonSkill):
 
         timeout = time.time() + self.alert_timeout_seconds
         alert_id = get_alert_id(alert)
+        volume_message = Message("mycroft.volume.get")
+        resp = self.bus.wait_for_response(volume_message)
+        if resp:
+            volume = resp.data.get('percent')
+        else:
+            volume = None
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
             if alert_message.context.get("klat_data"):
@@ -1038,7 +1051,12 @@ class AlertSkill(NeonSkill):
                 LOG.debug(f"Playing file: {to_play}")
                 play_audio(to_play).wait(60)
             time.sleep(1)
-            # TODO: If ramp volume setting, do that
+            if self.escalate_volume:
+                self.bus.emit(Message("mycroft.volume.increase"))
+
+        if volume:
+            # Reset initial volume
+            self.bus.emit(Message("mycroft.volume.set", {"percent": volume}))
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             self._missed_alert(alert_id)
 
