@@ -35,11 +35,11 @@ from dateutil.tz import gettz
 
 from ovos_utils import classproperty
 from ovos_utils import create_daemon
+from ovos_utils.file_utils import resolve_resource_file
 from ovos_utils.process_utils import RuntimeRequirements
 from ovos_utils.log import LOG
 from ovos_utils.sound import play_audio
 from adapt.intent import IntentBuilder
-
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.parse import extract_duration, extract_datetime
 from lingua_franca.time import default_timezone
@@ -105,10 +105,13 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid alarm sound resource file
         """
-        filename = self.preference_skill().get('sound_alarm') or 'default-alarm.wav'
+        filename = self.preference_skill().get('sound_alarm') or \
+            'default-alarm.wav'
         if os.path.isfile(filename):
             return filename
-        file = self.find_resource(filename)
+        file = resolve_resource_file(filename,
+                                     os.path.join(self.root_dir, "res"),
+                                     self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
             file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
@@ -122,10 +125,13 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid timer sound resource file
         """
-        filename = self.preference_skill().get('sound_timer') or 'default-timer.wav'
+        filename = self.preference_skill().get('sound_timer') or \
+            'default-timer.wav'
         if os.path.isfile(filename):
             return filename
-        file = self.find_resource(filename)
+        file = resolve_resource_file(filename,
+                                     os.path.join(self.root_dir, "res"),
+                                     self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
             file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
