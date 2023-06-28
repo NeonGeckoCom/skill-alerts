@@ -35,11 +35,11 @@ from dateutil.tz import gettz
 
 from ovos_utils import classproperty
 from ovos_utils import create_daemon
+from ovos_utils.file_utils import resolve_resource_file
 from ovos_utils.process_utils import RuntimeRequirements
 from ovos_utils.log import LOG
 from ovos_utils.sound import play_audio
 from adapt.intent import IntentBuilder
-
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.parse import extract_duration, extract_datetime
 from lingua_franca.time import default_timezone
@@ -105,13 +105,16 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid alarm sound resource file
         """
-        filename = self.preference_skill().get('sound_alarm') or 'default-alarm.wav'
+        filename = self.preference_skill().get('sound_alarm') or \
+            'default-alarm.wav'
         if os.path.isfile(filename):
             return filename
-        file = self.find_resource(filename)
+        file = resolve_resource_file(filename,
+                                     os.path.join(self.root_dir, "res"),
+                                     self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
-            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+            file = os.path.join(self.root_dir, 'res', 'snd',
                                 'default-alarm.wav')
         if not file:
             raise FileNotFoundError(f"Could not resolve sound: {filename}")
@@ -122,17 +125,27 @@ class AlertSkill(NeonSkill):
         """
         Return the path to a valid timer sound resource file
         """
-        filename = self.preference_skill().get('sound_timer') or 'default-timer.wav'
+        filename = self.preference_skill().get('sound_timer') or \
+            'default-timer.wav'
         if os.path.isfile(filename):
             return filename
-        file = self.find_resource(filename)
+        file = resolve_resource_file(filename,
+                                     os.path.join(self.root_dir, "res"),
+                                     self.config_core)
         if not file:
             LOG.warning(f'Could not resolve requested file: {filename}')
-            file = os.path.join(os.path.dirname(__file__), 'res', 'snd',
+            file = os.path.join(self.root_dir, 'res', 'snd',
                                 'default-timer.wav')
         if not file:
             raise FileNotFoundError(f"Could not resolve sound: {filename}")
         return file
+
+    @property
+    def escalate_volume(self) -> bool:
+        """
+        If true, increase volume while alert expiration is playing
+        """
+        return self.preference_skill().get("escalate_volume", False)
 
     @property
     def quiet_hours(self) -> bool:
@@ -1021,6 +1034,12 @@ class AlertSkill(NeonSkill):
 
         timeout = time.time() + self.alert_timeout_seconds
         alert_id = get_alert_id(alert)
+        volume_message = Message("mycroft.volume.get")
+        resp = self.bus.wait_for_response(volume_message)
+        if resp:
+            volume = resp.data.get('percent')
+        else:
+            volume = None
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
             if alert_message.context.get("klat_data"):
@@ -1029,9 +1048,15 @@ class AlertSkill(NeonSkill):
                     to_play, alert_message, private=True)
             else:
                 # TODO: refactor to `self.play_audio`
+                LOG.debug(f"Playing file: {to_play}")
                 play_audio(to_play).wait(60)
             time.sleep(1)
-            # TODO: If ramp volume setting, do that
+            if self.escalate_volume:
+                self.bus.emit(Message("mycroft.volume.increase"))
+
+        if volume:
+            # Reset initial volume
+            self.bus.emit(Message("mycroft.volume.set", {"percent": volume}))
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             self._missed_alert(alert_id)
 
