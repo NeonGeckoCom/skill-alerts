@@ -22,6 +22,10 @@ skillMetadata:
           type: checkbox
           label: Quiet Hours (mutes all notifications until disabled)
           value: "false"
+        - name: escalate_volume
+          type: checkbox
+          label: Increase alarm volume while alerting
+          value: "false"
         - name: snooze_mins
           type: number
           label: Default snooze duration in minutes

@@ -32,7 +32,7 @@ from copy import deepcopy
 from typing import Optional, List
 from json_database import JsonStorage
 from uuid import uuid4 as uuid
-from mycroft_bus_client import Message
+from ovos_bus_client import Message
 from neon_utils.logger import LOG
 from neon_utils.location_utils import to_system_time
 from combo_lock import NamedLock
