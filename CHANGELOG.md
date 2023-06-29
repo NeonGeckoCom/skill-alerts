@@ -1,32 +1,48 @@
 # Changelog
 
-## [1.5.1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1) (2023-06-06)
+## [1.5.2a5](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a5) (2023-06-28)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1a2...1.5.1)
-
-**Fixed bugs:**
-
-- \[BUG\] Alarm Icon does not go away.  [\#108](https://github.com/NeonGeckoCom/skill-alerts/issues/108)
-
-## [1.5.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1a2) (2023-05-11)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1a1...1.5.1a2)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a4...1.5.2a5)
 
 **Fixed bugs:**
 
-- \[BUG\] Not working in headless [\#111](https://github.com/NeonGeckoCom/skill-alerts/issues/111)
+- \[BUG\] No alarm sound on expiration [\#125](https://github.com/NeonGeckoCom/skill-alerts/issues/125)
 
 **Merged pull requests:**
 
-- Update dependencies and import references [\#114](https://github.com/NeonGeckoCom/skill-alerts/pull/114) ([NeonDaniel](https://github.com/NeonDaniel))
+- Refactor resource resolution to resolve default sound errors [\#126](https://github.com/NeonGeckoCom/skill-alerts/pull/126) ([NeonDaniel](https://github.com/NeonDaniel))
 
-## [1.5.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.1a1) (2023-05-11)
+## [1.5.2a4](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a4) (2023-06-26)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.0...1.5.1a1)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a3...1.5.2a4)
 
 **Merged pull requests:**
 
-- Troubleshoot repeat intent [\#113](https://github.com/NeonGeckoCom/skill-alerts/pull/113) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update event handling [\#124](https://github.com/NeonGeckoCom/skill-alerts/pull/124) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [1.5.2a3](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a3) (2023-06-20)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a2...1.5.2a3)
+
+**Merged pull requests:**
+
+- Reafctor skill init/initialize [\#123](https://github.com/NeonGeckoCom/skill-alerts/pull/123) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [1.5.2a2](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a2) (2023-06-15)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a1...1.5.2a2)
+
+**Merged pull requests:**
+
+- Update for best practices [\#121](https://github.com/NeonGeckoCom/skill-alerts/pull/121) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [1.5.2a1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a1) (2023-06-12)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1...1.5.2a1)
+
+**Merged pull requests:**
+
+- Refactor mycroft-messagebus-client to ovos-bus-client [\#120](https://github.com/NeonGeckoCom/skill-alerts/pull/120) ([NeonDaniel](https://github.com/NeonDaniel))
 
 
 
