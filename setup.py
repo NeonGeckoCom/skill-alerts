@@ -32,7 +32,7 @@ from os import getenv, path, walk
 SKILL_NAME = "skill-alerts"
 SKILL_PKG = SKILL_NAME.replace('-', '_')
 # skill_id=package_name:SkillClass
-PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.neongeckocom={SKILL_PKG}:AlertSkill'
+PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.openvoiceos={SKILL_PKG}:AlertSkill'
 
 
 def get_requirements(requirements_filename: str):
@@ -84,9 +84,9 @@ with open("./version.py", "r", encoding="utf-8") as v:
                 version = line.split("'")[1]
 
 setup(
-    name=f"neon-{SKILL_NAME}",
+    name=f"ovos-{SKILL_NAME}",
     version=version,
-    url=f'https://github.com/NeonGeckoCom/{SKILL_NAME}',
+    url=f'https://github.com/OpenVoiceOS/{SKILL_NAME}',
     license='BSD-3-Clause',
     install_requires=get_requirements("requirements.txt"),
     author='Neongecko',

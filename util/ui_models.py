@@ -29,7 +29,15 @@
 from datetime import datetime
 from lingua_franca.format import nice_duration, nice_time
 from mycroft_bus_client import Message
-from neon_utils.user_utils import get_user_prefs
+
+try:
+    from neon_utils.user_utils import get_user_prefs
+except ImportError:
+    from ovos_config import Configuration
+    
+    # TODO - these will be supported in ovos-bus-client later on
+    def get_user_prefs(message):
+        return Configuration()
 
 from .alert import Alert, AlertType
 from .alert_manager import get_alert_id

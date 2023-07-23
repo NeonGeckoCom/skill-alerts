@@ -32,7 +32,7 @@ from time import time
 from uuid import uuid4 as uuid
 from typing import Optional, List, Union
 from lingua_franca import load_language
-from neon_utils.logger import LOG
+from ovos_utils.log import LOG
 from mycroft_bus_client import Message, MessageBusClient
 
 from mycroft.util.format import TimeResolution, nice_duration, nice_time

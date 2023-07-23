@@ -33,8 +33,8 @@ from typing import Optional, List
 from json_database import JsonStorage
 from uuid import uuid4 as uuid
 from mycroft_bus_client import Message
-from neon_utils.logger import LOG
-from neon_utils.location_utils import to_system_time
+from ovos_utils.log import LOG
+from ovos_utils.time import to_system as to_system_time
 from combo_lock import NamedLock
 from ovos_utils.events import EventSchedulerInterface
 

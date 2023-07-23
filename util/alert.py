@@ -30,7 +30,7 @@ import datetime
 import json
 
 from typing import Set, Optional, Union
-from neon_utils.logger import LOG
+from ovos_utils.log import LOG
 from . import AlertType, AlertPriority, Weekdays
 
 
