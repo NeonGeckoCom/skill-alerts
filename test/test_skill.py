@@ -44,10 +44,9 @@ from lingua_franca.format import nice_time
 
 from neon_minerva.tests.skill_unit_test_base import SkillTestCase
 
-sys.path.append(dirname(dirname(__file__)))
-from util import AlertType, AlertState, AlertPriority, Weekdays, EVERYDAY
-from util.alert import Alert
-from util.alert_manager import AlertManager, get_alert_id
+from skill_alerts.util import AlertType, AlertState, AlertPriority, Weekdays, EVERYDAY
+from skill_alerts.util.alert import Alert
+from skill_alerts.util.alert_manager import AlertManager, get_alert_id
 
 examples_dir = join(dirname(__file__), "example_messages")
 
