@@ -144,7 +144,7 @@ class AlertSkill(NeonSkill):
         """
         If true, increase volume while alert expiration is playing
         """
-        return self.preference_skill().get("escalate_volume", False)
+        return self.preference_skill().get("escalate_volume", True)
 
     @property
     def quiet_hours(self) -> bool:
@@ -170,6 +170,8 @@ class AlertSkill(NeonSkill):
         """
         Return the number of seconds to repeat an alert before marking it missed
         """
+        # TODO: This should be per-type; a user may want an alarm to go off for
+        #       longer than a timer
         timeout_minutes = self.preference_skill().get('timeout_min') or 1
         if not isinstance(timeout_minutes, int):
             LOG.error(f'Invalid `timeout_min` in settings. '
@@ -1055,7 +1057,7 @@ class AlertSkill(NeonSkill):
                 # TODO: refactor to `self.play_audio`
                 LOG.debug(f"Playing file: {to_play}")
                 play_audio(to_play).wait(60)
-            time.sleep(1)
+            time.sleep(1)  # TODO: Skip this and play continuously?
             if self.escalate_volume:
                 self.bus.emit(Message("mycroft.volume.increase"))
 
