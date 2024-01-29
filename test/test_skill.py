@@ -16,11 +16,11 @@
 # Specialized conversational reconveyance options from Conversation Processing Intelligence Corp.
 # US Patents 2008-2021: US7424516, US20140161250, US20140177813, US8638908, US8068604, US8553852, US10530923, US10530924
 # China Patent: CN102017585  -  Europe Patent: EU2156652  -  Patents Pending
+
 import datetime
 import json
 import os
 import time
-
 import lingua_franca
 import pytest
 import random
@@ -30,8 +30,8 @@ import unittest
 import datetime as dt
 
 from threading import Event
-from os import mkdir, remove
-from os.path import dirname, join, exists, isfile
+from os import remove
+from os.path import dirname, join, isfile
 from dateutil.tz import gettz
 from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
@@ -40,8 +40,9 @@ from ovos_bus_client import Message
 from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 from lingua_franca import load_language
+from lingua_franca.format import nice_time
 
-from mycroft.util.format import nice_time
+from neon_minerva.tests.skill_unit_test_base import SkillTestCase
 
 sys.path.append(dirname(dirname(__file__)))
 from util import AlertType, AlertState, AlertPriority, Weekdays, EVERYDAY
@@ -57,27 +58,10 @@ def _get_message_from_file(filename: str):
     return Message.deserialize(contents)
 
 
-class TestSkill(unittest.TestCase):
-
+class TestSkillMethods(SkillTestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        from mycroft.skills.skill_loader import SkillLoader
-
-        cls.bus = FakeBus()
-        cls.bus.run_in_thread()
-        skill_loader = SkillLoader(cls.bus, dirname(dirname(__file__)))
-        skill_loader.load()
-        cls.skill = skill_loader.instance
-        cls.test_fs = join(dirname(__file__), "skill_fs")
-        if not exists(cls.test_fs):
-            mkdir(cls.test_fs)
-        cls.skill.settings_write_path = cls.test_fs
-        cls.skill.file_system.path = cls.test_fs
-
-        # Override speak and speak_dialog to test passed arguments
-        cls.skill.speak = Mock()
-        cls.skill.speak_dialog = Mock()
-
+        SkillTestCase.setUpClass()
         # Setup alerts
         load_language("en-us")
 

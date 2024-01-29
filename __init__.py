@@ -982,6 +982,11 @@ class AlertSkill(NeonSkill):
         :param alert: expired Alert object
         """
         LOG.info(f'alert expired: {get_alert_id(alert)}')
+        # TODO: Emit generic event for remote clients
+        self.bus.emit(Message("neon.alert", alert.data, alert.context))
+        if alert.context.get("mq"):
+            LOG.warning("Alert from remote client; do nothing locally")
+            return
         self.make_active()
         self._gui_notify_expired(alert)
 
@@ -1043,6 +1048,7 @@ class AlertSkill(NeonSkill):
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
             if alert_message.context.get("klat_data"):
+                # TODO: Deprecated
                 self.send_with_audio(self.dialog_renderer.render(
                     "expired_alert", {'name': alert.alert_name}),
                     to_play, alert_message, private=True)
@@ -1072,9 +1078,11 @@ class AlertSkill(NeonSkill):
             if alert.alert_type == AlertType.REMINDER:
                 self.speak_dialog('expired_reminder',
                                   {'name': alert.alert_name},
+                                  message=alert_message,
                                   private=True, wait=True)
             else:
                 self.speak_dialog('expired_alert', {'name': alert.alert_name},
+                                  message=alert_message,
                                   private=True, wait=True)
             self.make_active()
             time.sleep(10)
