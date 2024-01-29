@@ -1363,7 +1363,7 @@ class TestAlertManager(unittest.TestCase):
         remove(test_file)
 
     def test_get_user_alerts(self):
-        from util.alert_manager import get_alert_user
+        from skill_alerts.util.alert_manager import get_alert_user
         alert_manager = self._init_alert_manager()
         now_time = dt.datetime.now(dt.timezone.utc)
         for i in range(10):
@@ -1407,7 +1407,7 @@ class TestAlertManager(unittest.TestCase):
                                  all_alerts["pending"][i].next_expiration)
 
     def test_get_alert_user(self):
-        from util.alert_manager import get_alert_user, _DEFAULT_USER
+        from skill_alerts.util.alert_manager import get_alert_user, _DEFAULT_USER
         test_user = "tester"
         alert_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
         alert_no_user = Alert.create(alert_time)
@@ -1421,7 +1421,7 @@ class TestAlertManager(unittest.TestCase):
         self.assertEqual(get_alert_user(alert_no_user), "new_user")
 
     def test_get_alert_id(self):
-        from util.alert_manager import get_alert_id
+        from skill_alerts.util.alert_manager import get_alert_id
         alert_time = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)
         alert_no_id = Alert.create(alert_time)
         alert_with_id = Alert.create(alert_time, context={"ident": "test"})
@@ -1431,7 +1431,7 @@ class TestAlertManager(unittest.TestCase):
 
     def test_sort_alerts_list(self):
         from copy import deepcopy
-        from util.alert_manager import sort_alerts_list
+        from skill_alerts.util.alert_manager import sort_alerts_list
         now_time = dt.datetime.now(dt.timezone.utc)
         alerts = list()
 
@@ -1449,7 +1449,7 @@ class TestAlertManager(unittest.TestCase):
                                  alerts[i].next_expiration)
 
     def test_get_alert_by_type(self):
-        from util.alert_manager import get_alerts_by_type
+        from skill_alerts.util.alert_manager import get_alerts_by_type
         now_time = dt.datetime.now(dt.timezone.utc)
         alerts = list()
 
@@ -1537,7 +1537,7 @@ class TestAlertManager(unittest.TestCase):
 
 class TestParseUtils(unittest.TestCase):
     def test_round_nearest_minute(self):
-        from util.parse_utils import round_nearest_minute
+        from skill_alerts.util.parse_utils import round_nearest_minute
         now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         alert_time = now_time + dt.timedelta(minutes=9, seconds=5)
         rounded = round_nearest_minute(alert_time)
@@ -1547,7 +1547,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(rounded, alert_time.replace(second=0))
 
     def test_spoken_time_remaining(self):
-        from util.parse_utils import spoken_time_remaining
+        from skill_alerts.util.parse_utils import spoken_time_remaining
         now_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         seconds_alert = now_time + dt.timedelta(minutes=59, seconds=59)
         to_speak = spoken_time_remaining(seconds_alert, now_time)
@@ -1583,7 +1583,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(to_speak, "eight days")
 
     def test_get_default_alert_name(self):
-        from util.parse_utils import get_default_alert_name
+        from skill_alerts.util.parse_utils import get_default_alert_name
         now_time = dt.datetime.now(dt.timezone.utc)
         timer_time = now_time + dt.timedelta(minutes=10)
         self.assertEqual(get_default_alert_name(timer_time,
@@ -1613,7 +1613,7 @@ class TestParseUtils(unittest.TestCase):
                          "20:00 reminder")
 
     def test_tokenize_utterance_alarm(self):
-        from util.parse_utils import tokenize_utterance
+        from skill_alerts.util.parse_utils import tokenize_utterance
 
         daily = _get_message_from_file("create_alarm_daily.json")
         tokens = tokenize_utterance(daily)
@@ -1653,7 +1653,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(tokens, ['alarm', 'in 30 minutes'])
 
     def test_get_unmatched_tokens_alarm(self):
-        from util.parse_utils import get_unmatched_tokens
+        from skill_alerts.util.parse_utils import get_unmatched_tokens
 
         daily = _get_message_from_file("create_alarm_daily.json")
         tokens = get_unmatched_tokens(daily)
@@ -1690,7 +1690,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(tokens, ['monday and thursday at 9 am'])
 
     def test_parse_repeat_from_message(self):
-        from util.parse_utils import parse_repeat_from_message, \
+        from skill_alerts.util.parse_utils import parse_repeat_from_message, \
             tokenize_utterance
 
         daily = _get_message_from_file("create_alarm_daily.json")
@@ -1763,7 +1763,7 @@ class TestParseUtils(unittest.TestCase):
                                   "until", "next sunday"])
 
     def test_parse_end_condition_from_message(self):
-        from util.parse_utils import parse_end_condition_from_message
+        from skill_alerts.util.parse_utils import parse_end_condition_from_message
         now_time = dt.datetime.now(dt.timezone.utc)
 
         for_the_next_four_weeks = _get_message_from_file(
@@ -1788,7 +1788,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertGreaterEqual(next_sunday, now_time)
 
     def test_parse_alert_time_from_message_alarm(self):
-        from util.parse_utils import parse_alert_time_from_message, \
+        from skill_alerts.util.parse_utils import parse_alert_time_from_message, \
             tokenize_utterance
 
         daily = _get_message_from_file("create_alarm_daily.json")
@@ -1839,7 +1839,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(alert_time.time(), dt.time(hour=9))
 
     def test_parse_alert_time_from_message_timer(self):
-        from util.parse_utils import parse_alert_time_from_message
+        from skill_alerts.util.parse_utils import parse_alert_time_from_message
         sea_tz = gettz("America/Los_Angeles")
         no_name_10_minutes = _get_message_from_file("set_time_timer.json")
         baking_12_minutes = _get_message_from_file("start_named_timer.json")
@@ -1877,7 +1877,7 @@ class TestParseUtils(unittest.TestCase):
         pass
 
     def test_parse_alert_name_from_message(self):
-        from util.parse_utils import parse_alert_name_from_message
+        from skill_alerts.util.parse_utils import parse_alert_name_from_message
         monday_thursday_alarm = _get_message_from_file(
             "alarm_every_monday_thursday.json")
         daily_alarm = _get_message_from_file("create_alarm_daily.json")
@@ -1995,7 +1995,7 @@ class TestParseUtils(unittest.TestCase):
                          "rotate logs")
 
     def test_parse_alert_context_from_message(self):
-        from util.parse_utils import parse_alert_context_from_message, \
+        from skill_alerts.util.parse_utils import parse_alert_context_from_message, \
             _DEFAULT_USER
         test_message_no_context = Message("test", {}, {})
         test_message_local_user = Message("test", {},
@@ -2040,7 +2040,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertIsInstance(klat_user["klat_data"], dict)
 
     def test_build_alert_from_intent_alarm(self):
-        from util.parse_utils import build_alert_from_intent
+        from skill_alerts.util.parse_utils import build_alert_from_intent
         seattle_tz = gettz("America/Los_Angeles")
         utc_tz = dt.timezone.utc
 
@@ -2136,7 +2136,7 @@ class TestParseUtils(unittest.TestCase):
                                .total_seconds(), delta=2)
 
     def test_build_alert_from_intent_timer(self):
-        from util.parse_utils import build_alert_from_intent
+        from skill_alerts.util.parse_utils import build_alert_from_intent
         sea_tz = gettz("America/Los_Angeles")
         no_name_10_minutes = _get_message_from_file("set_time_timer.json")
         baking_12_minutes = _get_message_from_file("start_named_timer.json")
@@ -2181,7 +2181,7 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(bread_timer_sea.alert_name, "bread")
 
     def test_build_alert_from_intent_reminder(self):
-        from util.parse_utils import build_alert_from_intent
+        from skill_alerts.util.parse_utils import build_alert_from_intent
         sea_tz = gettz("America/Los_Angeles")
         now_local = dt.datetime.now(sea_tz).replace(microsecond=0)
 
@@ -2302,7 +2302,7 @@ class TestUIModels(unittest.TestCase):
     lingua_franca.load_language('en')
 
     def test_build_timer_data(self):
-        from util.ui_models import build_timer_data
+        from skill_alerts.util.ui_models import build_timer_data
 
         now_time_valid = dt.datetime.now(dt.timezone.utc)
         invalid_alert = Alert.create(
@@ -2338,7 +2338,7 @@ class TestUIModels(unittest.TestCase):
         self.assertAlmostEqual(timer_data['percentRemaining'], 1, 1)
 
     def test_build_alarm_data(self):
-        from util.ui_models import build_alarm_data
+        from skill_alerts.util.ui_models import build_alarm_data
         us_context = {
             "username": "test_user",
             "user_profiles": [{
