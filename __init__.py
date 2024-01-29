@@ -47,16 +47,15 @@ from ovos_bus_client.message import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.skills.neon_skill import NeonSkill
 from neon_utils.user_utils import get_user_prefs, get_message_user
+from ovos_workshop.decorators import intent_handler
 
-from mycroft.skills import intent_handler, intent_file_handler
-
-from .util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
-from .util.alert import Alert, AlertType
-from .util.alert_manager import AlertManager, get_alert_id
-from .util.parse_utils import build_alert_from_intent, spoken_time_remaining, \
+from skill_alerts.util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
+from skill_alerts.util.alert import Alert, AlertType
+from skill_alerts.util.alert_manager import AlertManager, get_alert_id
+from skill_alerts.util.parse_utils import build_alert_from_intent, spoken_time_remaining, \
     parse_alert_name_from_message, tokenize_utterance, \
     parse_alert_time_from_message
-from .util.ui_models import build_timer_data, build_alarm_data
+from skill_alerts.util.ui_models import build_timer_data, build_alarm_data
 
 
 class AlertSkill(NeonSkill):
@@ -393,7 +392,7 @@ class AlertSkill(NeonSkill):
             alerts_string = f"{alerts_string}\n{add_str}"
         self.speak(alerts_string, private=True)
 
-    @intent_file_handler('list_alerts.intent')
+    @intent_handler('list_alerts.intent')
     def alt_handle_list_alerts(self, message):
         """
         Intent handler for "what are my alerts", "are there any alerts", etc.
@@ -464,7 +463,7 @@ class AlertSkill(NeonSkill):
                 to_speak = f"{to_speak}\n{part}"
             self.speak(to_speak.lstrip('\n'), private=True)
 
-    @intent_file_handler("quiet_hours_start.intent")
+    @intent_handler("quiet_hours_start.intent")
     def handle_start_quiet_hours(self, message):
         """
         Handles starting quiet hours.
@@ -477,7 +476,7 @@ class AlertSkill(NeonSkill):
         self.speak_dialog("quiet_hours_start", private=True)
         self.update_skill_settings({"quiet_hours": True}, message)
 
-    @intent_file_handler("quiet_hours_end.intent")
+    @intent_handler("quiet_hours_end.intent")
     def handle_end_quiet_hours(self, message):
         """
         Handles ending quiet hours or requests for missed alerts.
