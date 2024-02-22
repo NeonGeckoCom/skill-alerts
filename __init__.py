@@ -1008,11 +1008,11 @@ class AlertSkill(NeonSkill):
         Handle script file run on alert expiration
         :param alert: Alert that has expired
         """
+        # TODO: This is redundant, listeners should just use `neon.alert_expired`
         message = message.forward("neon.run_alert_script",
                                   {"file_to_run": alert.script_filename})
         # emit a message telling CustomConversations to run a script
         self.bus.emit(message)
-        # TODO: Validate alert was handled
         LOG.info("The script has been executed with CC")
         self.alert_manager.dismiss_active_alert(get_alert_id(alert))
 
