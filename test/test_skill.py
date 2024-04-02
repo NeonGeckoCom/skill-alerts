@@ -24,7 +24,6 @@ import time
 import lingua_franca
 import pytest
 import random
-import sys
 import shutil
 import unittest
 import datetime as dt

@@ -25,14 +25,14 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+import setuptools
 from setuptools import setup
 from os import getenv, path, walk
 
 SKILL_NAME = "skill-alerts"
 SKILL_PKG = SKILL_NAME.replace('-', '_')
 # skill_id=package_name:SkillClass
-PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.neongeckocom={SKILL_PKG}:AlertSkill'
+PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.neongeckocom={SKILL_PKG}.skill_alerts:AlertSkill'
 BASE_PATH = path.abspath(path.dirname(__file__))
 
 
@@ -94,8 +94,7 @@ setup(
     author_email='developers@neon.ai',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    package_dir={SKILL_PKG: ""},
-    packages=[SKILL_PKG, f"{SKILL_PKG}.util"],
+    packages=setuptools.find_packages(),
     package_data={SKILL_PKG: find_resource_files()},
     include_package_data=True,
     entry_points={"ovos.plugin.skill": PLUGIN_ENTRY_POINT}
