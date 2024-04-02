@@ -25,7 +25,7 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE,  EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+import setuptools
 from setuptools import setup
 from os import getenv, path, walk
 
@@ -94,8 +94,7 @@ setup(
     author_email='developers@neon.ai',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    package_dir={SKILL_PKG: ""},
-    packages=[SKILL_PKG, f"{SKILL_PKG}.util"],
+    packages=setuptools.find_packages(),
     package_data={SKILL_PKG: find_resource_files()},
     include_package_data=True,
     entry_points={"ovos.plugin.skill": PLUGIN_ENTRY_POINT}

@@ -30,6 +30,7 @@
     "systemDeps": false,
     "requirements": {
         "python": [
+            "adapt-parser>=0.5,<2.0",
             "combo_lock~=0.2",
             "json_database~=0.5",
             "neon-utils~=1.2",
