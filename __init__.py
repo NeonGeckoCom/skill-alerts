@@ -37,7 +37,7 @@ from ovos_utils import classproperty
 from ovos_utils import create_daemon
 from ovos_utils.file_utils import resolve_resource_file
 from ovos_utils.process_utils import RuntimeRequirements
-from ovos_utils.log import LOG
+from ovos_utils.log import LOG, log_deprecation
 from ovos_utils.sound import play_audio
 from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
@@ -47,16 +47,15 @@ from ovos_bus_client.message import Message
 from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.skills.neon_skill import NeonSkill
 from neon_utils.user_utils import get_user_prefs, get_message_user
+from ovos_workshop.decorators import intent_handler
 
-from mycroft.skills import intent_handler, intent_file_handler
-
-from .util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
-from .util.alert import Alert, AlertType
-from .util.alert_manager import AlertManager, get_alert_id
-from .util.parse_utils import build_alert_from_intent, spoken_time_remaining, \
+from skill_alerts.util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
+from skill_alerts.util.alert import Alert, AlertType
+from skill_alerts.util.alert_manager import AlertManager, get_alert_id
+from skill_alerts.util.parse_utils import build_alert_from_intent, spoken_time_remaining, \
     parse_alert_name_from_message, tokenize_utterance, \
     parse_alert_time_from_message
-from .util.ui_models import build_timer_data, build_alarm_data
+from skill_alerts.util.ui_models import build_timer_data, build_alarm_data
 
 
 class AlertSkill(NeonSkill):
@@ -145,7 +144,7 @@ class AlertSkill(NeonSkill):
         """
         If true, increase volume while alert expiration is playing
         """
-        return self.preference_skill().get("escalate_volume", False)
+        return self.preference_skill().get("escalate_volume", True)
 
     @property
     def quiet_hours(self) -> bool:
@@ -171,6 +170,8 @@ class AlertSkill(NeonSkill):
         """
         Return the number of seconds to repeat an alert before marking it missed
         """
+        # TODO: This should be per-type; a user may want an alarm to go off for
+        #       longer than a timer
         timeout_minutes = self.preference_skill().get('timeout_min') or 1
         if not isinstance(timeout_minutes, int):
             LOG.error(f'Invalid `timeout_min` in settings. '
@@ -194,6 +195,7 @@ class AlertSkill(NeonSkill):
         self.add_event("mycroft.ready", self.on_ready)
 
         self.add_event("neon.get_events", self._get_events)
+        self.add_event("neon.acknowledge_alert", self._ack_alert)
         self.add_event("alerts.gui.dismiss_notification",
                        self._gui_dismiss_notification)
         self.add_event("ovos.gui.show.active.timers", self._on_display_gui)
@@ -393,7 +395,7 @@ class AlertSkill(NeonSkill):
             alerts_string = f"{alerts_string}\n{add_str}"
         self.speak(alerts_string, private=True)
 
-    @intent_file_handler('list_alerts.intent')
+    @intent_handler('list_alerts.intent')
     def alt_handle_list_alerts(self, message):
         """
         Intent handler for "what are my alerts", "are there any alerts", etc.
@@ -464,7 +466,7 @@ class AlertSkill(NeonSkill):
                 to_speak = f"{to_speak}\n{part}"
             self.speak(to_speak.lstrip('\n'), private=True)
 
-    @intent_file_handler("quiet_hours_start.intent")
+    @intent_handler("quiet_hours_start.intent")
     def handle_start_quiet_hours(self, message):
         """
         Handles starting quiet hours.
@@ -477,7 +479,7 @@ class AlertSkill(NeonSkill):
         self.speak_dialog("quiet_hours_start", private=True)
         self.update_skill_settings({"quiet_hours": True}, message)
 
-    @intent_file_handler("quiet_hours_end.intent")
+    @intent_handler("quiet_hours_end.intent")
     def handle_end_quiet_hours(self, message):
         """
         Handles ending quiet hours or requests for missed alerts.
@@ -982,40 +984,43 @@ class AlertSkill(NeonSkill):
         :param alert: expired Alert object
         """
         LOG.info(f'alert expired: {get_alert_id(alert)}')
+        alert_msg = Message("neon.alert_expired", alert.data, alert.context)
+        self.bus.emit(alert_msg)
+        if alert.context.get("mq"):
+            LOG.info("Alert from remote client; do nothing locally")
+            return
         self.make_active()
         self._gui_notify_expired(alert)
 
         if alert.script_filename:
-            self._run_notify_expired(alert)
+            self._run_notify_expired(alert, alert_msg)
         elif alert.audio_file:
-            self._play_notify_expired(alert)
+            self._play_notify_expired(alert, alert_msg)
         elif alert.alert_type == AlertType.ALARM and not self.speak_alarm:
-            self._play_notify_expired(alert)
+            self._play_notify_expired(alert, alert_msg)
         elif alert.alert_type == AlertType.TIMER and not self.speak_timer:
-            self._play_notify_expired(alert)
+            self._play_notify_expired(alert, alert_msg)
         else:
-            self._speak_notify_expired(alert)
+            self._speak_notify_expired(alert, alert_msg)
 
-    def _run_notify_expired(self, alert: Alert):
+    def _run_notify_expired(self, alert: Alert, message: Message):
         """
         Handle script file run on alert expiration
         :param alert: Alert that has expired
         """
-        message = Message("neon.run_alert_script",
-                          {"file_to_run": alert.script_filename},
-                          alert.context)
+        # TODO: This is redundant, listeners should just use `neon.alert_expired`
+        message = message.forward("neon.run_alert_script",
+                                  {"file_to_run": alert.script_filename})
         # emit a message telling CustomConversations to run a script
         self.bus.emit(message)
-        # TODO: Validate alert was handled
         LOG.info("The script has been executed with CC")
         self.alert_manager.dismiss_active_alert(get_alert_id(alert))
 
-    def _play_notify_expired(self, alert: Alert):
+    def _play_notify_expired(self, alert: Alert, message: Message):
         """
         Handle audio playback on alert expiration
         :param alert: Alert that has expired
         """
-        alert_message = Message("neon.alert", alert.data, alert.context)
         if alert.audio_file:
             LOG.debug(alert.audio_file)
             self.speak_dialog("expired_audio_alert_intro", private=True)
@@ -1029,12 +1034,13 @@ class AlertSkill(NeonSkill):
             to_play = None
 
         if not to_play:
-            self._speak_notify_expired(alert)
+            LOG.warning("Falling back to spoken notification")
+            self._speak_notify_expired(alert, message)
             return
 
         timeout = time.time() + self.alert_timeout_seconds
         alert_id = get_alert_id(alert)
-        volume_message = Message("mycroft.volume.get")
+        volume_message = message.forward("mycroft.volume.get")
         resp = self.bus.wait_for_response(volume_message)
         if resp:
             volume = resp.data.get('percent')
@@ -1042,27 +1048,29 @@ class AlertSkill(NeonSkill):
             volume = None
         while self.alert_manager.get_alert_status(alert_id) == \
                 AlertState.ACTIVE and time.time() < timeout:
-            if alert_message.context.get("klat_data"):
+            if message.context.get("klat_data"):
+                log_deprecation("`klat.response` emit will be removed. Listen "
+                                "for `neon.alert_expired", "4.0.0")
                 self.send_with_audio(self.dialog_renderer.render(
                     "expired_alert", {'name': alert.alert_name}),
-                    to_play, alert_message, private=True)
+                    to_play, message, private=True)
             else:
                 # TODO: refactor to `self.play_audio`
                 LOG.debug(f"Playing file: {to_play}")
                 play_audio(to_play).wait(60)
-            time.sleep(1)
+            time.sleep(1)  # TODO: Skip this and play continuously?
             if self.escalate_volume:
-                self.bus.emit(Message("mycroft.volume.increase"))
+                self.bus.emit(message.forward("mycroft.volume.increase"))
 
         if volume:
             # Reset initial volume
-            self.bus.emit(Message("mycroft.volume.set", {"percent": volume}))
+            self.bus.emit(message.forward("mycroft.volume.set",
+                                          {"percent": volume}))
         if self.alert_manager.get_alert_status(alert_id) == AlertState.ACTIVE:
             self._missed_alert(alert_id)
 
-    def _speak_notify_expired(self, alert: Alert):
+    def _speak_notify_expired(self, alert: Alert, message: Message):
         LOG.debug(f"notify alert expired: {get_alert_id(alert)}")
-        alert_message = Message("neon.alert", alert.data, alert.context)
 
         # Notify user until they dismiss the alert
         timeout = time.time() + self.alert_timeout_seconds
@@ -1072,9 +1080,11 @@ class AlertSkill(NeonSkill):
             if alert.alert_type == AlertType.REMINDER:
                 self.speak_dialog('expired_reminder',
                                   {'name': alert.alert_name},
+                                  message=message,
                                   private=True, wait=True)
             else:
                 self.speak_dialog('expired_alert', {'name': alert.alert_name},
+                                  message=message,
                                   private=True, wait=True)
             self.make_active()
             time.sleep(10)
@@ -1097,6 +1107,23 @@ class AlertSkill(NeonSkill):
             self.gui.clear()
             self._create_notification(alert)
             self._update_homescreen(do_alarms=True)
+
+    def _ack_alert(self, message: Message):
+        """
+        Handle an emitted message acknowledging an expired alert.
+        @param message: neon.acknowledge_alert message
+        """
+        alert_id = message.data.get('alert_id')
+        if not alert_id:
+            raise ValueError(f"Message data missing `alert_id`: {message.data}")
+        alert: Alert = self.alert_manager.active_alerts.get(alert_id)
+        if not alert:
+            LOG.error(f"Alert not active!: {alert_id}")
+            return
+        if message.data.get('missed'):
+            self._missed_alert(alert_id)
+        else:
+            self._dismiss_alert(alert_id, alert.alert_type)
 
     def _dismiss_alert(self, alert_id: str, alert_type: AlertType,
                        speak: bool = False):

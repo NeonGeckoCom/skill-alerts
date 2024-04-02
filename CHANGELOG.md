@@ -1,48 +1,54 @@
 # Changelog
 
-## [1.5.2a5](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a5) (2023-06-28)
+## [2.0.1a5](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a5) (2024-04-02)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a4...1.5.2a5)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a4...2.0.1a5)
+
+**Merged pull requests:**
+
+- Update log and test requirements to prep release [\#141](https://github.com/NeonGeckoCom/skill-alerts/pull/141) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [2.0.1a4](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a4) (2024-02-22)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a3...2.0.1a4)
+
+**Implemented enhancements:**
+
+- \[FEAT\] Support neon-iris [\#133](https://github.com/NeonGeckoCom/skill-alerts/issues/133)
+
+**Merged pull requests:**
+
+- Implement support for remote client alerts [\#136](https://github.com/NeonGeckoCom/skill-alerts/pull/136) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [2.0.1a3](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a3) (2024-02-05)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a2...2.0.1a3)
+
+**Merged pull requests:**
+
+- Support ovos-utils 0.1 [\#137](https://github.com/NeonGeckoCom/skill-alerts/pull/137) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [2.0.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a2) (2024-01-29)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a1...2.0.1a2)
+
+**Merged pull requests:**
+
+- Update to default escalating volume True for alarms to be audible [\#134](https://github.com/NeonGeckoCom/skill-alerts/pull/134) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [2.0.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a1) (2024-01-29)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.0...2.0.1a1)
 
 **Fixed bugs:**
 
-- \[BUG\] No alarm sound on expiration [\#125](https://github.com/NeonGeckoCom/skill-alerts/issues/125)
+- transcribed: "Set a timer for five minutes." evokes: Speak: "I'm sorry, I don't understand." [\#132](https://github.com/NeonGeckoCom/skill-alerts/issues/132)
+- \[BUG\] No module named 'mycroft\_bus\_client' [\#131](https://github.com/NeonGeckoCom/skill-alerts/issues/131)
+- \[BUG\] RuntimeError: dictionary changed size during iteratio [\#130](https://github.com/NeonGeckoCom/skill-alerts/issues/130)
 
 **Merged pull requests:**
 
-- Refactor resource resolution to resolve default sound errors [\#126](https://github.com/NeonGeckoCom/skill-alerts/pull/126) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [1.5.2a4](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a4) (2023-06-26)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a3...1.5.2a4)
-
-**Merged pull requests:**
-
-- Update event handling [\#124](https://github.com/NeonGeckoCom/skill-alerts/pull/124) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [1.5.2a3](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a3) (2023-06-20)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a2...1.5.2a3)
-
-**Merged pull requests:**
-
-- Reafctor skill init/initialize [\#123](https://github.com/NeonGeckoCom/skill-alerts/pull/123) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [1.5.2a2](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a2) (2023-06-15)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.2a1...1.5.2a2)
-
-**Merged pull requests:**
-
-- Update for best practices [\#121](https://github.com/NeonGeckoCom/skill-alerts/pull/121) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [1.5.2a1](https://github.com/NeonGeckoCom/skill-alerts/tree/1.5.2a1) (2023-06-12)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/1.5.1...1.5.2a1)
-
-**Merged pull requests:**
-
-- Refactor mycroft-messagebus-client to ovos-bus-client [\#120](https://github.com/NeonGeckoCom/skill-alerts/pull/120) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update tests to latest automation/shared classes [\#135](https://github.com/NeonGeckoCom/skill-alerts/pull/135) ([NeonDaniel](https://github.com/NeonDaniel))
 
 
 

@@ -89,6 +89,7 @@ setup(
     url=f'https://github.com/NeonGeckoCom/{SKILL_NAME}',
     license='BSD-3-Clause',
     install_requires=get_requirements("requirements.txt"),
+    extras_require={"test": get_requirements("requirements/test.txt")},
     author='Neongecko',
     author_email='developers@neon.ai',
     long_description=long_description,
