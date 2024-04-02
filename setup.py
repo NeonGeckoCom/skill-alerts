@@ -32,7 +32,7 @@ from os import getenv, path, walk
 SKILL_NAME = "skill-alerts"
 SKILL_PKG = SKILL_NAME.replace('-', '_')
 # skill_id=package_name:SkillClass
-PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.neongeckocom={SKILL_PKG}.skill_alerts:AlertSkill'
+PLUGIN_ENTRY_POINT = f'{SKILL_NAME}.neongeckocom={SKILL_PKG}:AlertSkill'
 BASE_PATH = path.abspath(path.dirname(__file__))
 
 
