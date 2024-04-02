@@ -1050,7 +1050,7 @@ class AlertSkill(NeonSkill):
                 AlertState.ACTIVE and time.time() < timeout:
             if message.context.get("klat_data"):
                 log_deprecation("`klat.response` emit will be removed. Listen "
-                                "for `neon.alert_expired", "3.0.0")
+                                "for `neon.alert_expired", "4.0.0")
                 self.send_with_audio(self.dialog_renderer.render(
                     "expired_alert", {'name': alert.alert_name}),
                     to_play, message, private=True)
