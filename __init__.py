@@ -39,7 +39,6 @@ from ovos_utils.file_utils import resolve_resource_file
 from ovos_utils.process_utils import RuntimeRequirements
 from ovos_utils.log import LOG, log_deprecation
 from ovos_utils.sound import play_audio
-from adapt.intent import IntentBuilder
 from lingua_franca.format import nice_duration, nice_time, nice_date_time
 from lingua_franca.parse import extract_duration, extract_datetime
 from lingua_franca.time import default_timezone
@@ -48,6 +47,7 @@ from neon_utils.message_utils import request_from_mobile, dig_for_message
 from neon_utils.skills.neon_skill import NeonSkill
 from neon_utils.user_utils import get_user_prefs, get_message_user
 from ovos_workshop.decorators import intent_handler
+from ovos_workshop.intents import IntentBuilder
 
 from skill_alerts.util import Weekdays, AlertState, MatchLevel, AlertPriority, WEEKDAYS, WEEKENDS, EVERYDAY
 from skill_alerts.util.alert import Alert, AlertType
