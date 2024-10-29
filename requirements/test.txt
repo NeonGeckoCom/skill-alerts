@@ -1,1 +1,3 @@
 neon-minerva[padatious]~=0.2
+mock
+pytest

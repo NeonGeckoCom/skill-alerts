@@ -24,7 +24,6 @@ import time
 import lingua_franca
 import pytest
 import random
-import sys
 import shutil
 import unittest
 import datetime as dt
@@ -2297,6 +2296,24 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(rotate_logs_reminder.repeat_frequency,
                          dt.timedelta(hours=8))
 
+    def test_wake_me_intent(self):
+        from skill_alerts.util.parse_utils import build_alert_from_intent
+        sea_tz = gettz("America/Los_Angeles")
+        wake_me_up = _get_message_from_file("wake_me_up_at_time_alarm.json")
+        wake_me_in = _get_message_from_file("wake_me_up_in_time_alarm.json")
+
+        wake_me_up_alert = build_alert_from_intent(wake_me_up, AlertType.ALARM,
+                                                   sea_tz)
+        wake_me_in_alert = build_alert_from_intent(wake_me_in, AlertType.ALARM,
+                                                   sea_tz)
+
+        self.assertEqual(wake_me_up_alert.alert_name, "7:00 AM alarm")
+        self.assertEqual(wake_me_in_alert.alert_name, "in 8 hours alarm")
+        self.assertEqual(wake_me_up_alert.next_expiration.time(),
+                         dt.time(hour=7))
+        self.assertAlmostEqual(wake_me_in_alert.next_expiration.timestamp(),
+                               (dt.datetime.now(sea_tz) +
+                                dt.timedelta(hours=8)).timestamp(), delta=2)
 
 class TestUIModels(unittest.TestCase):
     lingua_franca.load_language('en')
@@ -2385,7 +2402,6 @@ class TestUIModels(unittest.TestCase):
         self.assertFalse(metric_display['alarmExpired'])
         self.assertEqual(metric_display['alarmIndex'],
                          get_alert_id(metric_alarm))
-
 
 if __name__ == '__main__':
     pytest.main()
