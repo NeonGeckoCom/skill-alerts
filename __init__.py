@@ -1,6 +1,6 @@
 # NEON AI (TM) SOFTWARE, Software Development Kit & Application Framework
 # All trademark and other rights reserved by their respective owners
-# Copyright 2008-2022 Neongecko.com Inc.
+# Copyright 2008-2024 Neongecko.com Inc.
 # Contributors: Daniel McKnight, Guy Daniels, Elon Gasper, Richard Leeds,
 # Regina Bloomstine, Casimiro Ferreira, Andrii Pernatii, Kirill Hrymailo
 # BSD-3 License
@@ -218,6 +218,7 @@ class AlertSkill(NeonSkill):
         self._update_homescreen(True, True)
 
     # Intent Handlers
+    @intent_handler("wake_me.intent")
     @intent_handler(IntentBuilder("CreateAlarm").require("set")
                     .require("alarm").optionally("playable")
                     .optionally("weekdays").optionally("weekends")

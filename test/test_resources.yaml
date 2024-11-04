@@ -85,6 +85,7 @@ intents:
     - list_alerts.intent
     - quiet_hours_start.intent
     - quiet_hours_end.intent
+    - wake_me.intent
 
   adapt:
     - 'CreateAlarm'

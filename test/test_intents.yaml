@@ -119,6 +119,13 @@ en-us:
     - do i have any upcoming events
     - list my alarms
     - what are the reminders
+  wake_me.intent:
+    - wake me up at {time}
+    - wake me up in {time}
+    - wake me at {time}
+    - wake me in {time}
+    - wake me at 8 am
+      - time: 8 am
   TimerStatus:
     - how much time is left
     - how long on that timer
