@@ -124,6 +124,8 @@ en-us:
     - wake me up in {time}
     - wake me at {time}
     - wake me in {time}
+    - wake me at 8 am
+      - time: 8 am
   TimerStatus:
     - how much time is left
     - how long on that timer
