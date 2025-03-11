@@ -1173,7 +1173,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             os.remove(test_file)
-        scheduler = EventSchedulerInterface("test", bus=self.bus)
+        scheduler = EventSchedulerInterface(bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         return alert_manager
 
@@ -1196,7 +1196,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test", bus=self.bus)
+        scheduler = EventSchedulerInterface(bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
         self.assertEqual(alert_manager.missed_alerts, dict())
         self.assertEqual(alert_manager.pending_alerts, dict())
@@ -1324,7 +1324,7 @@ class TestAlertManager(unittest.TestCase):
         test_file = join(self.manager_path, "alerts.json")
         if isfile(test_file):
             remove(test_file)
-        scheduler = EventSchedulerInterface("test", bus=self.bus)
+        scheduler = EventSchedulerInterface(bus=self.bus)
         alert_manager = AlertManager(test_file, scheduler, alert_expired)
 
         now_time = dt.datetime.now(dt.timezone.utc)
