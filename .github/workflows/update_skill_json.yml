@@ -3,6 +3,8 @@
 name: Update skill.json
 on:
   push:
+    branches-ignore:
+      - XLATE_**
 
 jobs:
   update_skill_json:
