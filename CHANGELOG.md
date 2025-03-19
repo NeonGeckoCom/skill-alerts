@@ -1,54 +1,20 @@
 # Changelog
 
-## [2.0.1a5](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a5) (2024-04-02)
+## [3.0.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.1a2) (2025-03-11)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a4...2.0.1a5)
-
-**Merged pull requests:**
-
-- Update log and test requirements to prep release [\#141](https://github.com/NeonGeckoCom/skill-alerts/pull/141) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [2.0.1a4](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a4) (2024-02-22)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a3...2.0.1a4)
-
-**Implemented enhancements:**
-
-- \[FEAT\] Support neon-iris [\#133](https://github.com/NeonGeckoCom/skill-alerts/issues/133)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.1a1...3.0.1a2)
 
 **Merged pull requests:**
 
-- Implement support for remote client alerts [\#136](https://github.com/NeonGeckoCom/skill-alerts/pull/136) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update automation, gitignore, and license notices [\#146](https://github.com/NeonGeckoCom/skill-alerts/pull/146) ([NeonDaniel](https://github.com/NeonDaniel))
 
-## [2.0.1a3](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a3) (2024-02-05)
+## [3.0.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.1a1) (2024-09-17)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a2...2.0.1a3)
-
-**Merged pull requests:**
-
-- Support ovos-utils 0.1 [\#137](https://github.com/NeonGeckoCom/skill-alerts/pull/137) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [2.0.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a2) (2024-01-29)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.1a1...2.0.1a2)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.0...3.0.1a1)
 
 **Merged pull requests:**
 
-- Update to default escalating volume True for alarms to be audible [\#134](https://github.com/NeonGeckoCom/skill-alerts/pull/134) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [2.0.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/2.0.1a1) (2024-01-29)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/2.0.0...2.0.1a1)
-
-**Fixed bugs:**
-
-- transcribed: "Set a timer for five minutes." evokes: Speak: "I'm sorry, I don't understand." [\#132](https://github.com/NeonGeckoCom/skill-alerts/issues/132)
-- \[BUG\] No module named 'mycroft\_bus\_client' [\#131](https://github.com/NeonGeckoCom/skill-alerts/issues/131)
-- \[BUG\] RuntimeError: dictionary changed size during iteratio [\#130](https://github.com/NeonGeckoCom/skill-alerts/issues/130)
-
-**Merged pull requests:**
-
-- Update tests to latest automation/shared classes [\#135](https://github.com/NeonGeckoCom/skill-alerts/pull/135) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update OVOS depdendencies for 0.x compat [\#144](https://github.com/NeonGeckoCom/skill-alerts/pull/144) ([NeonDaniel](https://github.com/NeonDaniel))
 
 
 
