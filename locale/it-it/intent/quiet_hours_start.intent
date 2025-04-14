@@ -1,0 +1,3 @@
+vai a (dormire|nanna|pisolare)(( per| fino) {end_condition}|)
+inzia (il pisolino|la nanna)(( per| fino) {end_condition}|)
+(dormi|stai in silenzio|non disturbare)(( per| fino) {end_condition}|)
