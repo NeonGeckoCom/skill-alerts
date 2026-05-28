@@ -34,9 +34,8 @@ from typing import Optional, List, Union
 from lingua_franca import load_language
 from neon_utils.logger import LOG
 from ovos_bus_client import Message, MessageBusClient
-
-from mycroft.util.format import TimeResolution, nice_duration, nice_time
-from mycroft.util.parse import extract_datetime, extract_duration, normalize
+from lingua_franca.format import nice_time, nice_duration
+from lingua_franca.parse import extract_datetime, extract_duration, normalize
 
 from . import AlertPriority, Weekdays, AlertType
 from .alert import Alert
@@ -98,16 +97,8 @@ def spoken_time_remaining(alert_time: dt.datetime,
     now_time = now_time or dt.datetime.now(dt.timezone.utc)
     remaining_time: dt.timedelta = alert_time - now_time
 
-    if remaining_time > dt.timedelta(weeks=1):
-        resolution = TimeResolution.DAYS
-    elif remaining_time > dt.timedelta(days=1):
-        resolution = TimeResolution.HOURS
-    elif remaining_time > dt.timedelta(hours=1):
-        resolution = TimeResolution.MINUTES
-    else:
-        resolution = TimeResolution.SECONDS
     return nice_duration(remaining_time.total_seconds(),
-                         resolution=resolution, lang=lang)
+                         lang=lang)
 
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
