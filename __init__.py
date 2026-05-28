@@ -1220,7 +1220,7 @@ class AlertSkill(NeonSkill):
         if len(candidates) > 1:
             candidates.sort(key=lambda match: match[0], reverse=True)
 
-        LOG.info(f"Resolved alert: {candidates[0][1]}")
+        LOG.debug(f"Resolved alert: {candidates[0][1]}")
         return candidates[0][1]
 
     # Static parser methods
@@ -1315,18 +1315,16 @@ class AlertSkill(NeonSkill):
         """
         try:
             article_voc = self.find_resource("articles.voc", lang=self.lang)
-            LOG.info(f"Found article vocab file (lang={self.lang}): {article_voc}")
             with open(article_voc) as f:
                 articles = f.read().split('\n')
         except TypeError:
             article_voc = self.find_resource("articles.voc")
-            LOG.info(f"Found article vocab file: {article_voc}")
             with open(article_voc) as f:
                 articles = f.read().split('\n')
         except Exception as e:
             LOG.error(e)
             articles = list()
-        LOG.info(f"Resolved articles: {articles}")
+        LOG.debug(f"Resolved articles: {articles}")
         tokens = tokenize_utterance(message)
         requested_time = parse_alert_time_from_message(
             message, tokens, self._get_user_tz(message))
