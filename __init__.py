@@ -1214,13 +1214,13 @@ class AlertSkill(NeonSkill):
                 candidates.append((MatchLevel.NAME_PARTIAL, alert))
 
         if not candidates:
+            LOG.warning(f"No match found for request: {requested_alert}")
             return None
 
-        if len(candidates) == 1:
-            return candidates[0][1]
+        if len(candidates) > 1:
+            candidates.sort(key=lambda match: match[0], reverse=True)
 
-        # Get the alert with highest match confidence
-        candidates.sort(key=lambda match: match[0], reverse=True)
+        LOG.info(f"Resolved alert: {candidates[0][1]}")
         return candidates[0][1]
 
     # Static parser methods
