@@ -24,7 +24,6 @@ import time
 import lingua_franca
 import pytest
 import random
-import sys
 import shutil
 import unittest
 import datetime as dt
@@ -37,7 +36,10 @@ from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
 from mock.mock import call, patch
 from ovos_bus_client import Message
-from ovos_utils.events import EventSchedulerInterface
+try:
+    from ovos_bus_client.apis.events import EventSchedulerInterface
+except ImportError:
+    from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 from lingua_franca import load_language
 from lingua_franca.format import nice_time
@@ -1556,14 +1558,14 @@ class TestParseUtils(unittest.TestCase):
         self.assertEqual(to_speak, "fifty nine minutes fifty nine seconds")
 
         minutes_alert = now_time + dt.timedelta(hours=23, minutes=59,
-                                                seconds=59)
+                                                seconds=29)
         to_speak = spoken_time_remaining(minutes_alert, now_time)
         self.assertTrue(all([word for word in ("hours", "minutes")
                              if word in to_speak.split()]))
         self.assertNotIn("seconds", to_speak.split())
         self.assertEqual(to_speak, "twenty three hours fifty nine minutes")
 
-        hours_alert = now_time + dt.timedelta(days=6, hours=23, minutes=59,
+        hours_alert = now_time + dt.timedelta(days=6, hours=23, minutes=29,
                                               seconds=59)
         to_speak = spoken_time_remaining(hours_alert, now_time)
         self.assertTrue(all([word for word in ("days", "hours")

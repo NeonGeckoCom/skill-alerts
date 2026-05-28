@@ -1214,13 +1214,13 @@ class AlertSkill(NeonSkill):
                 candidates.append((MatchLevel.NAME_PARTIAL, alert))
 
         if not candidates:
+            LOG.warning(f"No match found for request: {requested_alert}")
             return None
 
-        if len(candidates) == 1:
-            return candidates[0][1]
+        if len(candidates) > 1:
+            candidates.sort(key=lambda match: match[0], reverse=True)
 
-        # Get the alert with highest match confidence
-        candidates.sort(key=lambda match: match[0], reverse=True)
+        LOG.debug(f"Resolved alert: {candidates[0][1]}")
         return candidates[0][1]
 
     # Static parser methods
@@ -1294,6 +1294,18 @@ class AlertSkill(NeonSkill):
             alerts_list = [alert for alert in matched_alerts
                            if alert.alert_type == alert_type]
         return alerts_list, spoken_type
+    
+    def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
+                      lang: Optional[str] = None):
+        upstream = super().find_resource(res_name, res_dirname, lang)
+        if upstream and lang and lang not in upstream:
+            LOG.error(f"Requested lang={lang}, but resolved: {upstream}")
+            path_parts = upstream.split("/")
+            path_parts[-3] = lang
+            resolved = "/".join(path_parts)
+            LOG.info(f"Resolved resource with lang fallback: {resolved}")
+            return resolved
+        return upstream
 
     def _get_requested_alert_name_and_time(self, message) -> \
             Tuple[Optional[str], Optional[datetime]]:
@@ -1312,6 +1324,7 @@ class AlertSkill(NeonSkill):
         except Exception as e:
             LOG.error(e)
             articles = list()
+        LOG.debug(f"Resolved articles: {articles}")
         tokens = tokenize_utterance(message)
         requested_time = parse_alert_time_from_message(
             message, tokens, self._get_user_tz(message))
