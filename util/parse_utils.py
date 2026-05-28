@@ -97,6 +97,18 @@ def spoken_time_remaining(alert_time: dt.datetime,
     now_time = now_time or dt.datetime.now(dt.timezone.utc)
     remaining_time: dt.timedelta = alert_time - now_time
 
+    if remaining_time > dt.timedelta(weeks=1):
+        # Round remaining time to nearest day
+        days = round(remaining_time.total_seconds() / 86400)
+        remaining_time = dt.timedelta(days=days)
+    elif remaining_time > dt.timedelta(days=1):
+        # Round remaining time to nearest hour
+        hours = round(remaining_time.total_seconds() / 3600)
+        remaining_time = dt.timedelta(hours=hours)
+    elif remaining_time > dt.timedelta(hours=1):
+        # Round remaining time to nearest minute
+        minutes = round(remaining_time.total_seconds() / 60)
+        remaining_time = dt.timedelta(minutes=minutes)
     return nice_duration(remaining_time.total_seconds(),
                          lang=lang)
 
