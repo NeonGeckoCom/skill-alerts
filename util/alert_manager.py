@@ -33,10 +33,13 @@ from typing import Optional, List
 from json_database import JsonStorage
 from uuid import uuid4 as uuid
 from ovos_bus_client import Message
+try:
+    from ovos_bus_client.apis.events import EventSchedulerInterface
+except ImportError:
+    from ovos_utils.events import EventSchedulerInterface
 from neon_utils.logger import LOG
 from neon_utils.location_utils import to_system_time
 from combo_lock import NamedLock
-from ovos_utils.events import EventSchedulerInterface
 
 from . import AlertState, AlertType
 from .alert import Alert

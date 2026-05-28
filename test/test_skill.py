@@ -24,7 +24,6 @@ import time
 import lingua_franca
 import pytest
 import random
-import sys
 import shutil
 import unittest
 import datetime as dt
@@ -37,7 +36,10 @@ from lingua_franca.format import nice_date_time, nice_duration
 from mock import Mock
 from mock.mock import call, patch
 from ovos_bus_client import Message
-from ovos_utils.events import EventSchedulerInterface
+try:
+    from ovos_bus_client.apis.events import EventSchedulerInterface
+except ImportError:
+    from ovos_utils.events import EventSchedulerInterface
 from ovos_utils.messagebus import FakeBus
 from lingua_franca import load_language
 from lingua_franca.format import nice_time
