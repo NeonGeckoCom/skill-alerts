@@ -110,7 +110,7 @@ def spoken_time_remaining(alert_time: dt.datetime,
         minutes = round(remaining_time.total_seconds() / 60)
         remaining_time = dt.timedelta(minutes=minutes)
     return nice_duration(remaining_time.total_seconds(),
-                         lang=lang)
+                         lang=lang).strip()
 
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
