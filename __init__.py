@@ -1294,6 +1294,18 @@ class AlertSkill(NeonSkill):
             alerts_list = [alert for alert in matched_alerts
                            if alert.alert_type == alert_type]
         return alerts_list, spoken_type
+    
+    def find_resource(self, res_name: str, res_dirname: Optional[str] = None,
+                      lang: Optional[str] = None):
+        upstream = super().find_resource(res_name, res_dirname, lang)
+        if upstream and lang and lang not in upstream:
+            LOG.error(f"Requested lang={lang}, but resolved: {upstream}")
+            path_parts = upstream.split("/")
+            path_parts[-3] = lang
+            resolved = "/".join(path_parts)
+            LOG.info(f"Resolved resource with lang fallback: {resolved}")
+            return resolved
+        return upstream
 
     def _get_requested_alert_name_and_time(self, message) -> \
             Tuple[Optional[str], Optional[datetime]]:
