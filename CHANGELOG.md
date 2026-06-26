@@ -1,20 +1,28 @@
 # Changelog
 
-## [3.0.1a2](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.1a2) (2025-03-11)
+## [3.0.2a3](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.2a3) (2026-06-25)
 
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.1a1...3.0.1a2)
-
-**Merged pull requests:**
-
-- Update automation, gitignore, and license notices [\#146](https://github.com/NeonGeckoCom/skill-alerts/pull/146) ([NeonDaniel](https://github.com/NeonDaniel))
-
-## [3.0.1a1](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.1a1) (2024-09-17)
-
-[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.0...3.0.1a1)
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.2a2...3.0.2a3)
 
 **Merged pull requests:**
 
-- Update OVOS depdendencies for 0.x compat [\#144](https://github.com/NeonGeckoCom/skill-alerts/pull/144) ([NeonDaniel](https://github.com/NeonDaniel))
+- Update dependency for stable release [\#151](https://github.com/NeonGeckoCom/skill-alerts/pull/151) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [3.0.2a2](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.2a2) (2026-05-28)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.2a1...3.0.2a2)
+
+**Merged pull requests:**
+
+- Update dependency to resolve init error [\#149](https://github.com/NeonGeckoCom/skill-alerts/pull/149) ([NeonDaniel](https://github.com/NeonDaniel))
+
+## [3.0.2a1](https://github.com/NeonGeckoCom/skill-alerts/tree/3.0.2a1) (2025-11-17)
+
+[Full Changelog](https://github.com/NeonGeckoCom/skill-alerts/compare/3.0.1...3.0.2a1)
+
+**Merged pull requests:**
+
+- Ukrainian translation [\#148](https://github.com/NeonGeckoCom/skill-alerts/pull/148) ([NeonDmitry](https://github.com/NeonDmitry))
 
 
 
