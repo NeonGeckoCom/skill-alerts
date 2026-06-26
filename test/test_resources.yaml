@@ -3,6 +3,7 @@
 # Specify languages to be tested
 languages:
   - "en-us"
+  - "uk-ua"
 
 # vocab is lowercase .voc file basenames
 vocab:

@@ -34,9 +34,8 @@ from typing import Optional, List, Union
 from lingua_franca import load_language
 from neon_utils.logger import LOG
 from ovos_bus_client import Message, MessageBusClient
-
-from mycroft.util.format import TimeResolution, nice_duration, nice_time
-from mycroft.util.parse import extract_datetime, extract_duration, normalize
+from lingua_franca.format import nice_time, nice_duration
+from lingua_franca.parse import extract_datetime, extract_duration, normalize
 
 from . import AlertPriority, Weekdays, AlertType
 from .alert import Alert
@@ -99,16 +98,22 @@ def spoken_time_remaining(alert_time: dt.datetime,
     remaining_time: dt.timedelta = alert_time - now_time
 
     if remaining_time > dt.timedelta(weeks=1):
-        resolution = TimeResolution.DAYS
+        # Round remaining time to nearest day
+        days = round(remaining_time.total_seconds() / 86400)
+        remaining_time = dt.timedelta(days=days)
     elif remaining_time > dt.timedelta(days=1):
-        resolution = TimeResolution.HOURS
+        # Round remaining time to nearest hour
+        hours = round(remaining_time.total_seconds() / 3600)
+        remaining_time = dt.timedelta(hours=hours)
     elif remaining_time > dt.timedelta(hours=1):
-        resolution = TimeResolution.MINUTES
-    else:
-        resolution = TimeResolution.SECONDS
-    return nice_duration(remaining_time.total_seconds(),
-                         resolution=resolution, lang=lang)
+        # Round remaining time to nearest minute
+        minutes = round(remaining_time.total_seconds() / 60)
+        remaining_time = dt.timedelta(minutes=minutes)
 
+    # TODO: Patching whitespace issues observed in lingua_franca returns
+    duration = nice_duration(remaining_time.total_seconds(), lang=lang)
+    duration = duration.replace("  ", " ").strip()
+    return duration
 
 def get_default_alert_name(alert_time: dt.datetime, alert_type: AlertType,
                            now_time: Optional[dt.datetime] = None,
