@@ -218,6 +218,7 @@ class AlertSkill(NeonSkill):
         self._update_homescreen(True, True)
 
     # Intent Handlers
+    @intent_handler("wake_me.intent")
     @intent_handler(IntentBuilder("CreateAlarm").require("set")
                     .require("alarm").optionally("playable")
                     .optionally("weekdays").optionally("weekends")
