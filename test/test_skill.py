@@ -2311,7 +2311,11 @@ class TestParseUtils(unittest.TestCase):
                                                    sea_tz)
 
         self.assertEqual(wake_me_up_alert.alert_name, "7:00 AM alarm")
-        self.assertEqual(wake_me_in_alert.alert_name, "in 8 hours alarm")
+        # Alarms are named by clock time, not by duration
+        expected_in_name = nice_time(wake_me_in_alert.next_expiration,
+                                     "en-us", False, False, True)
+        self.assertEqual(wake_me_in_alert.alert_name,
+                         f"{expected_in_name} alarm")
         self.assertEqual(wake_me_up_alert.next_expiration.time(),
                          dt.time(hour=7))
         self.assertAlmostEqual(wake_me_in_alert.next_expiration.timestamp(),

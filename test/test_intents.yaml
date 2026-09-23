@@ -120,12 +120,12 @@ en-us:
     - list my alarms
     - what are the reminders
   wake_me.intent:
-    - wake me up at {time}
-    - wake me up in {time}
-    - wake me at {time}
-    - wake me in {time}
-    - wake me at 8 am
-      - time: 8 am
+    - wake me up at 9
+    - wake me up in 8 hours
+    - wake me at 7
+    - wake me in 45 minutes
+    - wake me up at 8 am:
+        - time: 8 am
   TimerStatus:
     - how much time is left
     - how long on that timer
@@ -197,6 +197,13 @@ uk-ua:
     - чи маю я наступні таймери
     - чи є у мене майбутні нагадування
     - чи є у мене заплановані події
+  wake_me.intent:
+    - розбуди мене о 7
+    - розбуди мене через 8 годин
+    - розбудіть мене о 9
+    - розбуди мене через 45 хвилин
+    - розбуди мене о 8 ранку:
+        - time: 8 ранку
   quiet_hours_start.intent:
     - почати тихий режим
     - ввімкнути тихий режим
